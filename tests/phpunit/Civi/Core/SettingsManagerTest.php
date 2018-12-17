@@ -1,8 +1,6 @@
 <?php
 namespace Civi\Core;
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 class SettingsManagerTest extends \CiviUnitTestCase {
 
   protected $domainDefaults;
@@ -134,8 +132,8 @@ class SettingsManagerTest extends \CiviUnitTestCase {
    */
   protected function createManager() {
     $cache = new \CRM_Utils_Cache_Arraycache(array());
-    $cache->set('defaults:domain', $this->domainDefaults);
-    $cache->set('defaults:contact', $this->contactDefaults);
+    $cache->set('defaults_domain', $this->domainDefaults);
+    $cache->set('defaults_contact', $this->contactDefaults);
     foreach ($this->mandates as $entity => $keyValues) {
       foreach ($keyValues as $k => $v) {
         $GLOBALS['civicrm_setting'][$entity][$k] = $v;

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -56,6 +56,27 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
      */
     $this->is_drupal = TRUE;
     $this->supports_form_extensions = TRUE;
+  }
+
+  /**
+   * @inheritdoc
+   */
+  public function getDefaultFileStorage() {
+    $config = CRM_Core_Config::singleton();
+    $baseURL = CRM_Utils_System::languageNegotiationURL($config->userFrameworkBaseURL, FALSE, TRUE);
+
+    $siteName = $this->parseDrupalSiteNameFromRequest('/files/civicrm');
+    if ($siteName) {
+      $filesURL = $baseURL . "sites/$siteName/files/civicrm/";
+    }
+    else {
+      $filesURL = $baseURL . "sites/default/files/civicrm/";
+    }
+
+    return array(
+      'url' => $filesURL,
+      'path' => CRM_Utils_File::baseFilePath(),
+    );
   }
 
   /**
@@ -100,13 +121,17 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
     // compares $url (which is some unknown/untrusted value from a third-party dev) to the CMS's base url (which is independent of civi's url)
     // to see if the url is within our drupal dir, if it is we are able to treated it as an internal url
     if (strpos($url, $base_url) === 0) {
-      $internal = TRUE;
-      $url = trim(str_replace($base_url, '', $url), '/');
+      $file = trim(str_replace($base_url, '', $url), '/');
+      // CRM-18130: Custom CSS URL not working if aliased or rewritten
+      if (file_exists(DRUPAL_ROOT . $file)) {
+        $url = $file;
+        $internal = TRUE;
+      }
     }
     // Handle relative urls that are within the CiviCRM module directory
     elseif (strpos($url, $base) === 0) {
       $internal = TRUE;
-      $url = $this->appendCoreDirectoryToResourceBase(substr(drupal_get_path('module', 'civicrm'), 0, -6)) . trim(substr($url, strlen($base)), '/');
+      $url = $this->appendCoreDirectoryToResourceBase(dirname(drupal_get_path('module', 'civicrm')) . '/') . trim(substr($url, strlen($base)), '/');
     }
     // Strip query string
     $q = strpos($url, '?');
@@ -147,7 +172,6 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
     $query = NULL,
     $absolute = FALSE,
     $fragment = NULL,
-    $htmlize = TRUE,
     $frontend = FALSE,
     $forceBackend = FALSE
   ) {
@@ -162,7 +186,7 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
 
     $base = $absolute ? $config->userFrameworkBaseURL : $config->useFrameworkRelativeBase;
 
-    $separator = $htmlize ? '&amp;' : '&';
+    $separator = '&';
 
     if (!$config->cleanURL) {
       if (isset($path)) {
@@ -249,7 +273,7 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
           'cms:view user account',
         ))
     ) {
-      return CRM_Utils_System::url('user/' . $uid);
+      return $this->url('user/' . $uid);
     };
   }
 
@@ -264,7 +288,7 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
    * @inheritDoc
    */
   public function logger($message) {
-    if (CRM_Core_Config::singleton()->userFrameworkLogging) {
+    if (CRM_Core_Config::singleton()->userFrameworkLogging && function_exists('watchdog')) {
       watchdog('civicrm', '%message', array('%message' => $message), NULL, WATCHDOG_DEBUG);
     }
   }
@@ -274,13 +298,6 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
    */
   public function clearResourceCache() {
     _drupal_flush_css_js();
-  }
-
-  /**
-   * Append Drupal js to coreResourcesList.
-   */
-  public function appendCoreResources(&$list) {
-    $list[] = 'js/crm.drupal.js';
   }
 
   /**
@@ -391,6 +408,26 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
   /**
    * @inheritDoc
    */
+  public function isUserRegistrationPermitted() {
+    if (!variable_get('user_register', TRUE)) {
+      return FALSE;
+    }
+    return TRUE;
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public function isPasswordUserGenerated() {
+    if (variable_get('user_email_verification', TRUE)) {
+      return FALSE;
+    }
+    return TRUE;
+  }
+
+  /**
+   * @inheritDoc
+   */
   public function updateCategories() {
     // copied this from profile.module. Seems a bit inefficient, but i don't know a better way
     cache_clear_all();
@@ -404,25 +441,25 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
     // return CiviCRM’s xx_YY locale that either matches Drupal’s Chinese locale
     // (for CRM-6281), Drupal’s xx_YY or is retrieved based on Drupal’s xx
     // sometimes for CLI based on order called, this might not be set and/or empty
-    global $language;
+    $language = $this->getCurrentLanguage();
 
     if (empty($language)) {
       return NULL;
     }
 
-    if ($language->language == 'zh-hans') {
+    if ($language == 'zh-hans') {
       return 'zh_CN';
     }
 
-    if ($language->language == 'zh-hant') {
+    if ($language == 'zh-hant') {
       return 'zh_TW';
     }
 
-    if (preg_match('/^.._..$/', $language->language)) {
-      return $language->language;
+    if (preg_match('/^.._..$/', $language)) {
+      return $language;
     }
 
-    return CRM_Core_I18n_PseudoConstant::longForShort(substr($language->language, 0, 2));
+    return CRM_Core_I18n_PseudoConstant::longForShort(substr($language, 0, 2));
   }
 
   /**
@@ -497,6 +534,10 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
   /**
    * Fixme: Why are we overriding the parent function? Seems inconsistent.
    * This version supplies slightly different params to $this->url (not absolute and html encoded) but why?
+   *
+   * @param string $action
+   *
+   * @return string
    */
   public function postURL($action) {
     if (!empty($action)) {
@@ -536,7 +577,15 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
     return user_load($userID);
   }
 
-  public function parseDrupalSiteName($civicrm_root) {
+  /**
+   * Parse the name of the drupal site.
+   *
+   * @param string $civicrm_root
+   *
+   * @return null|string
+   * @deprecated
+   */
+  public function parseDrupalSiteNameFromRoot($civicrm_root) {
     $siteName = NULL;
     if (strpos($civicrm_root,
         DIRECTORY_SEPARATOR . 'sites' . DIRECTORY_SEPARATOR . 'all' . DIRECTORY_SEPARATOR . 'modules'
@@ -557,6 +606,63 @@ abstract class CRM_Utils_System_DrupalBase extends CRM_Utils_System_Base {
       }
     }
     return $siteName;
+  }
+
+  /**
+   * Determine if Drupal multi-site applies to the current request -- and,
+   * specifically, determine the name of the multisite folder.
+   *
+   * @param string $flagFile
+   *   Check if $flagFile exists inside the site dir.
+   * @return null|string
+   *   string, e.g. `bar.example.com` if using multisite.
+   *   NULL if using the default site.
+   */
+  private function parseDrupalSiteNameFromRequest($flagFile = '') {
+    $phpSelf = array_key_exists('PHP_SELF', $_SERVER) ? $_SERVER['PHP_SELF'] : '';
+    $httpHost = array_key_exists('HTTP_HOST', $_SERVER) ? $_SERVER['HTTP_HOST'] : '';
+    if (empty($httpHost)) {
+      $httpHost = parse_url(CIVICRM_UF_BASEURL, PHP_URL_HOST);
+      if (parse_url(CIVICRM_UF_BASEURL, PHP_URL_PORT)) {
+        $httpHost .= ':' . parse_url(CIVICRM_UF_BASEURL, PHP_URL_PORT);
+      }
+    }
+
+    $confdir = $this->cmsRootPath() . '/sites';
+
+    if (file_exists($confdir . "/sites.php")) {
+      include $confdir . "/sites.php";
+    }
+    else {
+      $sites = array();
+    }
+
+    $uri = explode('/', $phpSelf);
+    $server = explode('.', implode('.', array_reverse(explode(':', rtrim($httpHost, '.')))));
+    for ($i = count($uri) - 1; $i > 0; $i--) {
+      for ($j = count($server); $j > 0; $j--) {
+        $dir = implode('.', array_slice($server, -$j)) . implode('.', array_slice($uri, 0, $i));
+        if (file_exists("$confdir/$dir" . $flagFile)) {
+          \Civi::$statics[__CLASS__]['drupalSiteName'] = $dir;
+          return \Civi::$statics[__CLASS__]['drupalSiteName'];
+        }
+        // check for alias
+        if (isset($sites[$dir]) && file_exists("$confdir/{$sites[$dir]}" . $flagFile)) {
+          \Civi::$statics[__CLASS__]['drupalSiteName'] = $sites[$dir];
+          return \Civi::$statics[__CLASS__]['drupalSiteName'];
+        }
+      }
+    }
+  }
+
+  /**
+   * Function to return current language of Drupal
+   *
+   * @return string
+   */
+  public function getCurrentLanguage() {
+    global $language;
+    return (!empty($language->language)) ? $language->language : $language;
   }
 
 }

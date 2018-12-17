@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -194,15 +194,20 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
    *   the default array reference
    */
   public function setDefaultValues() {
-    $defaults = $this->_formValues;
+    // Set ssID for unit tests.
+    if (empty($this->_ssID)) {
+      $this->_ssID = $this->get('ssID');
+    }
+
+    $defaults = array_merge($this->_formValues, array(
+      'privacy_toggle' => 1,
+      'operator' => 'AND',
+    ));
     $this->normalizeDefaultValues($defaults);
 
     if ($this->_context === 'amtg') {
-      $defaults['task'] = CRM_Contact_Task::GROUP_CONTACTS;
+      $defaults['task'] = CRM_Contact_Task::GROUP_ADD;
     }
-
-    $defaults['privacy_toggle'] = 1;
-    $defaults['operator'] = 'AND';
 
     return $defaults;
   }
@@ -309,7 +314,7 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
 
     CRM_Core_BAO_CustomValue::fixCustomFieldValue($this->_formValues);
 
-    $this->_params = CRM_Contact_BAO_Query::convertFormValues($this->_formValues);
+    $this->_params = CRM_Contact_BAO_Query::convertFormValues($this->_formValues, 0, FALSE, NULL, $this->entityReferenceFields);
     $this->_returnProperties = &$this->returnProperties();
     parent::postProcess();
   }
@@ -337,13 +342,14 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
       'contribution_status',
       'contribution_status_id',
       'contribution_source',
-      'membership_type_id',
       'membership_status_id',
       'participant_status_id',
       'contribution_trxn_id',
       'activity_type_id',
       'status_id',
+      'priority_id',
       'activity_subject',
+      'activity_details',
       'contribution_page_id',
       'contribution_product_id',
       'payment_instrument_id',
@@ -351,21 +357,11 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
       'contact_tags',
       'preferred_communication_method',
     );
-    foreach ($specialParams as $element) {
-      $value = CRM_Utils_Array::value($element, $this->_formValues);
-      if ($value) {
-        if (is_array($value)) {
-          if ($element == 'status_id') {
-            unset($this->_formValues[$element]);
-            $element = 'activity_' . $element;
-          }
-          $this->_formValues[$element] = array('IN' => $value);
-        }
-        else {
-          $this->_formValues[$element] = array('LIKE' => "%$value%");
-        }
-      }
-    }
+    $changeNames = array(
+      'status_id' => 'activity_status_id',
+      'priority_id' => 'activity_priority_id',
+    );
+    CRM_Contact_BAO_Query::processSpecialFormValue($this->_formValues, $specialParams, $changeNames);
 
     $taglist = CRM_Utils_Array::value('contact_taglist', $this->_formValues);
 
@@ -374,7 +370,11 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
       foreach ($taglist as $value) {
         if ($value) {
           $value = explode(',', $value);
-          $this->_formValues['contact_tags'] = (array) $value;
+          foreach ($value as $tId) {
+            if (is_numeric($tId)) {
+              $this->_formValues['contact_tags'][] = $tId;
+            }
+          }
         }
       }
     }
@@ -391,39 +391,56 @@ class CRM_Contact_Form_Search_Advanced extends CRM_Contact_Form_Search {
     if (!is_array($defaults)) {
       $defaults = array();
     }
-
+    $this->loadDefaultCountryBasedOnState($defaults);
     if ($this->_ssID && empty($_POST)) {
-      $specialFields = array('contact_type', 'group', 'contact_tags', 'member_membership_type_id', 'member_status_id');
+      $defaults = array_merge($defaults, CRM_Contact_BAO_SavedSearch::getFormValues($this->_ssID));
+    }
 
-      foreach ($defaults as $element => $value) {
-        if (!empty($value) && is_array($value)) {
-          if (in_array($element, $specialFields)) {
-            $element = str_replace('member_membership_type_id', 'membership_type_id', $element);
-            $element = str_replace('member_status_id', 'membership_status_id', $element);
-            $defaults[$element] = array_keys($value);
-          }
-          // As per the OK (Operator as Key) value format, value array may contain key
-          // as an operator so to ensure the default is always set actual value
-          elseif (in_array(key($value), CRM_Core_DAO::acceptedSQLOperators(), TRUE)) {
-            $defaults[$element] = CRM_Utils_Array::value(key($value), $value);
-            if (is_string($defaults[$element])) {
-              $defaults[$element] = str_replace("%", '', $defaults[$element]);
+    /*
+     * CRM-18656 - reverse the normalisation of 'contact_taglist' done in
+     * self::normalizeFormValues(). Remove tagset tags from the default
+     * 'contact_tags' and put them in 'contact_taglist[N]' where N is the
+     * id of the tagset.
+     */
+    if (isset($defaults['contact_tags'])) {
+      foreach ($defaults['contact_tags'] as $key => $tagId) {
+        if (!is_array($tagId)) {
+          $parentId = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_Tag', $tagId, 'parent_id');
+          $element = "contact_taglist[$parentId]";
+          if ($this->elementExists($element)) {
+            // This tag is a tagset
+            unset($defaults['contact_tags'][$key]);
+            if (!isset($defaults[$element])) {
+              $defaults[$element] = array();
             }
-          }
-        }
-        if (substr($element, 0, 7) == 'custom_' &&
-          (substr($element, -5, 5) == '_from' || substr($element, -3, 3) == '_to')
-          ) {
-          // Ensure the _relative field is set if from or to are set to ensure custom date
-          // fields with 'from' or 'to' values are displayed when the are set in the smart group
-          // being loaded. (CRM-17116)
-          if (!isset($defaults[CRM_Contact_BAO_Query::getCustomFieldName($element) . '_relative'])) {
-            $defaults[CRM_Contact_BAO_Query::getCustomFieldName($element) . '_relative'] = 0;
+            $defaults[$element][] = $tagId;
           }
         }
       }
+      if (empty($defaults['contact_tags'])) {
+        unset($defaults['contact_tags']);
+      }
     }
+
     return $defaults;
+  }
+
+  /**
+   * Set the default country for the form.
+   *
+   * For performance reasons country might be removed from the form CRM-18125
+   * but we need to include it in our defaults or the state will not be visible.
+   *
+   * @param array $defaults
+   */
+  public function loadDefaultCountryBasedOnState(&$defaults) {
+    if (!empty($defaults['state_province'])) {
+      $defaults['country'] = CRM_Core_DAO::singleValueQuery(
+        "SELECT country_id FROM civicrm_state_province
+         WHERE id = %1",
+        array(1 => array($defaults['state_province'][0], 'Integer'))
+      );
+    }
   }
 
 }

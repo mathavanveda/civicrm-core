@@ -29,7 +29,7 @@
     <comment>Foreign key to civicrm_contact.id .</comment>
     <add>2.1</add>
     <html>
-       <type>Autocomplete-Select</type>
+       <type>EntityRef</type>
      </html>
   </field>
   <foreignKey>
@@ -116,6 +116,7 @@
     <html>
       <type>Text</type>
     </html>
+    <export>true</export>
   </field>
   <field>
     <name>currency</name>
@@ -129,7 +130,7 @@
       <table>civicrm_currency</table>
       <keyColumn>name</keyColumn>
       <labelColumn>full_name</labelColumn>
-      <nameColumn>numeric_code</nameColumn>
+      <nameColumn>name</nameColumn>
     </pseudoconstant>
     <html>
       <type>Select</type>
@@ -187,6 +188,7 @@
     <html>
      <type>Text</type>
    </html>
+   <export>true</export>
   </field>
   <field>
     <name>start_date</name>
@@ -289,7 +291,10 @@
     <import>true</import>
     <export>false</export>
     <type>int unsigned</type>
-    <comment>Implicit foreign key to civicrm_option_values in the contribution_status option group.</comment>
+    <pseudoconstant>
+      <optionGroupName>pledge_status</optionGroupName>
+    </pseudoconstant>
+    <comment>Implicit foreign key to civicrm_option_values in the pledge_status option group.</comment>
     <add>2.1</add>
   </field>
   <index>

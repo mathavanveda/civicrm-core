@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,17 +27,13 @@
 {include file="CRM/common/openFlashChart.tpl"}
 {* Alerts for critical configuration settings. *}
 {$communityMessages}
-<div class="crm-submit-buttons">
+<div class="crm-submit-buttons crm-dashboard-controls">
 <a href="#" id="crm-dashboard-configure" class="crm-hover-button show-add">
-  <span class="icon ui-icon-wrench"></span> {ts}Configure Your Dashboard{/ts}
+  <i class="crm-i fa-wrench"></i> {ts}Configure Your Dashboard{/ts}
 </a>
 
-<a style="display:none;" href="{crmURL p="civicrm/dashboard" q="reset=1"}" class="button show-done" style="margin-left: 6px;">
-  <span><div class="icon ui-icon-check"></div> {ts}Done{/ts}</span>
-</a>
-
-<a style="float:right;" href="{crmURL p="civicrm/dashboard" q="reset=1&resetCache=1"}" class="crm-hover-button show-refresh" style="margin-left: 6px;">
-  <span class="icon ui-icon-refresh"></span> {ts}Refresh Dashboard Data{/ts}
+<a style="float:right;" href="#" class="crm-hover-button show-refresh" style="margin-left: 6px;">
+  <i class="crm-i fa-refresh"></i> {ts}Refresh Dashboard Data{/ts}
 </a>
 
 </div>
@@ -53,7 +49,7 @@
     </div>
 </div>
 
-<div id="configure-dashlet" class='hiddenElement'></div>
+<div id="configure-dashlet" class='hiddenElement' style="min-height: 20em;"></div>
 <div id="civicrm-dashboard">
   {* You can put anything you like here.  jQuery.dashboard() will remove it. *}
   <noscript>{ts}Javascript must be enabled in your browser in order to use the dashboard features.{/ts}</noscript>
@@ -62,16 +58,17 @@
 {literal}
 <script type="text/javascript">
   CRM.$(function($) {
-    $('#crm-dashboard-configure').click(function() {
-      $.ajax({
-         url: CRM.url('civicrm/dashlet', 'reset=1&snippet=1'),
-         success: function( content ) {
-           $("#civicrm-dashboard, #crm-dashboard-configure, .show-refresh, #empty-message").hide();
-           $('.show-done').show();
-           $("#configure-dashlet").show().html(content).trigger('crmLoad');
-         }
+    $('#crm-dashboard-configure').click(function(e) {
+      e.preventDefault();
+      $(this).hide();
+      if ($("#empty-message").is(':visible')) {
+        $("#empty-message").fadeOut(400);
+      }
+      $("#civicrm-dashboard").fadeOut(400, function() {
+        $(".crm-dashboard-controls").hide();
+        $("#configure-dashlet").fadeIn(400);
       });
-      return false;
+      CRM.loadPage(CRM.url('civicrm/dashlet', 'reset=1'), {target: $("#configure-dashlet")});
     });
   });
 </script>

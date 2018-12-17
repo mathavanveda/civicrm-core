@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -32,10 +32,9 @@
  * @subpackage API_Contact
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class api_v3_AddressTest
+ * @group headless
  */
 class api_v3_AddressTest extends CiviUnitTestCase {
   protected $_apiversion = 3;
@@ -347,6 +346,48 @@ class api_v3_AddressTest extends CiviUnitTestCase {
     ));
     $this->assertEquals(1, $check);
     $this->callAPISuccess('address', 'delete', array('id' => $address1['id']));
+  }
+
+  /**
+   * Test Creating address of same type alreay ind the database
+   * This is legacy API v3 behaviour and not correct behaviour
+   * however we are too far down the path wiwth v3 to fix this
+   * @link https://chat.civicrm.org/civicrm/pl/zcq3jkg69jdt5g4aqze6bbe9pc
+   * @todo vis this in v4 api
+   */
+  public function testCreateDuplicateLocationTypes() {
+    $address1 = $this->callAPISuccess('address', 'create', $this->_params);
+    $address2 = $this->callAPISuccess('address', 'create', array(
+      'location_type_id' => $this->_locationType->id,
+      'street_address' => '1600 Pensilvania Avenue',
+      'city' => 'Washington DC',
+      'is_primary' => 0,
+      'is_billing' => 0,
+      'contact_id' => $this->_contactID,
+    ));
+    $check = $this->callAPISuccess('address', 'getcount', array(
+      'contact_id' => $this->_contactID,
+      'location_type_id' => $this->_locationType->id,
+    ));
+    $this->assertEquals(2, $check);
+    $this->callAPISuccess('address', 'delete', array('id' => $address1['id']));
+    $this->callAPISuccess('address', 'delete', array('id' => $address2['id']));
+  }
+
+  public function testGetWithJoin() {
+    $cid = $this->individualCreate(array(
+      'api.Address.create' => array(
+        'street_address' => __FUNCTION__,
+        'location_type_id' => $this->_locationType->id,
+      ),
+    ));
+    $result = $this->callAPISuccess('address', 'getsingle', array(
+      'check_permissions' => TRUE,
+      'contact_id' => $cid,
+      'street_address' => __FUNCTION__,
+      'return' => 'contact_id.contact_type',
+    ));
+    $this->assertEquals('Individual', $result['contact_id.contact_type']);
   }
 
 }

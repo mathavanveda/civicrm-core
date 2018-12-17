@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -49,17 +49,15 @@ class CRM_PCP_Form_Event extends CRM_Event_Form_ManageEvent {
 
   public function preProcess() {
     parent::preProcess();
+    $this->assign('selectedChild', 'pcp');
   }
 
   /**
    * Set default values for the form.
    *
-   *
-   * @return void
+   * @return array
    */
   public function setDefaultValues() {
-    $defaults = array();
-
     $defaults = array();
     if (isset($this->_id)) {
       $title = CRM_Core_DAO::getFieldValue('CRM_Event_DAO_Event', $this->_id, 'title');
@@ -177,7 +175,6 @@ class CRM_PCP_Form_Event extends CRM_Event_Form_ManageEvent {
   /**
    * Process the form submission.
    *
-   *
    * @return void
    */
   public function postProcess() {
@@ -206,7 +203,7 @@ class CRM_PCP_Form_Event extends CRM_Event_Form_ManageEvent {
     $params['is_approval_needed'] = CRM_Utils_Array::value('is_approval_needed', $params, FALSE);
     $params['is_tellfriend_enabled'] = CRM_Utils_Array::value('is_tellfriend_enabled', $params, FALSE);
 
-    $dao = CRM_PCP_BAO_PCP::add($params);
+    CRM_PCP_BAO_PCPBlock::create($params);
 
     // Update tab "disabled" css class
     $this->ajaxResponse['tabValid'] = !empty($params['is_active']);

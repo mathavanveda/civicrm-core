@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -41,7 +41,7 @@
         <label for="recur-all-entity">{ts 1=$entity_type}Every %1{/ts}</label>
         <div class="description">{ts 1=$entity_type}Change applies to every %1 in the series.{/ts}</div>
       </div>
-      <div class="status help"><div class="icon ui-icon-lightbulb"></div>{ts}Changes to date or time will <em>not</em> be applied to others in the series.{/ts}</div>
+      <div class="status help"><i class="crm-i fa-info-circle"></i> {ts}Changes to date or time will <em>not</em> be applied to others in the series.{/ts}</div>
     </div>
   </script>
 {literal}
@@ -89,10 +89,11 @@
       function updateMode() {
         var mode = $('input[name=recur_mode]:checked', this).val(),
           entityID = parseInt('{/literal}{$entityID}{literal}'),
-          entityTable = '{/literal}{$entityTable}{literal}';
+          entityTable = '{/literal}{$entityTable}{literal}',
+	  priceSet = $('#price_set_id').val();
         if (entityID != "" && mode && mapper.hasOwnProperty(formClass) && entityTable !="") {
           $.getJSON(CRM.url("civicrm/ajax/recurringentity/update-mode",
-              {mode: mode, entityId: entityID, entityTable: entityTable, linkedEntityTable: mapper[formClass]})
+              {mode: mode, entityId: entityID, entityTable: entityTable, linkedEntityTable: mapper[formClass], priceSet: priceSet})
           ).done(function (result) {
               if (result.status != "" && result.status == 'Done') {
                 $form.submit();

@@ -1,7 +1,7 @@
 -- +--------------------------------------------------------------------+
--- | CiviCRM version 4.7                                                |
+-- | CiviCRM version 5                                                  |
 -- +--------------------------------------------------------------------+
--- | Copyright CiviCRM LLC (c) 2004-2015                                |
+-- | Copyright CiviCRM LLC (c) 2004-2019                                |
 -- +--------------------------------------------------------------------+
 -- | This file is a part of CiviCRM.                                    |
 -- |                                                                    |
@@ -64,6 +64,7 @@
       'participant_cancelled' => ts('Events - Registration Cancellation Notice',                 array('escape' => 'sql')),
       'participant_confirm'   => ts('Events - Registration Confirmation Invite',                 array('escape' => 'sql')),
       'participant_expired'   => ts('Events - Pending Registration Expiration Notice',           array('escape' => 'sql')),
+      'participant_transferred'   => ts('Events - Registration Transferred Notice',           array('escape' => 'sql')),
     ),
     'friend' => array(
       'friend' => ts('Tell-a-Friend Email', array('escape' => 'sql')),

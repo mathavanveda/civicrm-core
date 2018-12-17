@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -55,7 +55,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     if ($skipColumnHeader) {
       $this->assign('skipColumnHeader', $skipColumnHeader);
       $this->assign('rowDisplayCount', 3);
-      /* if we had a column header to skip, stash it for later */
+      // If we had a column header to skip, stash it for later.
 
       $this->_columnHeaders = $this->_dataValues[0];
     }
@@ -80,7 +80,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
    * Build the form object.
    */
   public function buildQuickForm() {
-    //to save the current mappings
+    // To save the current mappings.
     if (!$this->get('savedMapping')) {
       $saveDetailsName = ts('Save this field mapping');
       $this->applyFilter('saveMappingName', 'trim');
@@ -89,11 +89,11 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     }
     else {
       $savedMapping = $this->get('savedMapping');
-      //mapping is to be loaded from database
+      // Mapping is to be loaded from database.
 
       list($mappingName, $mappingContactType, $mappingLocation, $mappingPhoneType, $mappingRelation) = CRM_Core_BAO_Mapping::getMappingFields($savedMapping);
 
-      //get loaded Mapping Fields
+      // Get loaded Mapping Fields.
       $mappingName = CRM_Utils_Array::value('1', $mappingName);
       $mappingContactType = CRM_Utils_Array::value('1', $mappingContactType);
       $mappingLocation = CRM_Utils_Array::value('1', $mappingLocation);
@@ -131,7 +131,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     $dataPatterns = $this->get('dataPatterns');
     $hasLocationTypes = $this->get('fieldTypes');
 
-    /* Initialize all field usages to false */
+    // Initialize all field usages to false.
 
     foreach ($mapperKeys as $key) {
       $this->_fieldUsed[$key] = FALSE;
@@ -144,7 +144,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     $js = "<script type='text/javascript'>\n";
     $formName = 'document.forms.' . $this->_name;
 
-    //used to warn for mismatch column count or mismatch mapping
+    // Used to warn for mismatch column count or mismatch mapping.
     $warning = 0;
 
     for ($i = 0; $i < $this->_columnCount; $i++) {
@@ -196,7 +196,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
             $defaults["mapper[$i]"] = array($this->defaultFromData($dataPatterns, $i));
           }
         }
-        //end of load mapping
+        // End of load mapping.
       }
       else {
         $js .= "swapOptions($formName, 'mapper[$i]', 0, 3, 'hs_mapper_" . $i . "_');\n";
@@ -206,7 +206,6 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
             $this->defaultFromHeader($this->_columnHeaders[$i],
               $headerPatterns
             ),
-            //                     $defaultLocationType->id
             0,
           );
         }
@@ -214,7 +213,6 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
           // Otherwise guess the default from the form of the data
           $defaults["mapper[$i]"] = array(
             $this->defaultFromData($dataPatterns, $i),
-            //                     $defaultLocationType->id
             0,
           );
         }
@@ -225,7 +223,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     $js .= "</script>\n";
     $this->assign('initHideBoxes', $js);
 
-    //set warning if mismatch in more than
+    // Set warning if mismatch in more than.
     if (isset($mappingName)) {
       if (($this->_columnCount != count($mappingName))) {
         $warning++;
@@ -341,8 +339,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
         $errors['saveMappingName'] = ts('Name is required to save Import Mapping');
       }
       else {
-        $mappingTypeId = CRM_Core_OptionGroup::getValue('mapping_type', 'Import Activity', 'name');
-        if (CRM_Core_BAO_Mapping::checkMapping($nameField, $mappingTypeId)) {
+        if (CRM_Core_BAO_Mapping::checkMapping($nameField, CRM_Core_PseudoConstant::getKey('CRM_Core_BAO_Mapping', 'mapping_type_id', 'Import Activity'))) {
           $errors['saveMappingName'] = ts('Duplicate Import Mapping Name');
         }
       }
@@ -370,7 +367,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
    */
   public function postProcess() {
     $params = $this->controller->exportValues('MapField');
-    //reload the mapfield if load mapping is pressed
+    // Reload the mapfield if load mapping is pressed.
     if (!empty($params['savedMapping'])) {
       $this->set('savedMapping', $params['savedMapping']);
       $this->controller->resetPage($this->_name);
@@ -378,10 +375,8 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
     }
 
     $fileName = $this->controller->exportValue('DataSource', 'uploadFile');
+    $seperator = $this->controller->exportValue('DataSource', 'fieldSeparator');
     $skipColumnHeader = $this->controller->exportValue('DataSource', 'skipColumnHeader');
-
-    $config = CRM_Core_Config::singleton();
-    $seperator = $config->fieldSeparator;
 
     $mapperKeys = array();
     $mapper = array();
@@ -415,7 +410,7 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
       $this->set('loadMappingId', $params['mappingId']);
     }
 
-    //Updating Mapping Records
+    // Updating Mapping Records.
     if (!empty($params['updateMapping'])) {
 
       $mappingFields = new CRM_Core_DAO_MappingField();
@@ -440,15 +435,12 @@ class CRM_Activity_Import_Form_MapField extends CRM_Import_Form_MapField {
       }
     }
 
-    //Saving Mapping Details and Records
+    // Saving Mapping Details and Records.
     if (!empty($params['saveMapping'])) {
       $mappingParams = array(
         'name' => $params['saveMappingName'],
         'description' => $params['saveMappingDesc'],
-        'mapping_type_id' => CRM_Core_OptionGroup::getValue('mapping_type',
-          'Import Activity',
-          'name'
-        ),
+        'mapping_type_id' => CRM_Core_PseudoConstant::getKey('CRM_Core_BAO_Mapping', 'mapping_type_id', 'Import Activity'),
       );
       $saveMapping = CRM_Core_BAO_Mapping::add($mappingParams);
 

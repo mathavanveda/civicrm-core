@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -76,9 +76,8 @@ class CRM_Core_BAO_LocationType extends CRM_Core_DAO_LocationType {
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
-   *
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     return CRM_Core_DAO::setFieldValue('CRM_Core_DAO_LocationType', $id, 'is_active', $is_active);
@@ -123,17 +122,17 @@ class CRM_Core_BAO_LocationType extends CRM_Core_DAO_LocationType {
    * @return object
    */
   public static function create(&$params) {
-    $params['is_active'] = CRM_Utils_Array::value('is_active', $params, FALSE);
-    $params['is_default'] = CRM_Utils_Array::value('is_default', $params, FALSE);
-    $params['is_reserved'] = CRM_Utils_Array::value('is_reserved', $params, FALSE);
+    if (empty($params['id'])) {
+      $params['is_active'] = CRM_Utils_Array::value('is_active', $params, FALSE);
+      $params['is_default'] = CRM_Utils_Array::value('is_default', $params, FALSE);
+      $params['is_reserved'] = CRM_Utils_Array::value('is_reserved', $params, FALSE);
+    }
 
-    // action is taken depending upon the mode
     $locationType = new CRM_Core_DAO_LocationType();
     $locationType->copyValues($params);
-
-    if ($params['is_default']) {
+    if (!empty($params['is_default'])) {
       $query = "UPDATE civicrm_location_type SET is_default = 0";
-      CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+      CRM_Core_DAO::executeQuery($query);
     }
 
     $locationType->save();

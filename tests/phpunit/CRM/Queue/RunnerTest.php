@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,17 +25,14 @@
  +--------------------------------------------------------------------+
  */
 
-
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Ensure that various queue implementations comply with the interface
+ * @group headless
  */
 class CRM_Queue_RunnerTest extends CiviUnitTestCase {
 
   public function setUp() {
     parent::setUp();
-    require_once 'CRM/Queue/Service.php';
     $this->queueService = CRM_Queue_Service::singleton(TRUE);
     $this->queue = $this->queueService->create(array(
       'type' => 'Sql',

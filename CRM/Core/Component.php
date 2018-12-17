@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,7 +30,7 @@
  * CiviCRM components
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -47,7 +47,7 @@ class CRM_Core_Component {
   /**
    * @param bool $force
    *
-   * @return array|null
+   * @return CRM_Core_Component_Info[]
    */
   private static function &_info($force = FALSE) {
     if (!isset(Civi::$statics[__CLASS__]['info'])|| $force) {
@@ -84,7 +84,7 @@ class CRM_Core_Component {
   /**
    * @param bool $force
    *
-   * @return array
+   * @return CRM_Core_Component_Info[]
    * @throws Exception
    */
   public static function &getComponents($force = FALSE) {
@@ -95,7 +95,11 @@ class CRM_Core_Component {
       $cr->find(FALSE);
       while ($cr->fetch()) {
         $infoClass = $cr->namespace . '_' . self::COMPONENT_INFO_CLASS;
-        require_once str_replace('_', DIRECTORY_SEPARATOR, $infoClass) . '.php';
+        $infoClassFile = str_replace('_', DIRECTORY_SEPARATOR, $infoClass) . '.php';
+        if (!CRM_Utils_File::isIncludable($infoClassFile)) {
+          continue;
+        }
+        require_once $infoClassFile;
         $infoObject = new $infoClass($cr->name, $cr->namespace, $cr->id);
         if ($infoObject->info['name'] !== $cr->name) {
           CRM_Core_Error::fatal("There is a discrepancy between name in component registry and in info file ({$cr->name}).");
@@ -128,14 +132,14 @@ class CRM_Core_Component {
   /**
    * @param bool $force
    *
-   * @return array|null
+   * @return CRM_Core_Component_Info[]
    */
   static public function &getEnabledComponents($force = FALSE) {
     return self::_info($force);
   }
 
   static public function flushEnabledComponents() {
-    self::getEnabledComponents(TRUE);
+    unset(Civi::$statics[__CLASS__]);
   }
 
   /**
@@ -269,13 +273,13 @@ class CRM_Core_Component {
   /**
    * @return array
    */
-  public static function &getQueryFields() {
+  public static function &getQueryFields($checkPermission = TRUE) {
     $info = self::_info();
     $fields = array();
     foreach ($info as $name => $comp) {
       if ($comp->usesSearch()) {
         $bqr = $comp->getBAOQueryObject();
-        $flds = $bqr->getFields();
+        $flds = $bqr->getFields($checkPermission);
         $fields = array_merge($fields, $flds);
       }
     }
@@ -402,21 +406,6 @@ class CRM_Core_Component {
   }
 
   /**
-   * FIXME: This function does not appear to do anything. The is_array() check runs on a bunch of objects and (always?) returns false
-   */
-  public static function &taskList() {
-    $info = self::_info();
-
-    $tasks = array();
-    foreach ($info as $name => $value) {
-      if (is_array($info[$name]) && isset($info[$name]['task'])) {
-        $tasks += $info[$name]['task'];
-      }
-    }
-    return $tasks;
-  }
-
-  /**
    * Handle table dependencies of components.
    *
    * @param array $tables
@@ -436,6 +425,10 @@ class CRM_Core_Component {
 
   /**
    * Get components info from info file.
+   *
+   * @param string $crmFolderDir
+   *
+   * @return array
    */
   public static function getComponentsFromFile($crmFolderDir) {
     $components = array();

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -57,8 +57,8 @@ cv.label
 FROM civicrm_price_field_value cv
 LEFT JOIN civicrm_price_field cf ON cv.price_field_id = cf.id
 LEFT JOIN civicrm_price_set_entity ce ON ce.price_set_id = cf.price_set_id
-WHERE ce.entity_table = 'civicrm_event' AND {$whereClause}
-GROUP BY cv.label";
+WHERE ce.entity_table = 'civicrm_event' AND {$whereClause}";
+
     $dao = CRM_Core_DAO::executeQuery($query);
     $results = array();
     while ($dao->fetch()) {

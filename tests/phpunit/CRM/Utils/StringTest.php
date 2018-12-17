@@ -1,8 +1,8 @@
 <?php
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * Class CRM_Utils_StringTest
+ * @group headless
  */
 class CRM_Utils_StringTest extends CiviUnitTestCase {
 
@@ -86,6 +86,10 @@ class CRM_Utils_StringTest extends CiviUnitTestCase {
     foreach ($cases as $input => $expected) {
       $this->assertEquals($expected, CRM_Utils_String::ellipsify($input, $maxLen));
     }
+    // test utf-8 string, CRM-18997
+    $input = 'Registro de eventos on-line: Taller: "Onboarding - Cómo integrar exitosamente a los nuevos talentos dentro de su organización - Formación práctica."';
+    $maxLen = 128;
+    $this->assertEquals(TRUE, mb_check_encoding(CRM_Utils_String::ellipsify($input, $maxLen), 'UTF-8'));
   }
 
   public function testRandom() {
@@ -159,6 +163,194 @@ class CRM_Utils_StringTest extends CiviUnitTestCase {
   public function testStrToBool($input, $expected) {
     $actual = CRM_Utils_String::strtobool($input);
     $this->assertTrue($expected === $actual);
+  }
+
+  public function startEndCases() {
+    $cases = array();
+    $cases[] = array('startsWith', 'foo', '', TRUE);
+    $cases[] = array('startsWith', 'foo', 'f', TRUE);
+    $cases[] = array('startsWith', 'foo', 'fo', TRUE);
+    $cases[] = array('startsWith', 'foo', 'foo', TRUE);
+    $cases[] = array('startsWith', 'foo', 'fooo', FALSE);
+    $cases[] = array('startsWith', 'foo', 'o', FALSE);
+    $cases[] = array('endsWith', 'foo', 'f', FALSE);
+    $cases[] = array('endsWith', 'foo', '', TRUE);
+    $cases[] = array('endsWith', 'foo', 'o', TRUE);
+    $cases[] = array('endsWith', 'foo', 'oo', TRUE);
+    $cases[] = array('endsWith', 'foo', 'foo', TRUE);
+    $cases[] = array('endsWith', 'foo', 'fooo', FALSE);
+    $cases[] = array('endsWith', 'foo*', '*', TRUE);
+    return $cases;
+  }
+
+  /**
+   * @param string $func
+   *   One of: 'startsWith' or 'endsWith'.
+   * @param $string
+   * @param $fragment
+   * @param $expectedResult
+   * @dataProvider startEndCases
+   */
+  public function testStartEndWith($func, $string, $fragment, $expectedResult) {
+    $actualResult = \CRM_Utils_String::$func($string, $fragment);
+    $this->assertEquals($expectedResult, $actualResult, "Checking $func($string,$fragment)");
+  }
+
+  public function wildcardCases() {
+    $cases = array();
+    $cases[] = array('*', array('foo.bar.1', 'foo.bar.2', 'foo.whiz', 'bang.bang'));
+    $cases[] = array('foo.*', array('foo.bar.1', 'foo.bar.2', 'foo.whiz'));
+    $cases[] = array('foo.bar.*', array('foo.bar.1', 'foo.bar.2'));
+    $cases[] = array(array('foo.bar.*', 'foo.bar.2'), array('foo.bar.1', 'foo.bar.2'));
+    $cases[] = array(array('foo.bar.2', 'foo.w*'), array('foo.bar.2', 'foo.whiz'));
+    return $cases;
+  }
+
+  /**
+   * @param $patterns
+   * @param $expectedResults
+   * @dataProvider wildcardCases
+   */
+  public function testFilterByWildCards($patterns, $expectedResults) {
+    $data = array('foo.bar.1', 'foo.bar.2', 'foo.whiz', 'bang.bang');
+
+    $actualResults = CRM_Utils_String::filterByWildcards($patterns, $data);
+    $this->assertEquals($expectedResults, $actualResults);
+
+    $patterns = (array) $patterns;
+    $patterns[] = 'noise';
+
+    $actualResults = CRM_Utils_String::filterByWildcards($patterns, $data, FALSE);
+    $this->assertEquals($expectedResults, $actualResults);
+
+    $actualResults = CRM_Utils_String::filterByWildcards($patterns, $data, TRUE);
+    $this->assertEquals(array_merge($expectedResults, array('noise')), $actualResults);
+  }
+
+  /**
+   * CRM-20821
+   * CRM-14283
+   *
+   * @param string $imageURL
+   * @param book $forceHttps
+   * @param string $expected
+   *
+   * @dataProvider simplifyURLProvider
+   */
+  public function testSimplifyURL($imageURL, $forceHttps, $expected) {
+    $this->assertEquals(
+      $expected,
+      CRM_Utils_String::simplifyURL($imageURL, $forceHttps)
+    );
+  }
+
+  /**
+   * Used for testNormalizeImageURL above
+   *
+   * @return array
+   */
+  public function simplifyURLProvider() {
+    $config = CRM_Core_Config::singleton();
+    $urlParts = CRM_Utils_String::simpleParseUrl($config->userFrameworkBaseURL);
+    $localDomain = $urlParts['host+port'];
+    if (empty($localDomain)) {
+      throw new \Exception("Failed to determine local base URL");
+    }
+    $externalDomain = 'example.org';
+
+    // Ensure that $externalDomain really is different from $localDomain
+    if ($externalDomain == $localDomain) {
+      $externalDomain = 'example.net';
+    }
+
+    return array(
+      'prototypical example' => array(
+        "https://$localDomain/sites/default/files/coffee-mug.jpg",
+        FALSE,
+        '/sites/default/files/coffee-mug.jpg',
+      ),
+      'external domain with https' => array(
+        "https://$externalDomain/sites/default/files/coffee-mug.jpg",
+        FALSE,
+        "https://$externalDomain/sites/default/files/coffee-mug.jpg",
+      ),
+      'external domain with http forced to https' => array(
+        "http://$externalDomain/sites/default/files/coffee-mug.jpg",
+        TRUE,
+        "https://$externalDomain/sites/default/files/coffee-mug.jpg",
+      ),
+      'external domain with http not forced' => array(
+        "http://$externalDomain/sites/default/files/coffee-mug.jpg",
+        FALSE,
+        "http://$externalDomain/sites/default/files/coffee-mug.jpg",
+      ),
+      'local URL' => array(
+        "/sites/default/files/coffee-mug.jpg",
+        FALSE,
+        "/sites/default/files/coffee-mug.jpg",
+      ),
+      'local URL without a forward slash' => array(
+        "sites/default/files/coffee-mug.jpg",
+        FALSE,
+        "/sites/default/files/coffee-mug.jpg",
+      ),
+      'empty input' => array(
+        '',
+        FALSE,
+        '',
+      ),
+    );
+  }
+
+  /**
+   * @param string $url
+   * @param array $expected
+   *
+   * @dataProvider parseURLProvider
+   */
+  public function testSimpleParseUrl($url, $expected) {
+    $this->assertEquals(
+      $expected,
+      CRM_Utils_String::simpleParseUrl($url)
+    );
+  }
+
+  /**
+   * Used for testSimpleParseUrl above
+   *
+   * @return array
+   */
+  public function parseURLProvider() {
+    return array(
+      "prototypical example" => array(
+        "https://example.com:8000/foo/bar/?id=1#fragment",
+        array(
+          'host+port' => "example.com:8000",
+          'path+query' => "/foo/bar/?id=1",
+        ),
+      ),
+      "default port example" => array(
+        "https://example.com/foo/bar/?id=1#fragment",
+        array(
+          'host+port' => "example.com",
+          'path+query' => "/foo/bar/?id=1",
+        ),
+      ),
+      "empty" => array(
+        "",
+        array(
+          'host+port' => "",
+          'path+query' => "",
+        ),
+      ),
+      "path only" => array(
+        "/foo/bar/image.png",
+        array(
+          'host+port' => "",
+          'path+query' => "/foo/bar/image.png",
+        ),
+      ),
+    );
   }
 
 }

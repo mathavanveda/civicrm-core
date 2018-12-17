@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -66,7 +66,7 @@ class CRM_Activity_BAO_ICalendar {
    */
   public function addAttachment(&$attachments, $contacts) {
     // Check preferences setting
-    if (CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'activity_assignee_notification_ics')) {
+    if (Civi::settings()->get('activity_assignee_notification_ics')) {
       $config = &CRM_Core_Config::singleton();
       $this->icsfile = tempnam($config->customFileUploadDir, 'ics');
       if ($this->icsfile !== FALSE) {
@@ -111,12 +111,11 @@ class CRM_Activity_BAO_ICalendar {
   }
 
   /**
-   * TODO: Is there a better way to do this?
+   * @todo Is there a better way to do this?
    * @return string
    */
   private function getPrimaryEmail() {
-    $session = &CRM_Core_Session::singleton();
-    $uid = $session->get('userID');
+    $uid = CRM_Core_Session::getLoggedInContactID();
     $primary = '';
     $emails = CRM_Core_BAO_Email::allEmails($uid);
     foreach ($emails as $eid => $e) {

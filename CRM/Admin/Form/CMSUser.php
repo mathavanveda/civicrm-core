@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -59,7 +59,31 @@ class CRM_Admin_Form_CMSUser extends CRM_Core_Form {
    * Process the form submission.
    */
   public function postProcess() {
-    CRM_Core_BAO_CMSUser::synchronize();
+    $result = CRM_Utils_System::synchronizeUsers();
+
+    $status = ts('Checked one user record.',
+        array(
+          'count' => $result['contactCount'],
+          'plural' => 'Checked %count user records.',
+        )
+      );
+    if ($result['contactMatching']) {
+      $status .= '<br />' . ts('Found one matching contact record.',
+          array(
+            'count' => $result['contactMatching'],
+            'plural' => 'Found %count matching contact records.',
+          )
+        );
+    }
+
+    $status .= '<br />' . ts('Created one new contact record.',
+        array(
+          'count' => $result['contactCreated'],
+          'plural' => 'Created %count new contact records.',
+        )
+      );
+    CRM_Core_Session::setStatus($status, ts('Synchronize Complete'), 'success');
+    CRM_Core_Session::singleton()->pushUserContext(CRM_Utils_System::url('civicrm/admin', 'reset=1'));
   }
 
 }

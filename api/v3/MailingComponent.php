@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -41,7 +41,7 @@
  *   API result array.
  */
 function civicrm_api3_mailing_component_create($params) {
-  return _civicrm_api3_basic_create(_civicrm_api3_get_BAO(__FUNCTION__), $params);
+  return _civicrm_api3_basic_create(_civicrm_api3_get_BAO(__FUNCTION__), $params, 'MailingComponent');
 }
 
 
@@ -55,6 +55,8 @@ function civicrm_api3_mailing_component_create($params) {
  */
 function _civicrm_api3_mailing_component_create_spec(&$spec) {
   $spec['is_active']['api.default'] = 1;
+  $spec['name']['api.required'] = 1;
+  $spec['component_type']['api.required'] = 1;
 }
 
 /**

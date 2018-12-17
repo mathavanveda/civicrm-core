@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,22 +26,17 @@
  */
 
 /**
- *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * Base class for upload-only import forms (all but Contact import)
+ * Base class for upload-only import forms (all but Contact import).
  */
 abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
 
   /**
    * Set variables up before form is built.
-   *
-   * @return void
    */
   public function preProcess() {
     $this->_id = CRM_Utils_Request::retrieve('id', 'Positive', $this, FALSE);
@@ -57,13 +52,16 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
 
   /**
    * Common form elements.
-   *
-   * @return void
    */
   public function buildQuickForm() {
     $config = CRM_Core_Config::singleton();
 
     $uploadFileSize = CRM_Utils_Number::formatUnitSize($config->maxFileSize . 'm', TRUE);
+
+    //Fetch uploadFileSize from php_ini when $config->maxFileSize is set to "no limit".
+    if (empty($uploadFileSize)) {
+      $uploadFileSize = CRM_Utils_Number::formatUnitSize(ini_get('upload_max_filesize'), TRUE);
+    }
     $uploadSize = round(($uploadFileSize / (1024 * 1024)), 2);
 
     $this->assign('uploadSize', $uploadSize);
@@ -81,12 +79,8 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
 
     $this->add('text', 'fieldSeparator', ts('Import Field Separator'), array('size' => 2), TRUE);
     $this->setDefaults(array('fieldSeparator' => $config->fieldSeparator));
+    $mappingArray = CRM_Core_BAO_Mapping::getCreateMappingValues('Import ' . static::IMPORT_ENTITY);
 
-    //get the saved mapping details
-    $mappingArray = CRM_Core_BAO_Mapping::getMappings(CRM_Core_OptionGroup::getValue('mapping_type',
-      'Import ' . static::IMPORT_ENTITY,
-      'name'
-    ));
     $this->assign('savedMapping', $mappingArray);
     $this->add('select', 'savedMapping', ts('Mapping Option'), array('' => ts('- select -')) + $mappingArray);
 
@@ -114,7 +108,7 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
   }
 
   /**
-   * A long-winded way to add one radio element to the form
+   * A long-winded way to add one radio element to the form.
    */
   protected function addContactTypeSelector() {
     //contact types option
@@ -145,6 +139,8 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
   }
 
   /**
+   * Store form values.
+   *
    * @param array $names
    */
   protected function storeFormValues($names) {
@@ -154,11 +150,14 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
   }
 
   /**
-   * Common form postProcess
+   * Common form postProcess.
    *
    * @param string $parserClassName
+   *
+   * @param string|null $entity
+   *   Entity to set for paraser currently only for custom import
    */
-  protected function submitFileForMapping($parserClassName) {
+  protected function submitFileForMapping($parserClassName, $entity = NULL) {
     $this->controller->resetPage('MapField');
 
     $fileName = $this->controller->exportValue($this->_name, 'uploadFile');
@@ -172,6 +171,9 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
     $mapper = array();
 
     $parser = new $parserClassName($mapper);
+    if ($entity) {
+      $parser->setEntity($this->get($entity));
+    }
     $parser->setMaxLinesToProcess(100);
     $parser->run($fileName,
       $separator,
@@ -186,7 +188,7 @@ abstract class CRM_Import_Form_DataSource extends CRM_Core_Form {
   }
 
   /**
-   * Return a descriptive name for the page, used in wizard header
+   * Return a descriptive name for the page, used in wizard header.
    *
    * @return string
    */

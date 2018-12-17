@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Admin_Form_WordReplacements extends CRM_Core_Form {
   protected $_numStrings = 10;
@@ -127,8 +127,8 @@ class CRM_Admin_Form_WordReplacements extends CRM_Core_Form {
     }
     foreach ($soInstances as $instance) {
       $this->addElement('checkbox', "enabled[$instance]");
-      $this->add('textarea', "old[$instance]", NULL, array('rows' => 1, 'cols' => 40));
-      $this->add('textarea', "new[$instance]", NULL, array('rows' => 1, 'cols' => 40));
+      $this->add('text', "old[$instance]", NULL);
+      $this->add('text', "new[$instance]", NULL);
       $this->addElement('checkbox', "cb[$instance]");
     }
     $this->assign('numStrings', $this->_numStrings);
@@ -226,7 +226,8 @@ class CRM_Admin_Form_WordReplacements extends CRM_Core_Form {
     CRM_Core_BAO_WordReplacement::setLocaleCustomStrings($config->lcMessages, $overrides);
 
     // This controller was originally written to CRUD $config->locale_custom_strings,
-    // but that's no longer the canonical store. Sync changes to canonical store.
+    // but that's no longer the canonical store. Sync changes to canonical store
+    // (civicrm_word_replacement table in the database).
     // This is inefficient - at some point, we should rewrite this UI.
     CRM_Core_BAO_WordReplacement::rebuildWordReplacementTable();
 

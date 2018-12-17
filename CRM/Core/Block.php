@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -396,10 +396,10 @@ class CRM_Core_Block {
         ));
       }
 
-      if (CRM_Core_Permission::check('administer CiviCRM')) {
+      if (CRM_Core_Permission::check('manage tags')) {
         $shortCuts = array_merge($shortCuts, array(
           array(
-            'path' => 'civicrm/admin/tag',
+            'path' => 'civicrm/tag',
             'query' => 'reset=1&action=add',
             'ref' => 'new-tag',
             'title' => ts('Tag'),
@@ -417,13 +417,18 @@ class CRM_Core_Block {
       $values[$key] = self::setShortCutValues($short);
     }
 
-    // call links hook to add user defined links
+    // Deprecated hook with typo.  Please don't use this!
     CRM_Utils_Hook::links('create.new.shorcuts',
       NULL,
       CRM_Core_DAO::$_nullObject,
-      $values,
+      $values
+    );
+
+    // Hook that enables extensions to add user-defined links
+    CRM_Utils_Hook::links('create.new.shortcuts',
+      NULL,
       CRM_Core_DAO::$_nullObject,
-      CRM_Core_DAO::$_nullObject
+      $values
     );
 
     foreach ($values as $key => $val) {

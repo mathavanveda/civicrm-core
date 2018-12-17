@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,16 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  *  Access Control List
  */
 class CRM_ACL_BAO_ACL extends CRM_ACL_DAO_ACL {
+  /**
+   * @var string
+   */
   static $_entityTable = NULL;
   static $_objectTable = NULL;
   static $_operation = NULL;
@@ -123,8 +126,7 @@ class CRM_ACL_BAO_ACL extends CRM_ACL_DAO_ACL {
       'GroupContact' => CRM_Contact_DAO_GroupContact::getTableName(),
     );
 
-    $session = CRM_Core_Session::singleton();
-    $contact_id = $session->get('userID');
+    $contact_id = CRM_Core_Session::getLoggedInContactID();
 
     $where = " {$t['ACL']}.operation = '" . CRM_Utils_Type::escape($operation, 'String') . "'";
 
@@ -678,8 +680,8 @@ SELECT $acl.*
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     // note this also resets any ACL cache
@@ -775,7 +777,7 @@ SELECT g.*
         $staticGroupIDs = array();
         $cachedGroupIDs = array();
         while ($dao->fetch()) {
-          // currently operation is restrcited to VIEW/EDIT
+          // currently operation is restricted to VIEW/EDIT
           if ($dao->where_clause) {
             if ($dao->select_tables) {
               $tmpTables = array();
@@ -860,6 +862,13 @@ SELECT g.*
     $allGroups = NULL,
     $includedGroups = NULL
   ) {
+    $userCacheKey = "{$contactID}_{$type}_{$tableName}_" . CRM_Core_Config::domainID() . '_' . md5(implode(',', array_merge((array) $allGroups, (array) $includedGroups)));
+    if (empty(Civi::$statics[__CLASS__]['permissioned_groups'])) {
+      Civi::$statics[__CLASS__]['permissioned_groups'] = array();
+    }
+    if (!empty(Civi::$statics[__CLASS__]['permissioned_groups'][$userCacheKey])) {
+      return Civi::$statics[__CLASS__]['permissioned_groups'][$userCacheKey];
+    }
 
     $acls = CRM_ACL_BAO_Cache::build($contactID);
 
@@ -868,10 +877,11 @@ SELECT g.*
       $aclKeys = array_keys($acls);
       $aclKeys = implode(',', $aclKeys);
 
-      $cacheKey = "$tableName-$aclKeys";
+      $cacheKey = CRM_Core_BAO_Cache::cleanKey("$tableName-$aclKeys");
       $cache = CRM_Utils_Cache::singleton();
       $ids = $cache->get($cacheKey);
       if (!$ids) {
+        $ids = array();
         $query = "
 SELECT   a.operation, a.object_id
   FROM   civicrm_acl_cache c, civicrm_acl a
@@ -910,9 +920,25 @@ ORDER BY a.object_id
     ) {
       $ids = $includedGroups;
     }
+    if ($contactID) {
+      $groupWhere = '';
+      if (!empty($allGroups)) {
+        $groupWhere = " AND id IN (" . implode(',', array_keys($allGroups)) . ")";
+      }
+      // Contacts create hidden groups from search results. They should be able to retrieve their own.
+      $ownHiddenGroupsList = CRM_Core_DAO::singleValueQuery("
+        SELECT GROUP_CONCAT(id) FROM civicrm_group WHERE is_hidden =1 AND created_id = $contactID
+        $groupWhere
+      ");
+      if ($ownHiddenGroupsList) {
+        $ownHiddenGroups = explode(',', $ownHiddenGroupsList);
+        $ids = array_merge((array) $ids, $ownHiddenGroups);
+      }
+
+    }
 
     CRM_Utils_Hook::aclGroup($type, $contactID, $tableName, $allGroups, $ids);
-
+    Civi::$statics[__CLASS__]['permissioned_groups'][$userCacheKey] = $ids;
     return $ids;
   }
 

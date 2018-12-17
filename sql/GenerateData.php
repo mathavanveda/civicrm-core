@@ -1,9 +1,9 @@
 <?php
 /**
  * +--------------------------------------------------------------------+
- * | CiviCRM version 4.7                                                |
+ * | CiviCRM version 5                                                  |
  * +--------------------------------------------------------------------+
- * | Copyright CiviCRM LLC (c) 2004-2015                                |
+ * | Copyright CiviCRM LLC (c) 2004-2019                                |
  * +--------------------------------------------------------------------+
  * | This file is a part of CiviCRM.                                    |
  * |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -267,7 +267,11 @@ class CRM_GCD {
    */
 
   /**
-   * get a randomly generated string
+   * Get a randomly generated string.
+   *
+   * @param int $size
+   *
+   * @return string
    */
   private function randomString($size = 32) {
     $string = "";
@@ -370,7 +374,7 @@ class CRM_GCD {
 
     // number of seconds per year
     $numSecond = 31536000;
-    $dateFormat = "Ymdhis";
+    $dateFormat = "YmdHis";
     $today = time();
 
     // both are defined
@@ -426,7 +430,7 @@ class CRM_GCD {
   private function _insert(&$dao) {
     if (self::ADD_TO_DB) {
       if (!$dao->insert()) {
-        echo "ERROR INSERT: " . mysql_error() . "\n";
+        echo "ERROR INSERT: " . mysqli_error($dao->getConnection()->connection) . "\n";
         print_r($dao);
         exit(1);
       }
@@ -440,7 +444,7 @@ class CRM_GCD {
   private function _update(&$dao) {
     if (self::ADD_TO_DB) {
       if (!$dao->update()) {
-        echo "ERROR UPDATE: " . mysql_error() . "\n";
+        echo "ERROR UPDATE: " . mysqli_error($dao->getConnection()->connection) . "\n";
         print_r($dao);
         exit(1);
       }
@@ -1195,7 +1199,7 @@ class CRM_GCD {
     $contactDAO->find();
 
     $count = 0;
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     while ($contactDAO->fetch()) {
       if ($count++ > 2) {
         break;
@@ -1314,7 +1318,7 @@ class CRM_GCD {
   private function addMembership() {
     $contact = new CRM_Contact_DAO_Contact();
     $contact->query("SELECT id FROM civicrm_contact where contact_type = 'Individual'");
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     while ($contact->fetch()) {
       $contacts[] = $contact->id;
     }
@@ -1511,9 +1515,9 @@ VALUES
     $event = "INSERT INTO civicrm_event
         ( title, summary, description, event_type_id, participant_listing_id, is_public, start_date, end_date, is_online_registration, registration_link_text, max_participants, event_full_text, is_monetary, financial_type_id, is_map, is_active, fee_label, is_show_location, loc_block_id,intro_text, footer_text, confirm_title, confirm_text, confirm_footer_text, is_email_confirm, confirm_email_text, confirm_from_name, confirm_from_email, cc_confirm, bcc_confirm, default_fee_id, thankyou_title, thankyou_text, thankyou_footer_text, is_pay_later, pay_later_text, pay_later_receipt, is_multiple_registrations, allow_same_participant_emails, currency )
         VALUES
-        ( 'Fall Fundraiser Dinner', 'Kick up your heels at our Fall Fundraiser Dinner/Dance at Glen Echo Park! Come by yourself or bring a partner, friend or the entire family!', 'This event benefits our teen programs. Admission includes a full 3 course meal and wine or soft drinks. Grab your dancing shoes, bring the kids and come join the party!', 3, 1, 1, '" . date('Y-m-d 17:00:00', strtotime("+6 months")) . "', '" . date('Y-m-d 17:00:00', strtotime("+6 months +2 days")) . "', 1, 'Register Now', 100, 'Sorry! The Fall Fundraiser Dinner is full. Please call Jane at 204 222-1000 ext 33 if you want to be added to the waiting list.', 1, 4, 1, 1, 'Dinner Contribution', 1 ,$eventLok1,'Fill in the information below to join as at this wonderful dinner event.', NULL, 'Confirm Your Registration Information', 'Review the information below carefully.', NULL, 1, 'Contact the Development Department if you need to make any changes to your registration.', 'Fundraising Dept.', 'development@example.org', NULL, NULL, NULL, 'Thanks for Registering!', '<p>Thank you for your support. Your contribution will help us build even better tools.</p><p>Please tell your friends and colleagues about this wonderful event.</p>', '<p><a href=http://civicrm.org>Back to CiviCRM Home Page</a></p>', 1, 'I will send payment by check', 'Send a check payable to Our Organization within 3 business days to hold your reservation. Checks should be sent to: 100 Main St., Suite 3, San Francisco CA 94110', 1, 0, 'USD' ),
-        ( 'Summer Solstice Festival Day Concert', 'Festival Day is coming! Join us and help support your parks.', 'We will gather at noon, learn a song all together,  and then join in a joyous procession to the pavilion. We will be one of many groups performing at this wonderful concert which benefits our city parks.', 5, 1, 1, '" . date('Y-m-d 12:00:00', strtotime("-1 day")) . "', '" . date('Y-m-d 17:00:00', strtotime("-1 day")) . "', 1, 'Register Now', 50, 'We have all the singers we can handle. Come to the pavilion anyway and join in from the audience.', 1, 2, NULL, 1, 'Festival Fee', 1, $eventLok2, 'Complete the form below and click Continue to register online for the festival. Or you can register by calling us at 204 222-1000 ext 22.', '', 'Confirm Your Registration Information', '', '', 1, 'This email confirms your registration. If you have questions or need to change your registration - please do not hesitate to call us.', 'Event Dept.', 'events@example.org', '', NULL, NULL, 'Thanks for Your Joining In!', '<p>Thank you for your support. Your participation will help build new parks.</p><p>Please tell your friends and colleagues about the concert.</p>', '<p><a href=http://civicrm.org>Back to CiviCRM Home Page</a></p>', 0, NULL, NULL, 1, 0, 'USD' ),
-        ( 'Rain-forest Cup Youth Soccer Tournament', 'Sign up your team to participate in this fun tournament which benefits several Rain-forest protection groups in the Amazon basin.', 'This is a FYSA Sanctioned Tournament, which is open to all USSF/FIFA affiliated organizations for boys and girls in age groups: U9-U10 (6v6), U11-U12 (8v8), and U13-U17 (Full Sided).', 3, 1, 1, '" . date('Y-m-d 07:00:00', strtotime("+7 months")) . "', '" . date('Y-m-d 17:00:00', strtotime("+7 months +3 days")) . "', 1, 'Register Now', 500, 'Sorry! All available team slots for this tournament have been filled. Contact Jill Futbol for information about the waiting list and next years event.', 1, 4, NULL, 1, 'Tournament Fees',1, $eventLok3, 'Complete the form below to register your team for this year''s tournament.', '<em>A Soccer Youth Event</em>', 'Review and Confirm Your Registration Information', '', '<em>A Soccer Youth Event</em>', 1, 'Contact our Tournament Director for eligibility details.', 'Tournament Director', 'tournament@example.org', '', NULL, NULL, 'Thanks for Your Support!', '<p>Thank you for your support. Your participation will help save thousands of acres of rainforest.</p>', '<p><a href=http://civicrm.org>Back to CiviCRM Home Page</a></p>', 0, NULL, NULL, 0, 0, 'USD' )
+        ( 'Fall Fundraiser Dinner', 'Kick up your heels at our Fall Fundraiser Dinner/Dance at Glen Echo Park! Come by yourself or bring a partner, friend or the entire family!', 'This event benefits our teen programs. Admission includes a full 3 course meal and wine or soft drinks. Grab your dancing shoes, bring the kids and come join the party!', 3, 1, 1, '" . date('Y-m-d 17:00:00', strtotime("+6 months")) . "', '" . date('Y-m-d 17:00:00', strtotime("+6 months +2 days")) . "', 1, 'Register Now', 100, 'Sorry! The Fall Fundraiser Dinner is full. Please call Jane at 204 222-1000 ext 33 if you want to be added to the waiting list.', 1, 4, 1, 1, 'Dinner Contribution', 1 ,$eventLok1,'Fill in the information below to join as at this wonderful dinner event.', NULL, 'Confirm Your Registration Information', 'Review the information below carefully.', NULL, 1, 'Contact the Development Department if you need to make any changes to your registration.', 'Fundraising Dept.', 'development@example.org', NULL, NULL, NULL, 'Thanks for Registering!', '<p>Thank you for your support. Your contribution will help us build even better tools.</p><p>Please tell your friends and colleagues about this wonderful event.</p>', '<p><a href=https://civicrm.org>Back to CiviCRM Home Page</a></p>', 1, 'I will send payment by check', 'Send a check payable to Our Organization within 3 business days to hold your reservation. Checks should be sent to: 100 Main St., Suite 3, San Francisco CA 94110', 1, 0, 'USD' ),
+        ( 'Summer Solstice Festival Day Concert', 'Festival Day is coming! Join us and help support your parks.', 'We will gather at noon, learn a song all together,  and then join in a joyous procession to the pavilion. We will be one of many groups performing at this wonderful concert which benefits our city parks.', 5, 1, 1, '" . date('Y-m-d 12:00:00', strtotime("-1 day")) . "', '" . date('Y-m-d 17:00:00', strtotime("-1 day")) . "', 1, 'Register Now', 50, 'We have all the singers we can handle. Come to the pavilion anyway and join in from the audience.', 1, 2, NULL, 1, 'Festival Fee', 1, $eventLok2, 'Complete the form below and click Continue to register online for the festival. Or you can register by calling us at 204 222-1000 ext 22.', '', 'Confirm Your Registration Information', '', '', 1, 'This email confirms your registration. If you have questions or need to change your registration - please do not hesitate to call us.', 'Event Dept.', 'events@example.org', '', NULL, NULL, 'Thanks for Your Joining In!', '<p>Thank you for your support. Your participation will help build new parks.</p><p>Please tell your friends and colleagues about the concert.</p>', '<p><a href=https://civicrm.org>Back to CiviCRM Home Page</a></p>', 0, NULL, NULL, 1, 0, 'USD' ),
+        ( 'Rain-forest Cup Youth Soccer Tournament', 'Sign up your team to participate in this fun tournament which benefits several Rain-forest protection groups in the Amazon basin.', 'This is a FYSA Sanctioned Tournament, which is open to all USSF/FIFA affiliated organizations for boys and girls in age groups: U9-U10 (6v6), U11-U12 (8v8), and U13-U17 (Full Sided).', 3, 1, 1, '" . date('Y-m-d 07:00:00', strtotime("+7 months")) . "', '" . date('Y-m-d 17:00:00', strtotime("+7 months +3 days")) . "', 1, 'Register Now', 500, 'Sorry! All available team slots for this tournament have been filled. Contact Jill Futbol for information about the waiting list and next years event.', 1, 4, NULL, 1, 'Tournament Fees',1, $eventLok3, 'Complete the form below to register your team for this year''s tournament.', '<em>A Soccer Youth Event</em>', 'Review and Confirm Your Registration Information', '', '<em>A Soccer Youth Event</em>', 1, 'Contact our Tournament Director for eligibility details.', 'Tournament Director', 'tournament@example.org', '', NULL, NULL, 'Thanks for Your Support!', '<p>Thank you for your support. Your participation will help save thousands of acres of rainforest.</p>', '<p><a href=https://civicrm.org>Back to CiviCRM Home Page</a></p>', 0, NULL, NULL, 0, 0, 'USD' )
          ";
     $this->_query($event);
 
@@ -1689,7 +1693,7 @@ INSERT INTO civicrm_activity_contact
   (contact_id, activity_id, record_type_id)
 VALUES
 ";
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $currentActivityID = CRM_Core_DAO::singleValueQuery("SELECT MAX(id) FROM civicrm_activity");
     $currentActivityID -= 50;
     $sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
@@ -1708,7 +1712,7 @@ VALUES
 INSERT INTO `civicrm_pcp`
     (contact_id, status_id, title, intro_text, page_text, donate_link_text, page_id, page_type, is_thermometer, is_honor_roll, goal_amount, currency, is_active, pcp_block_id, is_notify)
 VALUES
-    ({$this->Individual[3]}, 2, 'My Personal Civi Fundraiser', 'I''m on a mission to get all my friends and family to help support my favorite open-source civic sector CRM.', '<p>Friends and family - please help build much needed infrastructure for the civic sector by supporting my personal campaign!</p>\r\n<p><a href=\"http://civicrm.org\">You can learn more about CiviCRM here</a>.</p>\r\n<p>Then click the <strong>Contribute Now</strong> button to go to our easy-to-use online contribution form.</p>', 'Contribute Now', 1, 'contribute', 1, 1, 5000.00, 'USD', 1, 1, 1);
+    ({$this->Individual[3]}, 2, 'My Personal Civi Fundraiser', 'I''m on a mission to get all my friends and family to help support my favorite open-source civic sector CRM.', '<p>Friends and family - please help build much needed infrastructure for the civic sector by supporting my personal campaign!</p>\r\n<p><a href=\"https://civicrm.org\">You can learn more about CiviCRM here</a>.</p>\r\n<p>Then click the <strong>Contribute Now</strong> button to go to our easy-to-use online contribution form.</p>', 'Contribute Now', 1, 'contribute', 1, 1, 5000.00, 'USD', 1, 1, 1);
 ";
     $this->_query($query);
   }
@@ -1834,35 +1838,34 @@ order by cc.id; ";
     $this->_query($query);
   }
 
-  private function addContributionFinancialItem() {
-
-    $sql = " SELECT cc.id contribution_id, cli.id as line_item_id, cc.contact_id, cc.receive_date, cc.total_amount, cc.currency, cli.label, cli.financial_type_id,  cefa.financial_account_id, cc.payment_instrument_id, cc.check_number, cc.trxn_id
-FROM `civicrm_contribution` cc
-INNER JOIN civicrm_line_item cli ON cli.entity_id = cc.id and cli.entity_table = 'civicrm_contribution'
-INNER JOIN civicrm_entity_financial_account cefa ON cefa.entity_id =  cli.financial_type_id
-WHERE cefa.account_relationship = 1; ";
-    $result = CRM_Core_DAO::executeQuery($sql);
-    $financialAccountId = CRM_Financial_BAO_FinancialTypeAccount::getInstrumentFinancialAccount();
-    $this->addFinancialItem($result, $financialAccountId);
-  }
-
-  private function addParticipantFinancialItem() {
-
-    $sql = " SELECT cpp.contribution_id, cli.id as line_item_id, cp.contact_id, now() as receive_date, cp.fee_amount as total_amount, cp.fee_currency as currency, cli.label, cli.financial_type_id, cefa.financial_account_id, 4 as payment_instrument_id, NULL as check_number, NULL as trxn_id
-FROM `civicrm_participant` cp
-INNER JOIN civicrm_participant_payment cpp ON cpp.participant_id = cp.id
-INNER JOIN civicrm_line_item cli ON cli.entity_id = cp.id and cli.entity_table = 'civicrm_participant'
-INNER JOIN civicrm_entity_financial_account cefa ON cefa.entity_id =  cli.financial_type_id
-WHERE cefa.account_relationship = 1";
-    $result = CRM_Core_DAO::executeQuery($sql);
-    $this->addFinancialItem($result);
+  private function addAccountingEntries() {
+    $components = array('contribution', 'membership', 'participant');
+    $select = 'SELECT contribution.id contribution_id, cli.id as line_item_id, contribution.contact_id, contribution.receive_date, contribution.total_amount, contribution.currency, cli.label,
+      cli.financial_type_id,  cefa.financial_account_id, contribution.payment_instrument_id, contribution.check_number, contribution.trxn_id';
+    $where = 'WHERE cefa.account_relationship = 1';
+    $financialAccountId = CRM_Financial_BAO_FinancialTypeAccount::getInstrumentFinancialAccount(4);
+    foreach ($components as $component) {
+      if ($component == 'contribution') {
+        $from = 'FROM `civicrm_contribution` contribution';
+      }
+      else {
+        $from = " FROM `civicrm_{$component}` {$component}
+          INNER JOIN civicrm_{$component}_payment cpp ON cpp.{$component}_id = {$component}.id
+          INNER JOIN civicrm_contribution contribution on contribution.id = cpp.contribution_id";
+      }
+      $from .= " INNER JOIN civicrm_line_item cli ON cli.entity_id = {$component}.id and cli.entity_table = 'civicrm_{$component}'
+        INNER JOIN civicrm_entity_financial_account cefa ON cefa.entity_id =  cli.financial_type_id ";
+      $sql = " {$select} {$from} {$where} ";
+      $result = CRM_Core_DAO::executeQuery($sql);
+      $this->addFinancialItem($result, $financialAccountId);
+    }
   }
 
   /**
    * @param $result
    * @param null $financialAccountId
    */
-  private function addFinancialItem($result, $financialAccountId = NULL) {
+  private function addFinancialItem($result, $financialAccountId) {
     $defaultFinancialAccount = CRM_Core_DAO::singleValueQuery("SELECT id FROM civicrm_financial_account WHERE is_default = 1");
     while ($result->fetch()) {
       $trxnParams = array(
@@ -1875,6 +1878,7 @@ WHERE cefa.account_relationship = 1";
         'to_financial_account_id' => empty($financialAccountId[$result->payment_instrument_id]) ? $defaultFinancialAccount : $financialAccountId[$result->payment_instrument_id],
         'payment_instrument_id' => $result->payment_instrument_id,
         'check_number' => $result->check_number,
+        'is_payment' => 1,
       );
       $trxn = CRM_Core_BAO_FinancialTrxn::create($trxnParams);
       $financialItem = array(
@@ -1947,7 +1951,7 @@ AND    a.details = 'Membership Payment'
     $sql = "INSERT INTO civicrm_contribution (contact_id, financial_type_id, payment_instrument_id, receive_date, total_amount, currency, receipt_date, source, contribution_status_id)
 SELECT  `contact_id`, $financialTypeID, $paymentInstrumentID, now(), `fee_amount`, 'USD', now(), CONCAT(ce.title, ' : Offline registration'), 1  FROM `civicrm_participant` cp
 LEFT JOIN civicrm_event ce ON ce.id = cp.event_id
-group by `contact_id`;";
+group by `contact_id`, `fee_amount`, `title`;";
 
     $this->_query($sql);
 
@@ -1974,22 +1978,6 @@ AND    a.details = 'Participant Payment'
 
 }
 
-/**
- * @param null $str
- *
- * @return bool
- */
-function user_access($str = NULL) {
-  return TRUE;
-}
-
-/**
- * @return array
- */
-function module_list() {
-  return array();
-}
-
 echo ("Starting data generation on " . date("F dS h:i:s A") . "\n");
 $gcd = new CRM_GCD();
 $gcd->initID();
@@ -2013,9 +2001,8 @@ $gcd->generate('PCP');
 $gcd->generate('SoftContribution');
 $gcd->generate('Pledge');
 $gcd->generate('PledgePayment');
-$gcd->generate('ContributionFinancialItem');
 $gcd->generate('Participant');
 $gcd->generate('ParticipantPayment');
 $gcd->generate('LineItemParticipants');
-$gcd->generate('ParticipantFinancialItem');
+$gcd->generate('AccountingEntries');
 echo ("Ending data generation on " . date("F dS h:i:s A") . "\n");

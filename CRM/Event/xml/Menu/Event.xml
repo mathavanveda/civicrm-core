@@ -138,7 +138,7 @@
   <item>
      <path>civicrm/admin/setting/preferences/event</path>
      <title>CiviEvent Component Settings</title>
-     <page_callback>CRM_Admin_Form_Preferences_Event</page_callback>
+     <page_callback>CRM_Admin_Form_Generic</page_callback>
      <desc>Configure global CiviEvent behaviors.</desc>
      <access_arguments>access CiviEvent,administer CiviCRM</access_arguments>
      <adminGroup>CiviEvent</adminGroup>
@@ -254,6 +254,24 @@
      <access_arguments>access CiviEvent</access_arguments>
      <page_type>1</page_type>
      <weight>850</weight>
+  </item>
+  <item>
+     <path>civicrm/event/selfsvcupdate</path>
+     <title>Self-service Registration Update</title>
+     <is_public>true</is_public>
+     <page_callback>CRM_Event_Form_SelfSvcUpdate</page_callback>
+     <access_callback>1</access_callback>
+     <page_type>1</page_type>
+     <weight>880</weight>
+  </item>
+  <item>
+     <path>civicrm/event/selfsvctransfer</path>
+     <title>Self-service Registration Transfer</title>
+     <is_public>true</is_public>
+     <page_callback>CRM_Event_Form_SelfSvcTransfer</page_callback>
+     <page_type>1</page_type>
+     <access_callback>1</access_callback>
+     <weight>890</weight>
   </item>
   <item>
      <path>civicrm/contact/map/event</path>

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,8 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -55,6 +54,7 @@ class CRM_Pledge_Selector_Search extends CRM_Core_Selector_Base {
 
   /**
    * Properties of contact we're interested in displaying
+   *
    * @var array
    */
   static $_properties = array(
@@ -290,14 +290,12 @@ class CRM_Pledge_Selector_Search extends CRM_Core_Selector_Base {
     $rows = array();
 
     // get all pledge status
-    $pledgeStatuses = CRM_Core_OptionGroup::values('contribution_status',
-      FALSE, FALSE, FALSE, NULL, 'name', FALSE
-    );
+    $pledgeStatuses = CRM_Pledge_BAO_Pledge::buildOptions('status_id');
 
-    //get all campaigns.
+    // get all campaigns.
     $allCampaigns = CRM_Campaign_BAO_Campaign::getCampaigns(NULL, NULL, FALSE, FALSE, FALSE, TRUE);
 
-    //4418 check for view, edit and delete
+    // CRM-4418 check for view, edit and delete
     $permissions = array(CRM_Core_Permission::VIEW);
     if (CRM_Core_Permission::check('edit pledges')) {
       $permissions[] = CRM_Core_Permission::EDIT;
@@ -316,14 +314,16 @@ class CRM_Pledge_Selector_Search extends CRM_Core_Selector_Base {
         }
       }
 
-      //carry campaign on selectors.
+      // carry campaign on selectors.
       $row['campaign'] = CRM_Utils_Array::value($result->pledge_campaign_id, $allCampaigns);
       $row['campaign_id'] = $result->pledge_campaign_id;
 
       // add pledge status name
-      $row['pledge_status_name'] = CRM_Utils_Array::value($row['pledge_status_id'],
-        $pledgeStatuses
-      );
+      if (!empty($row['pledge_status_id'])) {
+        $row['pledge_status_name'] = CRM_Utils_Array::value($row['pledge_status_id'],
+          $pledgeStatuses
+        );
+      }
       // append (test) to status label
       if (!empty($row['pledge_is_test'])) {
         $row['pledge_status'] .= ' (test)';

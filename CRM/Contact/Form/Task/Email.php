@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -96,7 +96,7 @@ class CRM_Contact_Form_Task_Email extends CRM_Contact_Form_Task {
   public function preProcess() {
     // store case id if present
     $this->_caseId = CRM_Utils_Request::retrieve('caseid', 'String', $this, FALSE);
-    $this->_context = CRM_Utils_Request::retrieve('context', 'String', $this);
+    $this->_context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
 
     $cid = CRM_Utils_Request::retrieve('cid', 'String', $this, FALSE);
 
@@ -130,11 +130,6 @@ class CRM_Contact_Form_Task_Email extends CRM_Contact_Form_Task {
 
     if (!$cid && $this->_context != 'standalone') {
       parent::preProcess();
-    }
-
-    //early prevent, CRM-6209
-    if (count($this->_contactIds) > CRM_Contact_Form_Task_EmailCommon::MAX_EMAILS_KILL_SWITCH) {
-      CRM_Core_Error::statusBounce(ts('Please do not use this task to send a lot of emails (greater than %1). We recommend using CiviMail instead.', array(1 => CRM_Contact_Form_Task_EmailCommon::MAX_EMAILS_KILL_SWITCH)));
     }
 
     $this->assign('single', $this->_single);

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -53,8 +53,8 @@ class WebTest_Generic_GeneralClickAroundTest extends CiviSeleniumTestCase {
     $this->select('tag', 'label=Major Donor');
     $this->click('_qf_Basic_refresh');
     $this->waitForElementPresent('search-status');
-    $this->assertText('search-status', "Contact Type IN 'Individual'");
-    $this->assertText('search-status', 'Tagged IN Major Donor');
+    $this->assertText('search-status', "Contact Type In Individual");
+    $this->assertText('search-status', 'Tagged = Major Donor');
 
     // Advanced Search by Tag
     $this->click("css=ul#civicrm-menu li.crm-Search");
@@ -63,7 +63,7 @@ class WebTest_Generic_GeneralClickAroundTest extends CiviSeleniumTestCase {
     $this->select('contact_tags', 'label=Major Donor');
     $this->click('_qf_Advanced_refresh');
     $this->waitForElementPresent('search-status');
-    $this->assertText('search-status', 'Tagged IN Major Donor');
+    $this->assertText('search-status', 'Tagged In Major Donor');
   }
 
   public function testNewIndividual() {
@@ -313,7 +313,7 @@ class WebTest_Generic_GeneralClickAroundTest extends CiviSeleniumTestCase {
 
     // Verify activity types
     $this->assertTextPresent("Meeting");
-    $this->assertTextPresent("Print PDF Letter");
+    $this->assertTextPresent("Print/Merge Document");
     $this->assertTextPresent("Event Registration");
     $this->assertTextPresent("Contribution");
     $this->assertTextPresent("Membership Signup");

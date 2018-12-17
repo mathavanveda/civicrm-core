@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -274,7 +274,7 @@ class CRM_Event_Selector_Search extends CRM_Core_Selector_Base implements CRM_Co
   /**
    * Returns total number of rows for the query.
    *
-   * @param
+   * @param int $action
    *
    * @return int
    *   Total number of rows
@@ -342,6 +342,12 @@ class CRM_Event_Selector_Search extends CRM_Core_Selector_Base implements CRM_Co
         }
       }
 
+      // Skip registration if event_id is NULL
+      if (empty($row['event_id'])) {
+        Civi::log()->warning('Participant record without event ID. You have invalid data in your database!');
+        continue;
+      }
+
       //carry campaign on selectors.
       $row['campaign'] = CRM_Utils_Array::value($result->participant_campaign_id, $allCampaigns);
       $row['campaign_id'] = $result->participant_campaign_id;
@@ -370,6 +376,14 @@ class CRM_Event_Selector_Search extends CRM_Core_Selector_Base implements CRM_Co
           'qs' => 'reset=1&id=%%id%%&cid=%%cid%%&action=add&component=event',
           'title' => ts('Record Payment'),
         );
+        if (CRM_Core_Config::isEnabledBackOfficeCreditCardPayments()) {
+          $links[CRM_Core_Action::BASIC] = array(
+            'name' => ts('Submit Credit Card payment'),
+            'url' => 'civicrm/payment/add',
+            'qs' => 'reset=1&id=%%id%%&cid=%%cid%%&action=add&component=event&mode=live',
+            'title' => ts('Submit Credit Card payment'),
+          );
+        }
       }
 
       if ($statusTypes[$row['participant_status_id']] == 'Pending refund') {
@@ -378,6 +392,20 @@ class CRM_Event_Selector_Search extends CRM_Core_Selector_Base implements CRM_Co
           'url' => 'civicrm/payment',
           'qs' => 'reset=1&id=%%id%%&cid=%%cid%%&action=add&component=event',
           'title' => ts('Record Refund'),
+        );
+      }
+
+      // CRM-20879: Show 'Transfer or Cancel' action only if logged in user
+      //  have 'edit event participants' permission and participant status
+      //  is not Cancelled or Transferred
+      if (in_array(CRM_Core_Permission::EDIT, $permissions) &&
+        !in_array($statusTypes[$row['participant_status_id']], array('Cancelled', 'Transferred'))
+      ) {
+        $links[] = array(
+          'name' => ts('Transfer or Cancel'),
+          'url' => 'civicrm/event/selfsvcupdate',
+          'qs' => 'reset=1&pid=%%id%%&is_backoffice=1&cs=' . CRM_Contact_BAO_Contact_Utils::generateChecksum($result->contact_id, NULL, 'inf'),
+          'title' => ts('Transfer or Cancel'),
         );
       }
 

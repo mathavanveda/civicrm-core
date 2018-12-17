@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_Form_Search_Custom_Group extends CRM_Contact_Form_Search_Custom_Base implements CRM_Contact_Form_Search_Interface {
 
@@ -151,26 +151,6 @@ class CRM_Contact_Form_Search_Custom_Group extends CRM_Contact_Form_Search_Custo
   }
 
   /**
-   * Set search form field defaults here.
-   * @return array
-   */
-  public function setDefaultValues() {
-    $defaults = array('andOr' => '1');
-
-    if (!empty($this->_formValues)) {
-      $defaults['andOr'] = CRM_Utils_Array::value('andOr', $this->_formValues, '1');
-
-      $defaults['includeGroups'] = CRM_Utils_Array::value('includeGroups', $this->_formValues);
-      $defaults['excludeGroups'] = CRM_Utils_Array::value('excludeGroups', $this->_formValues);
-
-      $defaults['includeTags'] = CRM_Utils_Array::value('includeTags', $this->_formValues);
-      $defaults['excludeTags'] = CRM_Utils_Array::value('excludeTags', $this->_formValues);
-    }
-
-    return $defaults;
-  }
-
-  /**
    * @param int $offset
    * @param int $rowcount
    * @param NULL $sort
@@ -194,19 +174,19 @@ class CRM_Contact_Form_Search_Custom_Group extends CRM_Contact_Form_Search_Custo
 
       //distinguish column according to user selection
       if (($this->_includeGroups && !$this->_includeTags)) {
-        unset($this->_columns['Tag Name']);
+        unset($this->_columns[ts('Tag Name')]);
         $selectClause .= ", GROUP_CONCAT(DISTINCT group_names ORDER BY group_names ASC ) as gname";
       }
       elseif ($this->_includeTags && (!$this->_includeGroups)) {
-        unset($this->_columns['Group Name']);
+        unset($this->_columns[ts('Group Name')]);
         $selectClause .= ", GROUP_CONCAT(DISTINCT tag_names  ORDER BY tag_names ASC ) as tname";
       }
       elseif (!empty($this->_includeTags) && !empty($this->_includeGroups)) {
         $selectClause .= ", GROUP_CONCAT(DISTINCT group_names ORDER BY group_names ASC ) as gname , GROUP_CONCAT(DISTINCT tag_names ORDER BY tag_names ASC ) as tname";
       }
       else {
-        unset($this->_columns['Tag Name']);
-        unset($this->_columns['Group Name']);
+        unset($this->_columns[ts('Tag Name')]);
+        unset($this->_columns[ts('Group Name')]);
       }
     }
 
@@ -280,6 +260,12 @@ class CRM_Contact_Form_Search_Custom_Group extends CRM_Contact_Form_Search_Custo
       }
       $includedGroups = implode(',', $allGroups);
 
+      //CRM-15049 - Include child group ids.
+      $childGroupIds = CRM_Contact_BAO_Group::getChildGroupIds($this->_includeGroups);
+      if (count($childGroupIds) > 0) {
+        $this->_includeGroups = array_merge($this->_includeGroups, $childGroupIds);
+      }
+
       if (!empty($this->_includeGroups)) {
         $iGroups = implode(',', $this->_includeGroups);
       }
@@ -294,7 +280,7 @@ class CRM_Contact_Form_Search_Custom_Group extends CRM_Contact_Form_Search_Custo
         $xGroups = 0;
       }
 
-      $sql = "CREATE TEMPORARY TABLE Xg_{$this->_tableName} ( contact_id int primary key) ENGINE=MyISAM";
+      $sql = "CREATE TEMPORARY TABLE Xg_{$this->_tableName} ( contact_id int primary key) ENGINE=InnoDB";
       CRM_Core_DAO::executeQuery($sql);
 
       //used only when exclude group is selected
@@ -332,7 +318,7 @@ WHERE  gcc.group_id = {$ssGroup->id}
 
       $sql = "CREATE TEMPORARY TABLE Ig_{$this->_tableName} ( id int PRIMARY KEY AUTO_INCREMENT,
                                                                    contact_id int,
-                                                                   group_names varchar(64)) ENGINE=MyISAM";
+                                                                   group_names varchar(64)) ENGINE=InnoDB";
 
       CRM_Core_DAO::executeQuery($sql);
 
@@ -434,7 +420,7 @@ WHERE  gcc.group_id = {$ssGroup->id}
         $xTags = 0;
       }
 
-      $sql = "CREATE TEMPORARY TABLE Xt_{$this->_tableName} ( contact_id int primary key) ENGINE=MyISAM";
+      $sql = "CREATE TEMPORARY TABLE Xt_{$this->_tableName} ( contact_id int primary key) ENGINE=InnoDB";
       CRM_Core_DAO::executeQuery($sql);
 
       //used only when exclude tag is selected
@@ -452,7 +438,7 @@ WHERE  gcc.group_id = {$ssGroup->id}
 
       $sql = "CREATE TEMPORARY TABLE It_{$this->_tableName} ( id int PRIMARY KEY AUTO_INCREMENT,
                                                                contact_id int,
-                                                               tag_names varchar(64)) ENGINE=MyISAM";
+                                                               tag_names varchar(64)) ENGINE=InnoDB";
 
       CRM_Core_DAO::executeQuery($sql);
 

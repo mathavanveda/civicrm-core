@@ -1,6 +1,6 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright (C) 2011 Marty Wright                                    |
  | Licensed to CiviCRM under the Academic Free License version 3.0.   |
@@ -31,7 +31,7 @@
 {if $action eq 1 or $action eq 2 or $action eq 8 or $action eq 16384}
   {include file="CRM/Admin/Form/LabelFormats.tpl"}
 {else}
-
+<div class="crm-content-block crm-block">
   {if $rows}
     <div id="ltype">
       {strip}
@@ -53,8 +53,8 @@
               <td class="crm-labelFormat-name">{$row.groupName}</td>
               <td class="crm-labelFormat-order nowrap">{$row.weight}</td>
               <td class="crm-labelFormat-description">{$row.grouping}</td>
-              <td class="crm-labelFormat-is_default">{if $row.is_default eq 1}<img
-                src="{$config->resourceBase}i/check.gif" alt="{ts}Default{/ts}"/>{/if}&nbsp;</td>
+              <td class="crm-labelFormat-is_default">{if $row.is_default eq 1}
+              <img src="{$config->resourceBase}i/check.gif" alt="{ts}Default{/ts}"/>{/if}&nbsp;</td>
               <td class="crm-labelFormat-is_reserved">{if $row.is_reserved eq 1}{ts}Yes{/ts}{else}{ts}No{/ts}{/if}
                 &nbsp;</td>
               <td>{$row.action|replace:'xx':$row.id}</td>
@@ -64,8 +64,7 @@
       {/strip}
 
       <div class="action-link">
-        <a href="{crmURL q="action=add&reset=1"}" id="newLabelFormat" class="button"><span><div
-              class="icon ui-icon-circle-plus"></div>{ts}Add Label Format{/ts}</span></a>
+        {crmButton q="action=add&reset=1" id="newLabelFormat" icon="crm-i fa-plus-circle"}{ts}Add Label Format{/ts}{/crmButton}
       </div>
     </div>
   {else}
@@ -75,4 +74,5 @@
       {ts 1=$crmURL}There are no Label Formats configured. You can<a href='%1'>add one</a>.{/ts}
     </div>
   {/if}
+</div>
 {/if}

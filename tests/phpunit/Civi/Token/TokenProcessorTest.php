@@ -1,8 +1,6 @@
 <?php
 namespace Civi\Token;
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 use Civi\Token\Event\TokenRegisterEvent;
 use Civi\Token\Event\TokenValueEvent;
 use Symfony\Component\EventDispatcher\EventDispatcher;
@@ -58,6 +56,22 @@ class TokenProcessorTest extends \CiviUnitTestCase {
       $this->assertEquals(98, $row->context['omega']);
       $this->assertEquals(__CLASS__, $row->context['controller']);
     }
+  }
+
+  /**
+   * Check that getContextValues() returns the correct data
+   */
+  public function testGetContextValues() {
+    $p = new TokenProcessor($this->dispatcher, array(
+      'controller' => __CLASS__,
+      'omega' => '99',
+    ));
+    $p->addRow()->context('id', 10)->context('omega', '98');
+    $p->addRow()->context('id', 10)->context('contact', (object) ['cid' => 10]);
+    $p->addRow()->context('id', 11)->context('contact', (object) ['cid' => 11]);
+    $this->assertArrayValuesEqual([10, 11], $p->getContextValues('id'));
+    $this->assertArrayValuesEqual(['99', '98'], $p->getContextValues('omega'));
+    $this->assertArrayValuesEqual([10, 11], $p->getContextValues('contact', 'cid'));
   }
 
   /**

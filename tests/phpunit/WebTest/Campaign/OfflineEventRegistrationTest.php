@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -97,6 +97,7 @@ class WebTest_Campaign_OfflineEventRegistrationTest extends CiviSeleniumTestCase
     $this->type("description", "This is a test campaign");
 
     // include groups for the campaign
+    $this->waitForAjaxContent();
     $this->multiselect2("includeGroups", array("$groupName", "Advisory Board"));
 
     // fill the end date for campaign
@@ -153,6 +154,7 @@ class WebTest_Campaign_OfflineEventRegistrationTest extends CiviSeleniumTestCase
     $this->select2("event_id", $eventName);
 
     // Select role
+    $this->waitForAjaxContent();
     $this->multiselect2("role_id", array('Volunteer'));
 
     // Choose Registration Date.
@@ -215,8 +217,8 @@ class WebTest_Campaign_OfflineEventRegistrationTest extends CiviSeleniumTestCase
 
     $this->type('sort_name', $firstName);
     $this->click("_qf_Search_refresh");
-    $this->waitForElementPresent("xpath=//div[@id='participantSearch']");
-    $this->click("xpath=//div[@id='participantSearch']/table/tbody/tr/td[11]/span/a[text()='Edit']");
+    $this->waitForElementPresent("xpath=//table[@class='selector row-highlight']");
+    $this->click("xpath=//table[@class='selector row-highlight']/tbody/tr/td[11]/span/a[text()='Edit']");
     $this->waitForElementPresent("_qf_Participant_cancel-bottom");
     $this->assertTrue($this->isTextPresent("$campaignTitle"));
   }

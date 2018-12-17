@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -73,7 +73,7 @@ class MagicFunctionProvider implements EventSubscriberInterface, ProviderInterfa
   }
 
   /**
-   * {inheritdoc}
+   * @inheritDoc
    * @param array $apiRequest
    * @return array
    */
@@ -86,13 +86,13 @@ class MagicFunctionProvider implements EventSubscriberInterface, ProviderInterfa
       $result = $function($apiRequest);
     }
     elseif ($apiRequest['function'] && !$apiRequest['is_generic']) {
-      $result = isset($extra) ? $function($apiRequest['params'], $extra) : $function($apiRequest['params']);
+      $result = $function($apiRequest['params']);
     }
     return $result;
   }
 
   /**
-   * {inheritdoc}
+   * @inheritDoc
    * @param int $version
    * @return array
    */
@@ -134,7 +134,7 @@ class MagicFunctionProvider implements EventSubscriberInterface, ProviderInterfa
   }
 
   /**
-   * {inheritdoc}
+   * @inheritDoc
    * @param int $version
    * @param string $entity
    * @return array

@@ -221,6 +221,9 @@
     <title>Supplemental Address 3</title>
     <type>varchar</type>
     <length>96</length>
+    <import>true</import>
+    <headerPattern>/(supplemental(\s)?)?address(\s\d+)?/i</headerPattern>
+    <dataPattern>/unit|ap(ar)?t(ment)?\s(\d|\w)+/i</dataPattern>
     <comment>Supplemental Address Information, Line 3</comment>
     <add>1.1</add>
     <html>
@@ -257,7 +260,7 @@
       <labelColumn>name</labelColumn>
     </pseudoconstant>
     <html>
-      <type>Select</type>
+      <type>ChainSelect</type>
     </html>
     <add>1.1</add>
   </field>
@@ -273,7 +276,7 @@
   </foreignKey>
   <field>
     <name>state_province_id</name>
-    <title>State</title>
+    <title>State/Province</title>
     <type>int unsigned</type>
     <comment>Which State_Province does this address belong to.</comment>
     <pseudoconstant>
@@ -281,8 +284,9 @@
       <keyColumn>id</keyColumn>
       <labelColumn>name</labelColumn>
     </pseudoconstant>
+    <localize_context>province</localize_context>
     <html>
-      <type>Select</type>
+      <type>ChainSelect</type>
     </html>
     <add>1.1</add>
   </field>
@@ -317,7 +321,7 @@
     <name>postal_code</name>
     <title>Postal Code</title>
     <type>varchar</type>
-    <length>12</length>
+    <length>64</length>
     <import>true</import>
     <headerPattern>/postal|zip/i</headerPattern>
     <dataPattern>/\d?\d{4}(-\d{4})?/</dataPattern>
@@ -347,6 +351,7 @@
       <labelColumn>name</labelColumn>
       <nameColumn>iso_code</nameColumn>
     </pseudoconstant>
+    <localize_context>country</localize_context>
     <html>
       <type>Select</type>
     </html>

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -131,12 +131,16 @@ class CRM_Contact_Form_Edit_CommunicationPreferences {
 
     $greetings = self::getGreetingFields($self->_contactType);
     foreach ($greetings as $greeting => $details) {
-      $customizedValue = CRM_Core_OptionGroup::getValue($greeting, 'Customized', 'name');
+      $customizedValue = CRM_Core_PseudoConstant::getKey('CRM_Contact_BAO_Contact', $details['field'], 'Customized');
       if (CRM_Utils_Array::value($details['field'], $fields) == $customizedValue && empty($fields[$details['customField']])) {
         $errors[$details['customField']] = ts('Custom  %1 is a required field if %1 is of type Customized.',
           array(1 => $details['label'])
         );
       }
+    }
+
+    if (array_key_exists('preferred_mail_format', $fields) && empty($fields['preferred_mail_format'])) {
+      $errors['preferred_mail_format'] = ts('Please select an email format preferred by this contact.');
     }
     return empty($errors) ? TRUE : $errors;
   }
@@ -162,6 +166,14 @@ class CRM_Contact_Form_Edit_CommunicationPreferences {
 
     if (empty($defaults['communication_style_id'])) {
       $defaults['communication_style_id'] = array_pop(CRM_Core_OptionGroup::values('communication_style', TRUE, NULL, NULL, 'AND is_default = 1'));
+    }
+
+    // CRM-17778 -- set preferred_mail_format to default if unset
+    if (empty($defaults['preferred_mail_format'])) {
+      $defaults['preferred_mail_format'] = 'Both';
+    }
+    else {
+      $defaults['preferred_mail_format'] = array_search($defaults['preferred_mail_format'], CRM_Core_SelectValues::pmf());
     }
 
     //set default from greeting types CRM-4575, CRM-9739

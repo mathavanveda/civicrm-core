@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -78,5 +78,3 @@
 {/if}
 
 {include file="CRM/Mailing/Form/InsertTokens.tpl"}
-
-{include file="CRM/Activity/Form/FollowUp.tpl" type='email-'}

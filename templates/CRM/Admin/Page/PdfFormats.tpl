@@ -1,6 +1,6 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright (C) 2011 Marty Wright                                    |
  | Licensed to CiviCRM under the Academic Free License version 3.0.   |
@@ -32,6 +32,7 @@
     {capture assign="messageTemplatesURL"}{crmURL p="civicrm/admin/messageTemplates" q="reset=1"}{/capture}
     {ts 1=$messageTemplatesURL}You can configure one or more PDF Page Formats for your CiviCRM installation. PDF Page Formats may be assigned to <strong><a href="%1">Message Templates</a></strong> to use when creating PDF letters.{/ts}
   </div>
+<div class="crm-content-block crm-block">
 {if $rows}
     <div id="ltype">
         {strip}
@@ -65,7 +66,8 @@
 {/if}
     <div class="spacer"></div>
     <div class="action-link">
-      {crmButton q="action=add&reset=1" id="newPdfFormat"  icon="circle-plus"}{ts}Add PDF Page Format{/ts}{/crmButton}
-      {crmButton p="civicrm/admin" q="reset=1" class="cancel" icon="close"}{ts}Done{/ts}{/crmButton}
+      {crmButton q="action=add&reset=1" id="newPdfFormat"  icon="plus-circle"}{ts}Add PDF Page Format{/ts}{/crmButton}
+      {crmButton p="civicrm/admin" q="reset=1" class="cancel" icon="times"}{ts}Done{/ts}{/crmButton}
     </div>
 {/if}
+</div>

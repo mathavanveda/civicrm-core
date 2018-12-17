@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -23,6 +23,11 @@
  | GNU Affero General Public License or the licensing of CiviCRM,     |
  | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
  +--------------------------------------------------------------------+
+ */
+
+/**
+ * @package CRM
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -58,7 +63,7 @@ class CRM_Activity_Form_Task_SMS extends CRM_Activity_Form_Task {
    * Build the form object.
    */
   public function buildQuickForm() {
-    //enable form element
+    // Enable form element.
     $this->assign('SMSTask', TRUE);
     CRM_Contact_Form_Task_SMSCommon::buildQuickForm($this);
   }

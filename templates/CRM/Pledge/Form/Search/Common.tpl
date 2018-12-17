@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,10 +25,7 @@
 *}
 
 <tr>
-  <td><label>{ts}Payment Scheduled{/ts}</label></td>
-</tr>
-<tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="pledge_payment_date" from='_low' to='_high'}
+{include file="CRM/Core/DateRange.tpl" fieldName="pledge_payment_date" from='_low' to='_high' label="<label>Payment Scheduled</label>"}
 </tr>
 <tr>
   <td colspan="2">
@@ -48,22 +45,13 @@
   </td>
 </tr>
 <tr>
-  <td><label>{ts}Pledge Made{/ts}</label></td>
+{include file="CRM/Core/DateRange.tpl" fieldName="pledge_create_date" from='_low' to='_high' label="<label>Pledge Made</label>"}
 </tr>
 <tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="pledge_create_date" from='_low' to='_high'}
+{include file="CRM/Core/DateRange.tpl" fieldName="pledge_start_date" from='_low' to='_high' label="<label>Payments Start Date</label>"}
 </tr>
 <tr>
-  <td><label>{ts}Payments Start Date{/ts}</label></td>
-</tr>
-<tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="pledge_start_date" from='_low' to='_high'}
-</tr>
-<tr>
-  <td><label>{ts}Payments Ended Date{/ts}</label></td>
-</tr>
-<tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="pledge_end_date" from='_low' to='_high'}
+{include file="CRM/Core/DateRange.tpl" fieldName="pledge_end_date" from='_low' to='_high' label="<label>Payments Ended Date</label>"}
 </tr>
 <tr>
   <td>
@@ -86,6 +74,21 @@
   {$form.pledge_frequency_unit.label}
     <br /> {$form.pledge_frequency_interval.label} &nbsp; {$form.pledge_frequency_interval.html} &nbsp;
   {$form.pledge_frequency_unit.html}
+  </td>
+</tr>
+<tr>
+  <td colspan="2">
+    <label>{ts}Number of Installments{/ts}</label>
+    <br />
+    {$form.pledge_installments_low.label} {$form.pledge_installments_low.html}
+    &nbsp;&nbsp; {$form.pledge_installments_high.label} {$form.pledge_installments_high.html}
+  </td>
+</tr>
+
+<tr>
+  <td colspan="2">
+    {$form.pledge_acknowledge_date_is_not_null.label} &nbsp; {$form.pledge_acknowledge_date_is_not_null.html}
+    &nbsp;
   </td>
 </tr>
 

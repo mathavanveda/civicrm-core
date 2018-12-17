@@ -61,6 +61,16 @@
     <add>3.0</add>
   </field>
   <field>
+    <name>icon</name>
+    <title>Icon</title>
+    <type>varchar</type>
+    <length>255</length>
+    <comment>CSS class name for an icon</comment>
+    <default>NULL</default>
+    <required>false</required>
+    <add>4.7</add>
+  </field>
+  <field>
     <name>permission</name>
     <title>Required Permission</title>
     <type>varchar</type>
@@ -81,6 +91,12 @@
     <title>Navigation parent ID</title>
     <type>int unsigned</type>
     <comment>Parent navigation item, used for grouping</comment>
+    <pseudoconstant>
+      <table>civicrm_navigation</table>
+      <keyColumn>id</keyColumn>
+      <nameColumn>name</nameColumn>
+      <labelColumn>label</labelColumn>
+    </pseudoconstant>
     <add>3.0</add>
   </field>
   <foreignKey>

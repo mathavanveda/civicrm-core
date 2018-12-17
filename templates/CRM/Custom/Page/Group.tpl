@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,8 +31,8 @@
 {elseif $action eq 8}
     {include file="CRM/Custom/Form/DeleteGroup.tpl"}
 {else}
-    <div id="help">
-    {ts}Custom data is stored in custom fields. Custom fields are organized into logically related custom data sets (e.g. Volunteer Info). Use custom fields to collect and store custom data which are not included in the standard CiviCRM forms. You can create one or many sets of custom fields.{/ts} {docURL page="user/organising-your-data/custom-fields"}
+    <div class="help">
+    {ts}Custom data is stored in custom fields. Custom fields are organized into logically related custom data sets (e.g. Volunteer Info). Use custom fields to collect and store custom data which are not included in the standard CiviCRM forms. You can create one or many sets of custom fields.{/ts} {docURL page="user/organising-your-data/creating-custom-fields"}
     </div>
 
     {if $rows}
@@ -70,7 +70,7 @@
 
         {if NOT ($action eq 1 or $action eq 2) }
         <div class="action-link">
-        {crmButton p='civicrm/admin/custom/group' q="action=add&reset=1" id="newCustomDataGroup"  icon="circle-plus"}{ts}Add Set of Custom Fields{/ts}{/crmButton}
+        {crmButton p='civicrm/admin/custom/group' q="action=add&reset=1" id="newCustomDataGroup"  icon="plus-circle"}{ts}Add Set of Custom Fields{/ts}{/crmButton}
         </div>
         {/if}
 
@@ -87,4 +87,3 @@
        {/if}
     {/if}
 {/if}
-

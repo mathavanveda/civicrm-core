@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -39,9 +39,6 @@
  *
  * @package CiviCRM
  */
-
-require_once 'ezc/Base/src/ezc_bootstrap.php';
-require_once 'ezc/autoload/mail_autoload.php';
 
 /**
  * Class CiviMailUtils
@@ -106,10 +103,7 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
       $this->_outBound_option = $mailingBackend['outBound_option'];
       $mailingBackend['outBound_option'] = CRM_Mailing_Config::OUTBOUND_OPTION_REDIRECT_TO_DB;
 
-      CRM_Core_BAO_Setting::setItem($mailingBackend,
-        CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME,
-        'mailing_backend'
-      );
+      Civi::settings()->set('mailing_backend', $mailingBackend);
 
       $mailingBackend = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME,
         'mailing_backend'
@@ -138,10 +132,7 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
 
       $mailingBackend['outBound_option'] = $this->_outBound_option;
 
-      CRM_Core_BAO_Setting::setItem($mailingBackend,
-        CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME,
-        'mailing_backend'
-      );
+      Civi::settings()->set('mailing_backend', $mailingBackend);
     }
   }
 
@@ -200,7 +191,7 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
     $msgs = array();
 
     if ($this->_webtest) {
-      throw new Exception("Not implementated: getAllMessages for WebTest");
+      throw new Exception("Not implemented: getAllMessages for WebTest");
     }
     else {
       $dao = CRM_Core_DAO::executeQuery('SELECT headers, body FROM civicrm_mailing_spool ORDER BY id');
@@ -260,13 +251,24 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
    */
   public function checkMailLog($strings, $absentStrings = array(), $prefix = '') {
     $mail = $this->getMostRecentEmail('raw');
-    foreach ($strings as $string) {
-      $this->_ut->assertContains($string, $mail, "$string .  not found in  $mail  $prefix");
-    }
-    foreach ($absentStrings as $string) {
-      $this->_ut->assertEmpty(strstr($mail, $string), "$string  incorrectly found in $mail $prefix");;
-    }
-    return $mail;
+    return $this->checkMailForStrings($strings, $absentStrings, $prefix, $mail);
+  }
+
+  /**
+   * Check contents of mail log.
+   *
+   * @param array $strings
+   *   Strings that should be included.
+   * @param array $absentStrings
+   *   Strings that should not be included.
+   * @param string $prefix
+   *
+   * @return \ezcMail|string
+   */
+  public function checkAllMailLog($strings, $absentStrings = array(), $prefix = '') {
+    $mails = $this->getAllMessages('raw');
+    $mail = implode(',', $mails);
+    return $this->checkMailForStrings($strings, $absentStrings, $prefix, $mail);
   }
 
   /**
@@ -327,13 +329,22 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
 
   /**
    * Remove any sent messages from the log.
+   *
+   * @param int $limit
+   *  How many recent messages to remove, defaults to 0 (all).
+   *
+   * @throws \Exception
    */
-  public function clearMessages() {
+  public function clearMessages($limit = 0) {
     if ($this->_webtest) {
-      throw new Exception("Not implementated: clearMessages for WebTest");
+      throw new Exception("Not implemented: clearMessages for WebTest");
     }
     else {
-      CRM_Core_DAO::executeQuery('DELETE FROM civicrm_mailing_spool ORDER BY id DESC LIMIT 1');
+      $sql = 'DELETE FROM civicrm_mailing_spool ORDER BY id DESC';
+      if ($limit) {
+        $sql .= ' LIMIT ' . $limit;
+      }
+      CRM_Core_DAO::executeQuery($sql);
     }
   }
 
@@ -348,6 +359,23 @@ class CiviMailUtils extends PHPUnit_Framework_TestCase {
     $mail = $parser->parseMail($set);
     $this->_ut->assertNotEmpty($mail, 'Cannot parse mail');
     return $mail[0];
+  }
+
+  /**
+   * @param $strings
+   * @param $absentStrings
+   * @param $prefix
+   * @param $mail
+   * @return mixed
+   */
+  public function checkMailForStrings($strings, $absentStrings, $prefix, $mail) {
+    foreach ($strings as $string) {
+      $this->_ut->assertContains($string, $mail, "$string .  not found in  $mail  $prefix");
+    }
+    foreach ($absentStrings as $string) {
+      $this->_ut->assertEmpty(strstr($mail, $string), "$string  incorrectly found in $mail $prefix");;
+    }
+    return $mail;
   }
 
 }

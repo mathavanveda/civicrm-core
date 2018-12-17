@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -24,7 +24,7 @@
  +--------------------------------------------------------------------+
 *}
 <div id="form" class="crm-form-block crm-friend-manage-block">
-<div id="help">
+<div class="help">
   {if $context EQ 'Contribute'}
     {assign var=enduser value="contributor"}
     {assign var=pageType value="Online Contribution page"}
@@ -42,9 +42,6 @@
 </div>
    <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="top"}</div>
     <table class="form-layout">
-        <tr>
-           <td></td>
-        </tr>
         <tr class="crm-friend-manage-form-block-tf_is_active">
            <td class="label"">{$form.tf_is_active.html}</td>
            <td>{$form.tf_is_active.label}</td>

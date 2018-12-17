@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -37,8 +37,7 @@ class WebTest_Contact_UpdateProfileTest extends CiviSeleniumTestCase {
 
   public function testUpdateProfile() {
     // Create new via profile
-    include_once 'WebTest/Contact/AddViaProfileTest.php';
-    WebTest_Contact_AddViaProfileTest::testAddViaCreateProfile();
+    $this->webtestAddViaCreateProfile();
 
     // Open profile for editing
     $locationUrl = $this->getLocation();

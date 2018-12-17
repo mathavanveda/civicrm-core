@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -114,9 +114,8 @@ class CRM_Core_Session {
         if ($isRead) {
           return;
         }
-        $config =& CRM_Core_Config::singleton();
         // FIXME: This belongs in CRM_Utils_System_*
-        if ($config->userSystem->is_drupal && function_exists('drupal_session_start')) {
+        if (CRM_Core_Config::singleton()->userSystem->is_drupal && function_exists('drupal_session_start')) {
           // https://issues.civicrm.org/jira/browse/CRM-14356
           if (!(isset($GLOBALS['lazy_session']) && $GLOBALS['lazy_session'] == TRUE)) {
             drupal_session_start();
@@ -286,7 +285,7 @@ class CRM_Core_Session {
       $values = &$this->_session[$this->_key];
     }
     else {
-      $values = CRM_Core_BAO_Cache::getItem('CiviCRM Session', "CiviCRM_{$prefix}");
+      $values = Civi::cache('session')->get("CiviCRM_{$prefix}");
     }
 
     if ($values) {
@@ -471,6 +470,10 @@ class CRM_Core_Session {
     $session = self::singleton();
     $session->initialize();
 
+    // Sanitize any HTML we're displaying. This helps prevent reflected XSS in error messages.
+    $text = CRM_Utils_String::purifyHTML($text);
+    $title = CRM_Utils_String::purifyHTML($title);
+
     // default options
     $options += array('unique' => TRUE);
 
@@ -544,6 +547,21 @@ class CRM_Core_Session {
       return NULL;
     }
     return $session->get('userID');
+  }
+
+  /**
+   * Get display name of the logged in user.
+   *
+   * @return string
+   *
+   * @throws CiviCRM_API3_Exception
+   */
+  public function getLoggedInContactDisplayName() {
+    $userContactID = CRM_Core_Session::getLoggedInContactID();
+    if (!$userContactID) {
+      return '';
+    }
+    return civicrm_api3('Contact', 'getvalue', array('id' => $userContactID, 'return' => 'display_name'));
   }
 
   /**

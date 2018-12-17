@@ -1,9 +1,8 @@
 <?php
-require_once 'CiviTest/CiviUnitTestCase.php';
-require_once 'CiviTest/Contact.php';
 
 /**
  * Class CRM_Contact_BAO_ContactType_RelationshipTest
+ * @group headless
  */
 class CRM_Contact_BAO_ContactType_RelationshipTest extends CiviUnitTestCase {
 
@@ -47,7 +46,7 @@ class CRM_Contact_BAO_ContactType_RelationshipTest extends CiviUnitTestCase {
       'last_name' => 'Grant',
       'contact_type' => 'Individual',
     );
-    $this->individual = Contact::create($params);
+    $this->individual = $this->individualCreate($params);
 
     $params = array(
       'first_name' => 'Bill',
@@ -55,7 +54,7 @@ class CRM_Contact_BAO_ContactType_RelationshipTest extends CiviUnitTestCase {
       'contact_type' => 'Individual',
       'contact_sub_type' => $this->student,
     );
-    $this->indivi_student = Contact::create($params);
+    $this->indivi_student = $this->individualCreate($params);
 
     $params = array(
       'first_name' => 'Alen',
@@ -63,20 +62,20 @@ class CRM_Contact_BAO_ContactType_RelationshipTest extends CiviUnitTestCase {
       'contact_type' => 'Individual',
       'contact_sub_type' => $this->parent,
     );
-    $this->indivi_parent = Contact::create($params);
+    $this->indivi_parent = $this->individualCreate($params);
 
     $params = array(
       'organization_name' => 'Compumentor',
       'contact_type' => 'Organization',
     );
-    $this->organization = Contact::create($params);
+    $this->organization = $this->organizationCreate($params);
 
     $params = array(
       'organization_name' => 'Conservation Corp',
       'contact_type' => 'Organization',
       'contact_sub_type' => $this->sponsor,
     );
-    $this->organization_sponsor = Contact::create($params);
+    $this->organization_sponsor = $this->organizationCreate($params);
   }
 
   public function tearDown() {
@@ -102,8 +101,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Individual',
       'contact_sub_type_b' => $this->parent,
     );
-    $ids = array();
-    $result = CRM_Contact_BAO_RelationshipType::add($params, $ids);
+    $result = CRM_Contact_BAO_RelationshipType::add($params);
     $this->assertEquals($result->name_a_b, 'indivToparent');
     $this->assertEquals($result->contact_type_a, 'Individual');
     $this->assertEquals($result->contact_type_b, 'Individual');
@@ -120,8 +118,7 @@ DELETE FROM civicrm_contact_type
       'contact_sub_type_a' => $this->sponsor,
       'contact_type_b' => 'Individual',
     );
-    $ids = array();
-    $result = CRM_Contact_BAO_RelationshipType::add($params, $ids);
+    $result = CRM_Contact_BAO_RelationshipType::add($params);
     $this->assertEquals($result->name_a_b, 'SponsorToIndiv');
     $this->assertEquals($result->contact_type_a, 'Organization');
     $this->assertEquals($result->contact_sub_type_a, $this->sponsor);
@@ -139,8 +136,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Organization',
       'contact_sub_type_b' => $this->sponsor,
     );
-    $ids = array();
-    $result = CRM_Contact_BAO_RelationshipType::add($params, $ids);
+    $result = CRM_Contact_BAO_RelationshipType::add($params);
     $this->assertEquals($result->name_a_b, 'StudentToSponser');
     $this->assertEquals($result->contact_type_a, 'Individual');
     $this->assertEquals($result->contact_sub_type_a, $this->student);
@@ -161,8 +157,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Individual',
       'contact_sub_type_b' => $this->parent,
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'contact_check' => array($this->indivi_student => 1),
@@ -188,8 +183,7 @@ DELETE FROM civicrm_contact_type
       'contact_sub_type_a' => $this->sponsor,
       'contact_type_b' => 'Individual',
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'contact_check' => array($this->individual => 1),
@@ -213,8 +207,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Organization',
       'contact_sub_type_b' => 'Sponser',
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'contact_check' => array($this->individual => 1),
@@ -241,8 +234,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Individual',
       'contact_sub_type_b' => $this->parent,
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'is_active' => 1,
@@ -269,8 +261,7 @@ DELETE FROM civicrm_contact_type
       'contact_sub_type_a' => $this->sponsor,
       'contact_type_b' => 'Individual',
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'is_active' => 1,
@@ -294,8 +285,7 @@ DELETE FROM civicrm_contact_type
       'contact_type_b' => 'Organization',
       'contact_sub_type_b' => $this->sponsor,
     );
-    $relTypeIds = array();
-    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams, $relTypeIds);
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
     $params = array(
       'relationship_type_id' => $relType->id . '_a_b',
       'is_active' => 1,
@@ -307,6 +297,24 @@ DELETE FROM civicrm_contact_type
     $this->assertEquals($valid, 1);
     $this->assertEquals(empty($relationshipIds), FALSE);
     $this->relationshipTypeDelete($relType->id);
+  }
+
+  public function testGetAnyToAnyRelTypes() {
+    // Create an any to any relationship.
+    $relTypeParams = array(
+      'name_a_b' => 'MookieIs',
+      'name_b_a' => 'MookieOf',
+      'contact_type_a' => '',
+      'contact_type_b' => '',
+    );
+    $relType = CRM_Contact_BAO_RelationshipType::add($relTypeParams);
+    $indTypes = CRM_Contact_BAO_Relationship::getRelationType('Individual');
+    $orgTypes = CRM_Contact_BAO_Relationship::getRelationType('Organization');
+
+    $this->assertContains('MookieIs', $indTypes);
+    $this->assertContains('MookieIs', $orgTypes);
+    $this->relationshipTypeDelete($relType->id);
+
   }
 
 }

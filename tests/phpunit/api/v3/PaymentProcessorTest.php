@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,11 +25,10 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class contains api test cases for "civicrm_payment_processor"
  *
+ * @group headless
  */
 class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
   protected $_paymentProcessorType;
@@ -58,8 +57,6 @@ class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
     );
   }
 
-  ///////////////// civicrm_payment_processor_add methods
-
   /**
    * Check with no name.
    */
@@ -67,7 +64,7 @@ class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
     $payProcParams = array(
       'is_active' => 1,
     );
-    $result = $this->callAPIFailure('payment_processor', 'create', $payProcParams);
+    $this->callAPIFailure('payment_processor', 'create', $payProcParams);
   }
 
   /**
@@ -76,11 +73,40 @@ class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
   public function testPaymentProcessorCreate() {
     $params = $this->_params;
     $result = $this->callAPIAndDocument('payment_processor', 'create', $params, __FUNCTION__, __FILE__);
+    $this->callAPISuccessGetSingle('EntityFinancialAccount', ['entity_table' => 'civicrm_payment_processor', 'entity_id' => $result['id']]);
+    $this->getAndCheck($params, $result['id'], 'PaymentProcessor');
+  }
+
+  /**
+   * Update payment processor.
+   */
+  public function testPaymentProcessorUpdate() {
+    $params = $this->_params;
+    $result = $this->callAPISuccess('payment_processor', 'create', $params);
     $this->assertNotNull($result['id']);
 
-    //assertDBState compares expected values in $result to actual values in the DB
+    $updateParams = array(
+      'id' => $result['id'],
+      'name' => 'Update API Test',
+    );
     $this->assertDBState('CRM_Financial_DAO_PaymentProcessor', $result['id'], $params);
-    return $result['id'];
+    $this->callAPISuccess('payment_processor', 'create', $updateParams);
+    $result = $this->callAPISuccess('payment_processor', 'get', array('id' => $result['id']));
+
+    $expectedResult = array(
+      'id' => $result['id'],
+      'domain_id' => $params['domain_id'],
+      'name' => $updateParams['name'],
+      'payment_processor_type_id' => $params['payment_processor_type_id'],
+      'is_default' => 0,
+      'is_test' => 0,
+      'class_name' => $params['class_name'],
+      'billing_mode' => 1,
+      'is_recur' => $params['is_recur'],
+      'payment_type' => 1,
+      'payment_instrument_id' => 1,
+    );
+    $this->checkArrayEquals($expectedResult, $result['values'][$result['id']]);
   }
 
   /**
@@ -93,21 +119,17 @@ class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
     $this->assertAPISuccess($result);
   }
 
-  ///////////////// civicrm_payment_processor_delete methods
-
   /**
    * Check payment processor delete.
    */
   public function testPaymentProcessorDelete() {
-    $id = $this->testPaymentProcessorCreate();
+    $result = $this->callAPISuccess('payment_processor', 'create', $this->_params);
     $params = array(
-      'id' => $id,
+      'id' => $result['id'],
     );
 
-    $result = $this->callAPIAndDocument('payment_processor', 'delete', $params, __FUNCTION__, __FILE__);
+    $this->callAPIAndDocument('payment_processor', 'delete', $params, __FUNCTION__, __FILE__);
   }
-
-  ///////////////// civicrm_payment_processors_get methods
 
   /**
    * Check with valid params array.
@@ -122,8 +144,8 @@ class api_v3_PaymentProcessorTest extends CiviUnitTestCase {
     );
     $results = $this->callAPISuccess('payment_processor', 'get', $params);
 
-    $this->assertEquals(1, $results['count'], ' in line ' . __LINE__);
-    $this->assertEquals('test@test.com', $results['values'][$results['id']]['user_name'], ' in line ' . __LINE__);
+    $this->assertEquals(1, $results['count']);
+    $this->assertEquals('test@test.com', $results['values'][$results['id']]['user_name']);
   }
 
 }

@@ -54,7 +54,7 @@ class CRM_Cxn_CiviCxnHttp extends \Civi\Cxn\Rpc\Http\PhpHttp {
     $lowVerb = strtolower($verb);
 
     if ($lowVerb === 'get' && $this->cache) {
-      $cachePath = 'get/' . md5($url);
+      $cachePath = 'get_' . md5($url);
       $cacheLine = $this->cache->get($cachePath);
       if ($cacheLine && $cacheLine['expires'] > CRM_Utils_Time::getTimeRaw()) {
         return $cacheLine['data'];
@@ -66,7 +66,7 @@ class CRM_Cxn_CiviCxnHttp extends \Civi\Cxn\Rpc\Http\PhpHttp {
     if ($lowVerb === 'get' && $this->cache) {
       $expires = CRM_Utils_Http::parseExpiration($result[0]);
       if ($expires !== NULL) {
-        $cachePath = 'get/' . md5($url);
+        $cachePath = 'get_' . md5($url);
         $cacheLine = array(
           'url' => $url,
           'expires' => $expires,
@@ -79,11 +79,22 @@ class CRM_Cxn_CiviCxnHttp extends \Civi\Cxn\Rpc\Http\PhpHttp {
     return $result;
   }
 
+  /**
+   * Create stream options.
+   *
+   * @param string $verb
+   * @param string $url
+   * @param string $blob
+   * @param array $headers
+   *
+   * @return array
+   * @throws \Exception
+   */
   protected function createStreamOpts($verb, $url, $blob, $headers) {
     $result = parent::createStreamOpts($verb, $url, $blob, $headers);
 
     $caConfig = CA_Config_Stream::probe(array(
-      'verify_peer' => (bool) CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL'),
+      'verify_peer' => (bool) Civi::settings()->get('verifySSL'),
     ));
     if ($caConfig->isEnableSSL()) {
       $result['ssl'] = $caConfig->toStreamOptions();
@@ -93,6 +104,13 @@ class CRM_Cxn_CiviCxnHttp extends \Civi\Cxn\Rpc\Http\PhpHttp {
     }
 
     return $result;
+  }
+
+  /**
+   * @return \CRM_Utils_Cache_Interface|null
+   */
+  public function getCache() {
+    return $this->cache;
   }
 
 }

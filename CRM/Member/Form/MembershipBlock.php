@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -80,10 +78,10 @@ class CRM_Member_Form_MembershipBlock extends CRM_Contribute_Form_ContributionPa
       $pFIDs = array();
       if ($priceSetId) {
         CRM_Core_DAO::commonRetrieveAll('CRM_Price_DAO_PriceField', 'price_set_id', $priceSetId, $pFIDs, $return = array(
-            'html_type',
-            'name',
-            'label',
-          ));
+          'html_type',
+          'name',
+          'label',
+        ));
         foreach ($pFIDs as $pid => $pValue) {
           if ($pValue['html_type'] == 'Radio' && $pValue['name'] == 'membership_amount') {
             $defaults['mem_price_field_id'] = $pValue['id'];
@@ -196,18 +194,17 @@ class CRM_Member_Form_MembershipBlock extends CRM_Contribute_Form_ContributionPa
     $single = $session->get('singleForm');
     if ($single) {
       $this->addButtons(array(
-          array(
-            'type' => 'next',
-            'name' => ts('Save'),
-            'spacing' => '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
-            'isDefault' => TRUE,
-          ),
-          array(
-            'type' => 'cancel',
-            'name' => ts('Cancel'),
-          ),
-        )
-      );
+        array(
+          'type' => 'next',
+          'name' => ts('Save'),
+          'spacing' => '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
+          'isDefault' => TRUE,
+        ),
+        array(
+          'type' => 'cancel',
+          'name' => ts('Cancel'),
+        ),
+      ));
     }
     else {
       parent::buildQuickForm();

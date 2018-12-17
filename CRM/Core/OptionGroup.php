@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Core_OptionGroup {
   static $_values = array();
@@ -108,18 +108,20 @@ class CRM_Core_OptionGroup {
    *   ignore cache entries and go back to DB.
    * @param string $keyColumnName
    *   the column to use for 'key'.
+   * @param string $orderBy
+   *   the column to use for ordering.
    *
    * @return array
-   *   the values as specified by the above params
-   * @void
+   *   The values as specified by the params
    */
   public static function &values(
     $name, $flip = FALSE, $grouping = FALSE,
     $localize = FALSE, $condition = NULL,
-    $labelColumnName = 'label', $onlyActive = TRUE, $fresh = FALSE, $keyColumnName = 'value'
+    $labelColumnName = 'label', $onlyActive = TRUE, $fresh = FALSE, $keyColumnName = 'value',
+    $orderBy = 'weight'
   ) {
     $cache = CRM_Utils_Cache::singleton();
-    $cacheKey = self::createCacheKey($name, $flip, $grouping, $localize, $condition, $labelColumnName, $onlyActive, $keyColumnName);
+    $cacheKey = self::createCacheKey($name, $flip, $grouping, $localize, $condition, $labelColumnName, $onlyActive, $keyColumnName, $orderBy);
 
     if (!$fresh) {
       // Fetch from static var
@@ -127,9 +129,9 @@ class CRM_Core_OptionGroup {
         return self::$_cache[$cacheKey];
       }
       // Fetch from main cache
-      $var = $cache->get($cacheKey);
-      if ($var) {
-        return $var;
+      self::$_cache[$cacheKey] = $cache->get($cacheKey);
+      if (self::$_cache[$cacheKey] !== NULL) {
+        return self::$_cache[$cacheKey];
       }
     }
 
@@ -143,6 +145,14 @@ WHERE  v.option_group_id = g.id
 
     if ($onlyActive) {
       $query .= " AND  v.is_active = 1 ";
+      // Only show options for enabled components
+      $componentClause = ' v.component_id IS NULL ';
+      $enabledComponents = CRM_Core_Config::singleton()->enableComponents;
+      if ($enabledComponents) {
+        $enabledComponents = '"' . implode('","', $enabledComponents) . '"';
+        $componentClause .= " OR v.component_id IN (SELECT id FROM civicrm_component WHERE name IN ($enabledComponents)) ";
+      }
+      $query .= " AND ($componentClause) ";
     }
     if (in_array($name, self::$_domainIDGroups)) {
       $query .= " AND v.domain_id = " . CRM_Core_Config::domainID();
@@ -152,7 +162,7 @@ WHERE  v.option_group_id = g.id
       $query .= $condition;
     }
 
-    $query .= " ORDER BY v.weight";
+    $query .= " ORDER BY v.{$orderBy}";
 
     $p = array(1 => array($name, 'String'));
     $dao = CRM_Core_DAO::executeQuery($query, $p);
@@ -190,8 +200,8 @@ WHERE  v.option_group_id = g.id
   /**
    * @return string
    */
-  protected static function createCacheKey() {
-    $cacheKey = "CRM_OG_" . serialize(func_get_args());
+  protected static function createCacheKey($id) {
+    $cacheKey = "CRM_OG_" . preg_replace('/[^a-zA-Z0-9]/', '', $id) . '_' . md5(serialize(func_get_args()));
     return $cacheKey;
   }
 
@@ -224,9 +234,9 @@ WHERE  v.option_group_id = g.id
 
     $cache = CRM_Utils_Cache::singleton();
     if (!$fresh) {
-      $var = $cache->get($cacheKey);
-      if ($var) {
-        return $var;
+      self::$_cache[$cacheKey] = $cache->get($cacheKey);
+      if (self::$_cache[$cacheKey] !== NULL) {
+        return self::$_cache[$cacheKey];
       }
     }
     $query = "
@@ -252,9 +262,9 @@ WHERE  v.option_group_id = g.id
   }
 
   /**
-   * Lookup titles OR ids for a set of option_value populated fields. The retrieved value
-   * is assigned a new fieldname by id or id's by title
-   * (each within a specificied option_group)
+   * Lookup titles OR ids for a set of option_value populated fields. The
+   * retrieved value is assigned a new field name by id or id's by title
+   * (each within a specified option_group).
    *
    * @param array $params
    *   Reference array of values submitted by the form. Based on.
@@ -264,14 +274,13 @@ WHERE  v.option_group_id = g.id
    *   If $flip = true, adds actual field name => id
    *
    * @param array $names
-   *   Reference array of fieldnames we want transformed.
+   *   Array of field names we want transformed.
    *   Array key = 'postName' (field name submitted by form in $params).
    *   Array value = array('newName' => $newName, 'groupName' => $groupName).
    *
-   *
    * @param bool $flip
    */
-  public static function lookupValues(&$params, &$names, $flip = FALSE) {
+  public static function lookupValues(&$params, $names, $flip = FALSE) {
     foreach ($names as $postName => $value) {
       // See if $params field is in $names array (i.e. is a value that we need to lookup)
       if ($postalName = CRM_Utils_Array::value($postName, $params)) {
@@ -333,6 +342,7 @@ WHERE  v.option_group_id = g.id
    * @return null
    */
   public static function getLabel($groupName, $value, $onlyActiveValue = TRUE) {
+    CRM_Core_Error::deprecatedFunctionWarning('CRM_Core_PseudoConstant::getLabel');
     if (empty($groupName) ||
       empty($value)
     ) {
@@ -363,6 +373,10 @@ WHERE  v.option_group_id = g.id
   }
 
   /**
+   * @deprecated
+   *
+   * This function is not cached.
+   *
    * @param string $groupName
    * @param $label
    * @param string $labelField
@@ -381,6 +395,8 @@ WHERE  v.option_group_id = g.id
     if (empty($label)) {
       return NULL;
     }
+
+    CRM_Core_Error::deprecatedFunctionWarning('CRM_Core_PseudoConstant::getKey');
 
     $query = "
 SELECT  v.label as label ,v.{$valueField} as value
@@ -563,27 +579,6 @@ DELETE g, v
 
   /**
    * @param string $groupName
-   * @param $value
-   *
-   * @return null|string
-   */
-  public static function optionLabel($groupName, $value) {
-    $query = "
-SELECT v.label
-  FROM civicrm_option_group g,
-       civicrm_option_value v
- WHERE g.id = v.option_group_id
-   AND g.name  = %1
-   AND v.value = %2";
-    $params = array(
-      1 => array($groupName, 'String'),
-      2 => array($value, 'String'),
-    );
-    return CRM_Core_DAO::singleValueQuery($query, $params);
-  }
-
-  /**
-   * @param string $groupName
    * @param $fieldValue
    * @param string $field
    * @param string $fieldType
@@ -681,6 +676,12 @@ WHERE  v.option_group_id = g.id
     );
   }
 
+  /**
+   * Flush all the places where option values are cached.
+   *
+   * Note that this is called from CRM_Core_PseudoConstant::flush() so we should resist
+   * the intuitive urge to flush that class.
+   */
   public static function flushAll() {
     self::$_values = array();
     self::$_cache = array();

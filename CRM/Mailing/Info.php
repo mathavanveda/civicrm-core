@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,7 +31,7 @@
  * abstract class.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Mailing_Info extends CRM_Core_Component_Info {
 
@@ -49,7 +49,7 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
     return array(
       'name' => 'CiviMail',
       'translatedName' => ts('CiviMail'),
-      'title' => 'CiviCRM Mailing Engine',
+      'title' => ts('CiviCRM Mailing Engine'),
       'search' => 1,
       'showActivitiesInCore' => 1,
     );
@@ -63,57 +63,40 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
    * @see CRM_Utils_Hook::angularModules
    */
   public function getAngularModules() {
+    // load angular files only if valid permissions are granted to the user
+    if (!CRM_Core_Permission::check('access CiviMail')
+      && !CRM_Core_Permission::check('create mailings')
+      && !CRM_Core_Permission::check('schedule mailings')
+      && !CRM_Core_Permission::check('approve mailings')
+    ) {
+      return array();
+    }
+    global $civicrm_root;
+
+    $reportIds = array();
+    $reportTypes = array('detail', 'opened', 'bounce', 'clicks');
+    foreach ($reportTypes as $report) {
+      $result = civicrm_api3('ReportInstance', 'get', array(
+        'sequential' => 1,
+        'report_id' => 'mailing/' . $report));
+      if (!empty($result['values'])) {
+        $reportIds[$report] = $result['values'][0]['id'];
+      }
+    }
     $result = array();
-    $result['crmMailing'] = array(
-      'ext' => 'civicrm',
-      'js' => array(
-        'ang/crmMailing.js',
-        'ang/crmMailing/*.js',
-      ),
-      'css' => array('ang/crmMailing.css'),
-      'partials' => array('ang/crmMailing'),
-    );
-    $result['crmMailingAB'] = array(
-      'ext' => 'civicrm',
-      'js' => array(
-        'ang/crmMailingAB.js',
-        'ang/crmMailingAB/*.js',
-        'ang/crmMailingAB/*/*.js',
-      ),
-      'css' => array('ang/crmMailingAB.css'),
-      'partials' => array('ang/crmMailingAB'),
-    );
-    $result['crmD3'] = array(
-      'ext' => 'civicrm',
-      'js' => array(
-        'ang/crmD3.js',
-        'bower_components/d3/d3.min.js',
-      ),
-    );
+    $result['crmMailing'] = include "$civicrm_root/ang/crmMailing.ang.php";
+    $result['crmMailingAB'] = include "$civicrm_root/ang/crmMailingAB.ang.php";
+    $result['crmD3'] = include "$civicrm_root/ang/crmD3.ang.php";
 
     $config = CRM_Core_Config::singleton();
     $session = CRM_Core_Session::singleton();
     $contactID = $session->get('userID');
 
-    // Get past mailings.
-    // CRM-16155 - Limit to a reasonable number.
-    $civiMails = civicrm_api3('Mailing', 'get', array(
-      'is_completed' => 1,
-      'mailing_type' => array('IN' => array('standalone', 'winner')),
-      'domain_id' => CRM_Core_Config::domainID(),
-      'return' => array('id', 'name', 'scheduled_date'),
-      'sequential' => 1,
-      'options' => array(
-        'limit' => 500,
-        'sort' => 'is_archived asc, scheduled_date desc',
-      ),
-    ));
     // Generic params.
     $params = array(
       'options' => array('limit' => 0),
       'sequential' => 1,
     );
-
     $groupNames = civicrm_api3('Group', 'get', $params + array(
       'is_active' => 1,
       'check_permissions' => TRUE,
@@ -144,20 +127,27 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
       'option_group_id' => "from_email_address",
       'domain_id' => CRM_Core_Config::domainID(),
     ));
+    $enabledLanguages = CRM_Core_I18n::languages(TRUE);
+    $isMultiLingual = (count($enabledLanguages) > 1);
+    // FlexMailer is a refactoring of CiviMail which provides new hooks/APIs/docs. If the sysadmin has opted to enable it, then use that instead of CiviMail.
+    $requiredTokens = defined('CIVICRM_FLEXMAILER_HACK_REQUIRED_TOKENS') ? Civi\Core\Resolver::singleton()->call(CIVICRM_FLEXMAILER_HACK_REQUIRED_TOKENS, array()) : CRM_Utils_Token::getRequiredTokens();
     CRM_Core_Resources::singleton()
       ->addSetting(array(
         'crmMailing' => array(
-          'civiMails' => $civiMails['values'],
+          'templateTypes' => CRM_Mailing_BAO_Mailing::getTemplateTypes(),
+          'civiMails' => array(),
           'campaignEnabled' => in_array('CiviCampaign', $config->enableComponents),
-          'groupNames' => $groupNames['values'],
+          'groupNames' => array(),
+          // @todo this is not used in core. Remove once Mosaico no longer depends on it.
+          'testGroupNames' => $groupNames['values'],
           'headerfooterList' => $headerfooterList['values'],
           'mesTemplate' => $mesTemplate['values'],
           'emailAdd' => $emailAdd['values'],
           'mailTokens' => $mailTokens['values'],
           'contactid' => $contactID,
-          'requiredTokens' => CRM_Utils_Token::getRequiredTokens(),
-          'enableReplyTo' => (int) CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME, 'replyTo'),
-          'disableMandatoryTokensCheck' => (int) CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME, 'disable_mandatory_tokens_check'),
+          'requiredTokens' => $requiredTokens,
+          'enableReplyTo' => (int) Civi::settings()->get('replyTo'),
+          'disableMandatoryTokensCheck' => (int) Civi::settings()->get('disable_mandatory_tokens_check'),
           'fromAddress' => $fromAddress['values'],
           'defaultTestEmail' => civicrm_api3('Contact', 'getvalue', array(
               'id' => 'user_contact_id',
@@ -165,10 +155,14 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
             )),
           'visibility' => CRM_Utils_Array::makeNonAssociative(CRM_Core_SelectValues::groupVisibility()),
           'workflowEnabled' => CRM_Mailing_Info::workflowEnabled(),
+          'reportIds' => $reportIds,
+          'enabledLanguages' => $enabledLanguages,
+          'isMultiLingual' => $isMultiLingual,
         ),
       ))
       ->addPermissions(array(
         'view all contacts',
+        'edit all contacts',
         'access CiviMail',
         'create mailings',
         'schedule mailings',
@@ -197,11 +191,7 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
       return FALSE;
     }
 
-    $enableWorkflow = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME,
-      'civimail_workflow',
-      NULL,
-      FALSE
-    );
+    $enableWorkflow = Civi::settings()->get('civimail_workflow');
 
     return ($enableWorkflow &&
       $config->userSystem->is_drupal
@@ -235,20 +225,14 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
     );
 
     if (self::workflowEnabled() || $getAllUnconditionally) {
-      $permissions[] = array(
-        'create mailings' => array(
-          ts('create mailings'),
-        ),
+      $permissions['create mailings'] = array(
+        ts('create mailings'),
       );
-      $permissions[] = array(
-        'schedule mailings' => array(
-          ts('schedule mailings'),
-        ),
+      $permissions['schedule mailings'] = array(
+        ts('schedule mailings'),
       );
-      $permissions[] = array(
-        'approve mailings' => array(
-          ts('approve mailings'),
-        ),
+      $permissions['approve mailings'] = array(
+        ts('approve mailings'),
       );
     }
 
@@ -290,6 +274,14 @@ class CRM_Mailing_Info extends CRM_Core_Component_Info {
       'url' => 'mailing',
       'weight' => 45,
     );
+  }
+
+  /**
+   * @inheritDoc
+   * @return string
+   */
+  public function getIcon() {
+    return 'crm-i fa-envelope-o';
   }
 
   /**

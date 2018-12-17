@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -47,7 +47,7 @@ class CRM_Grant_Form_GrantView extends CRM_Core_Form {
   public function preProcess() {
     $this->_contactID = CRM_Utils_Request::retrieve('cid', 'Positive', $this);
     $this->_id = CRM_Utils_Request::retrieve('id', 'Positive', $this);
-    $context = CRM_Utils_Request::retrieve('context', 'String', $this);
+    $context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
     $this->assign('context', $context);
 
     $values = array();
@@ -117,8 +117,8 @@ class CRM_Grant_Form_GrantView extends CRM_Core_Form {
     $this->assign('attachment', $attachment);
 
     $grantType = CRM_Core_DAO::getFieldValue("CRM_Grant_DAO_Grant", $this->_id, "grant_type_id");
-    $groupTree = &CRM_Core_BAO_CustomGroup::getTree("Grant", $this, $this->_id, 0, $grantType);
-    CRM_Core_BAO_CustomGroup::buildCustomDataView($this, $groupTree);
+    $groupTree = CRM_Core_BAO_CustomGroup::getTree("Grant", NULL, $this->_id, 0, $grantType);
+    CRM_Core_BAO_CustomGroup::buildCustomDataView($this, $groupTree, FALSE, NULL, NULL, NULL, $this->_id);
 
     $this->assign('id', $this->_id);
 

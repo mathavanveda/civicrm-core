@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -112,12 +112,16 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
       $this->assign('showOnlyDataSourceFormPane', TRUE);
     }
 
-    if (strpos($this->_dataSource, 'CRM_Import_DataSource_') === 0) {
+    $dataSources = $this->_getDataSources();
+    if ($this->_dataSource && isset($dataSources[$this->_dataSource])) {
       $this->_dataSourceIsValid = TRUE;
       $this->assign('showDataSourceFormPane', TRUE);
       $dataSourcePath = explode('_', $this->_dataSource);
       $templateFile = "CRM/Contact/Import/Form/" . $dataSourcePath[3] . ".tpl";
       $this->assign('dataSourceFormTemplateFile', $templateFile);
+    }
+    elseif ($this->_dataSource) {
+      throw new \CRM_Core_Exception("Invalid data source");
     }
   }
 
@@ -164,10 +168,7 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
       ts('For Duplicate Contacts')
     );
 
-    $mappingArray = CRM_Core_BAO_Mapping::getMappings(CRM_Core_OptionGroup::getValue('mapping_type',
-      'Import Contact',
-      'name'
-    ));
+    $mappingArray = CRM_Core_BAO_Mapping::getMappings('Import Contact');
 
     $this->assign('savedMapping', $mappingArray);
     $this->addElement('select', 'savedMapping', ts('Mapping Option'), array('' => ts('- select -')) + $mappingArray);
@@ -202,13 +203,17 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
 
     $config = CRM_Core_Config::singleton();
     $geoCode = FALSE;
-    if (!empty($config->geocodeMethod)) {
+    if (CRM_Utils_GeocodeProvider::getUsableClassName()) {
       $geoCode = TRUE;
-      $this->addElement('checkbox', 'doGeocodeAddress', ts('Lookup mapping info during import?'));
+      $this->addElement('checkbox', 'doGeocodeAddress', ts('Geocode addresses during import?'));
     }
     $this->assign('geoCode', $geoCode);
 
     $this->addElement('text', 'fieldSeparator', ts('Import Field Separator'), array('size' => 2));
+
+    if (Civi::settings()->get('address_standardization_provider') == 'USPS') {
+      $this->addElement('checkbox', 'disableUSPS', ts('Disable USPS address validation during import?'));
+    }
 
     $this->addButtons(array(
         array(
@@ -226,16 +231,12 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
   }
 
   /**
-   * This virtual function is used to set the default values of
-   * various form elements
+   * Set the default values of various form elements.
    *
    * access        public
    *
    * @return array
    *   reference to the array of default values
-   */
-  /**
-   * @return array
    */
   public function setDefaultValues() {
     $config = CRM_Core_Config::singleton();
@@ -259,6 +260,11 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
    * @throws Exception
    */
   private function _getDataSources() {
+    // Hmm... file-system scanners don't really belong in forms...
+    if (isset(Civi::$statics[__CLASS__]['datasources'])) {
+      return Civi::$statics[__CLASS__]['datasources'];
+    }
+
     // Open the data source dir and scan it for class files
     global $civicrm_root;
     $dataSourceDir = $civicrm_root . DIRECTORY_SEPARATOR . 'CRM' . DIRECTORY_SEPARATOR . 'Import' . DIRECTORY_SEPARATOR . 'DataSource' . DIRECTORY_SEPARATOR;
@@ -280,10 +286,14 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
         require_once $dataSourceDir . DIRECTORY_SEPARATOR . $dataSourceFile;
         $object = new $dataSourceClass();
         $info = $object->getInfo();
-        $dataSources[$dataSourceClass] = $info['title'];
+        if ($object->checkPermission()) {
+          $dataSources[$dataSourceClass] = $info['title'];
+        }
       }
     }
     closedir($dataSourceHandle);
+
+    Civi::$statics[__CLASS__]['datasources'] = $dataSources;
     return $dataSources;
   }
 
@@ -310,6 +320,7 @@ class CRM_Contact_Import_Form_DataSource extends CRM_Core_Form {
         $$storeName = $this->exportValue($storeValueName);
         $this->set($storeName, $$storeName);
       }
+      $this->set('disableUSPS', !empty($this->_params['disableUSPS']));
 
       $this->set('dataSource', $this->_params['dataSource']);
       $this->set('skipColumnHeader', CRM_Utils_Array::value('skipColumnHeader', $this->_params));

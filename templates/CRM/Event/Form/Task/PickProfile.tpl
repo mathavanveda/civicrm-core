@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -24,7 +24,6 @@
  +--------------------------------------------------------------------+
 *}
 <div class="crm-block crm-form-block crm-event-pickprofile-form-block">
-    <legend>{ts}Batch Update Event via Profile{/ts}</legend>
     <table class="form-layout">
         <tr class="crm-event-pickprofile-form-block-uf_group_id">
            <td class="label">{$form.uf_group_id.label}</td>
@@ -34,10 +33,9 @@
            <td>&nbsp;</td>
            <td>{include file="CRM/Event/Form/Task.tpl"}</td>
         </tr>
-        <tr>
-           <td>&nbsp;</td>
-           <td>{include file="CRM/common/formButtons.tpl" location="bottom"}</td>
-        </tr>
     </table>
+    <div class="crm-submit-buttons">
+      {include file="CRM/common/formButtons.tpl" location="bottom"}
+    </div>
 </div>
 

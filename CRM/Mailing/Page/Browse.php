@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -78,9 +78,27 @@ class CRM_Mailing_Page_Browse extends CRM_Core_Page {
    * the contact and calls the appropriate type of page to view.
    */
   public function preProcess() {
+    Civi::resources()->addStyleFile('civicrm', 'css/searchForm.css', 1, 'html-header');
+
     $this->_unscheduled = $this->_archived = $archiveLinks = FALSE;
     $this->_mailingId = CRM_Utils_Request::retrieve('mid', 'Positive', $this);
     $this->_sms = CRM_Utils_Request::retrieve('sms', 'Positive', $this);
+
+    if ($this->_sms) {
+      // if this is an SMS page, check that the user has permission to browse SMS
+      if (!CRM_Core_Permission::check('send SMS')) {
+        CRM_Core_Error::fatal(ts('You do not have permission to send SMS'));
+      }
+    }
+    else {
+      // If this is not an SMS page, check that the user has an appropriate
+      // permission (specific permissions have been copied from
+      // CRM/Mailing/xml/Menu/Mailing.xml)
+      if (!CRM_Core_Permission::check(array(array('access CiviMail', 'approve mailings', 'create mailings', 'schedule mailings')))) {
+        CRM_Core_Error::fatal(ts('You do not have permission to view this page.'));
+      }
+    }
+
     $this->assign('sms', $this->_sms);
     // check that the user has permission to access mailing id
     CRM_Mailing_BAO_Mailing::checkPermission($this->_mailingId);
@@ -163,6 +181,7 @@ class CRM_Mailing_Page_Browse extends CRM_Core_Page {
     if ($this->_action & CRM_Core_Action::DISABLE) {
       if (CRM_Utils_Request::retrieve('confirmed', 'Boolean', $this)) {
         CRM_Mailing_BAO_MailingJob::cancel($this->_mailingId);
+        CRM_Core_Session::setStatus(ts('The mailing has been canceled.'), ts('Canceled'), 'success');
         CRM_Utils_System::redirect($context);
       }
       else {
@@ -173,6 +192,22 @@ class CRM_Mailing_Page_Browse extends CRM_Core_Page {
         $controller->setEmbedded(TRUE);
         $controller->run();
       }
+    }
+    elseif ($this->_action & CRM_Core_Action::CLOSE) {
+      if (!CRM_Core_Permission::checkActionPermission('CiviMail', CRM_Core_Action::CLOSE)) {
+        CRM_Core_Error::fatal(ts('You do not have permission to access this page.'));
+      }
+      CRM_Mailing_BAO_MailingJob::pause($this->_mailingId);
+      CRM_Core_Session::setStatus(ts('The mailing has been paused. Active message deliveries may continue for a few minutes, but CiviMail will not begin delivery of any more batches.'), ts('Paused'), 'success');
+      CRM_Utils_System::redirect($context);
+    }
+    elseif ($this->_action & CRM_Core_Action::REOPEN) {
+      if (!CRM_Core_Permission::checkActionPermission('CiviMail', CRM_Core_Action::CLOSE)) {
+        CRM_Core_Error::fatal(ts('You do not have permission to access this page.'));
+      }
+      CRM_Mailing_BAO_MailingJob::resume($this->_mailingId);
+      CRM_Core_Session::setStatus(ts('The mailing has been resumed.'), ts('Resumed'), 'success');
+      CRM_Utils_System::redirect($context);
     }
     elseif ($this->_action & CRM_Core_Action::DELETE) {
       if (CRM_Utils_Request::retrieve('confirmed', 'Boolean', $this)) {
@@ -253,15 +288,15 @@ class CRM_Mailing_Page_Browse extends CRM_Core_Page {
       CRM_Utils_System::setTitle(ts('Find Mass SMS'));
     }
 
-    $crmRowCount = CRM_Utils_Request::retrieve('crmRowCount', 'Integer', CRM_Core_DAO::$_nullObject);
-    $crmPID = CRM_Utils_Request::retrieve('crmPID', 'Integer', CRM_Core_DAO::$_nullObject);
+    $crmRowCount = CRM_Utils_Request::retrieve('crmRowCount', 'Integer');
+    $crmPID = CRM_Utils_Request::retrieve('crmPID', 'Integer');
     if ($crmRowCount || $crmPID) {
       $urlParams .= '&force=1';
       $urlParams .= $crmRowCount ? '&crmRowCount=' . $crmRowCount : '';
       $urlParams .= $crmPID ? '&crmPID=' . $crmPID : '';
     }
 
-    $crmSID = CRM_Utils_Request::retrieve('crmSID', 'Integer', CRM_Core_DAO::$_nullObject);
+    $crmSID = CRM_Utils_Request::retrieve('crmSID', 'Integer');
     if ($crmSID) {
       $urlParams .= '&crmSID=' . $crmSID;
     }

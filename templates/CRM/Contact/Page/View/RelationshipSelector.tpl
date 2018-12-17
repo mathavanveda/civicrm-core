@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -24,9 +24,12 @@
  +--------------------------------------------------------------------+
 *}
 {* relationship selector *}
-
+{crmRegion name="crm-contact-relationshipselector-pre"}
+{/crmRegion}
 <div class="crm-contact-relationship-{$context}">
-  <table class="crm-contact-relationship-selector-{$context} crm-ajax-table" data-page-length='10'>
+  <table
+    class="crm-contact-relationship-selector-{$context} crm-ajax-table"
+    data-ajax="{crmURL p="civicrm/ajax/contactrelationships" q="context=$context&cid=$contactId"}" style="width: 100%;">
     <thead>
     <tr>
       <th data-data="relation" class='crm-contact-relationship-type'>{ts}Relationship{/ts}</th>
@@ -41,15 +44,6 @@
     </tr>
     </thead>
   </table>
-
-  {literal}
-    <script type="text/javascript">
-      (function($) {
-        var context = {/literal}"{$context}"{literal};
-        CRM.$('table.crm-contact-relationship-selector-' + context).data({
-          "ajax": {/literal}'{crmURL p="civicrm/ajax/contactrelationships" h=0 q="context=$context&cid=$contactId"}'{literal},
-        });
-      })(CRM.$);
-    </script>
-  {/literal}
 </div>
+{crmRegion name="crm-contact-relationshipselector-post"}
+{/crmRegion}

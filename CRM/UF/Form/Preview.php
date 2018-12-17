@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -79,6 +79,7 @@ class CRM_UF_Form_Preview extends CRM_UF_Form_AbstractPreview {
         'street_address',
         'supplemental_address_1',
         'supplemental_address_2',
+        'supplemental_address_3',
         'city',
         'postal_code',
         'postal_code_suffix',
@@ -131,13 +132,12 @@ class CRM_UF_Form_Preview extends CRM_UF_Form_AbstractPreview {
     parent::buildQuickForm();
 
     $this->addButtons(array(
-        array(
-          'type' => 'cancel',
-          'name' => ts('Done with Preview'),
-          'isDefault' => TRUE,
-        ),
-      )
-    );
+      array(
+        'type' => 'cancel',
+        'name' => ts('Done with Preview'),
+        'isDefault' => TRUE,
+      ),
+    ));
   }
 
 }

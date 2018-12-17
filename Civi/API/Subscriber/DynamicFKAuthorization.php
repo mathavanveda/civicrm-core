@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -201,6 +201,7 @@ class DynamicFKAuthorization implements EventSubscriberInterface {
    *   The target entity ID.
    * @param array $apiRequest
    *   The full API request.
+   * @throws \Exception
    * @throws \API_Exception
    * @throws \Civi\API\Exception\UnauthorizedException
    */

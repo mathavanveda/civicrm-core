@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -85,6 +85,7 @@ class CRM_Core_Form_Tag {
           'data-entity_table' => $entityTable,
           'data-entity_id' => $entityId,
           'class' => "crm-$mode-tagset",
+          'select' => array('minimumInputLength' => 0),
         ));
 
         if ($entityId) {
@@ -127,7 +128,7 @@ class CRM_Core_Form_Tag {
    * @param CRM_Core_Form $form
    *   Form object.
    */
-  public static function postProcess(&$params, $entityId, $entityTable = 'civicrm_contact', &$form) {
+  public static function postProcess(&$params, $entityId, $entityTable = 'civicrm_contact', &$form = NULL) {
     if ($form && !empty($form->_entityTagValues)) {
       $existingTags = $form->_entityTagValues;
     }

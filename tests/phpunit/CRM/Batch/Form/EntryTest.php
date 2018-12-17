@@ -24,13 +24,11 @@
  *   <http://www.gnu.org/licenses/>.
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
-
 /**
  *  Test CRM/Member/BAO Membership Log add , delete functions
  *
  * @package   CiviCRM
+ * @group headless
  */
 class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
 
@@ -85,7 +83,7 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
     $params = array(
       'name' => $this->_membershipTypeName,
       'description' => NULL,
-      'minimum_fee' => 10,
+      'minimum_fee' => 1500,
       'duration_unit' => 'year',
       'member_of_contact_id' => $this->_orgContactID,
       'period_type' => 'fixed',
@@ -100,6 +98,22 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
     );
     $membershipType = $this->callAPISuccess('membership_type', 'create', $params);
     $this->_membershipTypeID = $membershipType['id'];
+
+    $this->_orgContactID2 = $this->organizationCreate();
+    $params = array(
+      'name' => 'General',
+      'duration_unit' => 'year',
+      'duration_interval' => 1,
+      'period_type' => 'rolling',
+      'member_of_contact_id' => $this->_orgContactID2,
+      'domain_id' => 1,
+      'financial_type_id' => 1,
+      'is_active' => 1,
+      'sequential' => 1,
+      'visibility' => 'Public',
+    );
+    $membershipType2 = $this->callAPISuccess('membership_type', 'create', $params);
+    $this->_membershipTypeID2 = $membershipType2['id'];
 
     $this->_membershipStatusID = $this->membershipStatusCreate('test status');
     $this->_contactID = $this->individualCreate();
@@ -132,7 +146,9 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
     if ($this->callAPISuccessGetCount('membership', array('id' => $this->_membershipTypeID))) {
       $this->membershipTypeDelete(array('id' => $this->_membershipTypeID));
     }
-    $this->membershipStatusDelete($this->_membershipStatusID);
+    if ($this->callAPISuccessGetCount('MembershipStatus', array('id' => $this->_membershipStatusID))) {
+      $this->membershipStatusDelete($this->_membershipStatusID);
+    }
     $this->contactDelete($this->_contactID);
     $this->contactDelete($this->_contactID2);
     $this->contactDelete($this->_orgContactID);
@@ -140,9 +156,18 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
 
   /**
    *  Test Import.
+   *
+   * @param string $thousandSeparator
+   *
+   * @dataProvider getThousandSeparators
    */
-  public function testProcessMembership() {
+  public function testProcessMembership($thousandSeparator) {
+    $this->setCurrencySeparators($thousandSeparator);
+
     $form = new CRM_Batch_Form_Entry();
+    $profileID = $this->callAPISuccessGetValue('UFGroup', ['return' => 'id', 'name' => 'membership_batch_entry']);
+    $form->_fields = CRM_Core_BAO_UFGroup::getFields($profileID, FALSE, CRM_Core_Action::VIEW);
+
     $params = $this->getMembershipData();
     $this->assertTrue($form->testProcessMembership($params));
     $result = $this->callAPISuccess('membership', 'get', array());
@@ -160,21 +185,28 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
     $this->assertEquals(date('Y-m-d', strtotime('07/22/2013')), $result['values'][1]['join_date']);
     $this->assertEquals(date('Y-m-d', strtotime('07/03/2013')), $result['values'][2]['join_date']);
     $this->assertEquals(date('Y-m-d', strtotime('now')), $result['values'][3]['join_date']);
-    $result = $this->callAPISuccess('contribution', 'get', array('return' => 'total_amount'));
+    $result = $this->callAPISuccess('contribution', 'get', array('return' => array('total_amount', 'trxn_id')));
     $this->assertEquals(3, $result['count']);
-    foreach ($result['values'] as $contribution) {
+    foreach ($result['values'] as $key => $contribution) {
       $this->assertEquals($this->callAPISuccess('line_item', 'getvalue', array(
         'contribution_id' => $contribution['id'],
         'return' => 'line_total',
 
       )), $contribution['total_amount']);
+      $this->assertEquals(1500, $contribution['total_amount']);
+      $this->assertEquals($params['field'][$key]['trxn_id'], $contribution['trxn_id']);
     }
   }
 
   /**
    *  Test Contribution Import.
+   *
+   * @param $thousandSeparator
+   *
+   * @dataProvider getThousandSeparators
    */
-  public function testProcessContribution() {
+  public function testProcessContribution($thousandSeparator) {
+    $this->setCurrencySeparators($thousandSeparator);
     $this->offsetDefaultPriceSet();
     $form = new CRM_Batch_Form_Entry();
     $params = $this->getContributionData();
@@ -188,6 +220,50 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
 
       )), $contribution['total_amount']);
     }
+  }
+
+  /**
+   * CRM-18000 - Test start_date, end_date after renewal
+   */
+  public function testMembershipRenewalDates() {
+    $form = new CRM_Batch_Form_Entry();
+    foreach (array($this->_contactID, $this->_contactID2) as $contactID) {
+      $membershipParams = array(
+        'membership_type_id' => $this->_membershipTypeID2,
+        'contact_id' => $contactID,
+        'start_date' => "01/01/2015",
+        'join_date' => "01/01/2010",
+        'end_date' => "12/31/2015",
+      );
+      $this->contactMembershipCreate($membershipParams);
+    }
+
+    $params = $this->getMembershipData();
+    //ensure membership renewal
+    $params['member_option'] = array(
+      1 => 2,
+      2 => 2,
+    );
+    $params['field'][1]['membership_type'] = array(0 => $this->_orgContactID2, 1 => $this->_membershipTypeID2);
+    $params['field'][1]['receive_date'] = date('Y-m-d');
+
+    // explicitly specify start and end dates
+    $params['field'][2]['membership_type'] = array(0 => $this->_orgContactID2, 1 => $this->_membershipTypeID2);
+    $params['field'][2]['membership_start_date'] = "2016-04-01";
+    $params['field'][2]['membership_end_date'] = "2017-03-31";
+    $params['field'][2]['receive_date'] = "2016-04-01";
+
+    $this->assertTrue($form->testProcessMembership($params));
+    $result = $this->callAPISuccess('membership', 'get', array());
+
+    // renewal dates should be from current if start_date and end_date is passed as NULL
+    $this->assertEquals(date('Y-m-d'), $result['values'][1]['start_date']);
+    $endDate = date("Y-m-d", strtotime(date("Y-m-d") . " +1 year -1 day"));
+    $this->assertEquals($endDate, $result['values'][1]['end_date']);
+
+    // verify if the modified dates asserts with the dates passed above
+    $this->assertEquals('2016-04-01', $result['values'][2]['start_date']);
+    $this->assertEquals('2017-03-31', $result['values'][2]['end_date']);
   }
 
   /**
@@ -207,29 +283,31 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
       'field' => array(
         1 => array(
           'membership_type' => array(0 => $this->_orgContactID, 1 => $this->_membershipTypeID),
-          'join_date' => '07/22/2013',
+          'join_date' => '2013-07-22',
           'membership_start_date' => NULL,
           'membership_end_date' => NULL,
           'membership_source' => NULL,
           'financial_type' => 2,
-          'total_amount' => 1,
-          'receive_date' => '07/24/2013',
+          'total_amount' => $this->formatMoneyInput(1500),
+          'receive_date' => '2013-07-24',
           'receive_date_time' => NULL,
           'payment_instrument' => 1,
+          'trxn_id' => 'TX101',
           'check_number' => NULL,
           'contribution_status_id' => 1,
         ),
         2 => array(
           'membership_type' => array(0 => $this->_orgContactID, 1 => $this->_membershipTypeID),
-          'join_date' => '07/03/2013',
-          'membership_start_date' => '02/03/2013',
+          'join_date' => '2013-07-03',
+          'membership_start_date' => '2013-02-03',
           'membership_end_date' => NULL,
           'membership_source' => NULL,
           'financial_type' => 2,
-          'total_amount' => 1,
-          'receive_date' => '07/17/2013',
+          'total_amount' => $this->formatMoneyInput(1500),
+          'receive_date' => '2013-07-17',
           'receive_date_time' => NULL,
           'payment_instrument' => NULL,
+          'trxn_id' => 'TX102',
           'check_number' => NULL,
           'contribution_status_id' => 1,
         ),
@@ -241,10 +319,11 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
           'membership_end_date' => '2013-12-01',
           'membership_source' => NULL,
           'financial_type' => 2,
-          'total_amount' => 1,
-          'receive_date' => '07/17/2013',
+          'total_amount' => $this->formatMoneyInput(1500),
+          'receive_date' => '2013-07-17',
           'receive_date_time' => NULL,
           'payment_instrument' => NULL,
+          'trxn_id' => 'TX103',
           'check_number' => NULL,
           'contribution_status_id' => 1,
         ),
@@ -256,9 +335,11 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
   }
 
   /**
+   * @param $thousandSeparator
+   *
    * @return array
    */
-  public function getContributionData() {
+  public function getContributionData($thousandSeparator = '.') {
     return array(
       //'batch_id' => 4,
       'primary_profiles' => array(1 => NULL, 2 => NULL, 3 => NULL),
@@ -270,8 +351,8 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
       'field' => array(
         1 => array(
           'financial_type' => 1,
-          'total_amount' => 15,
-          'receive_date' => '07/24/2013',
+          'total_amount' => $this->formatMoneyInput(1500.15),
+          'receive_date' => '2013-07-24',
           'receive_date_time' => NULL,
           'payment_instrument' => 1,
           'check_number' => NULL,
@@ -279,15 +360,15 @@ class CRM_Batch_Form_EntryTest extends CiviUnitTestCase {
         ),
         2 => array(
           'financial_type' => 1,
-          'total_amount' => 15,
-          'receive_date' => '07/24/2013',
+          'total_amount' => $this->formatMoneyInput(1500.15),
+          'receive_date' => '2013-07-24',
           'receive_date_time' => NULL,
           'payment_instrument' => 1,
           'check_number' => NULL,
           'contribution_status_id' => 1,
         ),
       ),
-      'actualBatchTotal' => 30,
+      'actualBatchTotal' => $this->formatMoneyInput(3000.30),
 
     );
   }

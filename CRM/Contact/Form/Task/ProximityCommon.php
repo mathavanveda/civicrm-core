@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,13 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * This class provides the functionality to support Proximity Searches.
  */
-class CRM_Contact_Form_Task_ProximityCommon extends CRM_Contact_Form_Task {
+class CRM_Contact_Form_Task_ProximityCommon {
 
   /**
    * The context that we are working on.
@@ -58,20 +58,12 @@ class CRM_Contact_Form_Task_ProximityCommon extends CRM_Contact_Form_Task {
   protected $_title;
 
   /**
-   * Build all the data structures needed to build the form.
-   */
-  public function preProcess() {
-    // initialize the task and row fields
-    parent::preProcess();
-  }
-
-  /**
    * Build the form object.
    *
    * @param CRM_Core_Form $form
    * @param int $proxSearch
    */
-  public function buildQuickForm($form, $proxSearch) {
+  static public function buildQuickForm($form, $proxSearch) {
     // is proximity search required (2) or optional (1)?
     $proxRequired = ($proxSearch == 2 ? TRUE : FALSE);
     $form->assign('proximity_search', TRUE);
@@ -128,13 +120,12 @@ class CRM_Contact_Form_Task_ProximityCommon extends CRM_Contact_Form_Task {
   /**
    * Set the default form values.
    *
-   *
    * @param CRM_Core_Form $form
    *
    * @return array
    *   the default array reference
    */
-  public function setDefaultValues($form) {
+  static public function setDefaultValues($form) {
     $defaults = array();
     $config = CRM_Core_Config::singleton();
     $countryDefault = $config->defaultContactCountry;

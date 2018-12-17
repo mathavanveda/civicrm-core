@@ -1,9 +1,9 @@
 <?php
 /*
    +--------------------------------------------------------------------+
-   | CiviCRM version 4.7                                                |
+   | CiviCRM version 5                                                  |
    +--------------------------------------------------------------------+
-   | Copyright CiviCRM LLC (c) 2004-2015                                |
+   | Copyright CiviCRM LLC (c) 2004-2019                                |
    +--------------------------------------------------------------------+
    | This file is a part of CiviCRM.                                    |
    |                                                                    |
@@ -29,8 +29,7 @@
  * This class handles all REST client requests.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_REST {
 
@@ -68,7 +67,7 @@ class CRM_Utils_REST {
   public static function ping($var = NULL) {
     $session = CRM_Core_Session::singleton();
     $key = $session->get('key');
-    //$session->set( 'key', $var );
+    // $session->set( 'key', $var );
     return self::simple(array('message' => "PONG: $key"));
   }
 
@@ -147,6 +146,7 @@ class CRM_Utils_REST {
     if (!empty($requestParams['json'])) {
       if (!empty($requestParams['prettyprint'])) {
         // Don't set content-type header for api explorer output
+        return json_encode(array_merge($result), JSON_PRETTY_PRINT + JSON_UNESCAPED_SLASHES + JSON_UNESCAPED_UNICODE);
         return self::jsonFormated(array_merge($result));
       }
       CRM_Utils_System::setHttpHeader('Content-Type', 'application/json');
@@ -183,113 +183,19 @@ class CRM_Utils_REST {
   }
 
   /**
-   * @param $data
-   *
-   * @deprecated - switch to native JSON_PRETTY_PRINT when we drop support for php 5.3
-   *
-   * @return string
-   */
-  public static function jsonFormated($data) {
-    // If php is 5.4+ we can use the native method
-    if (defined('JSON_PRETTY_PRINT')) {
-      return json_encode($data, JSON_PRETTY_PRINT + JSON_UNESCAPED_SLASHES + JSON_UNESCAPED_UNICODE);
-    }
-
-    // PHP 5.3 shim
-    $json = str_replace('\/', '/', json_encode($data));
-    $tabcount = 0;
-    $result = '';
-    $inquote = FALSE;
-    $inarray = FALSE;
-    $ignorenext = FALSE;
-
-    $tab = "\t";
-    $newline = "\n";
-
-    for ($i = 0; $i < strlen($json); $i++) {
-      $char = $json[$i];
-
-      if ($ignorenext) {
-        $result .= $char;
-        $ignorenext = FALSE;
-      }
-      else {
-        switch ($char) {
-          case '{':
-            if ($inquote) {
-              $result .= $char;
-            }
-            else {
-              $inarray = FALSE;
-              $tabcount++;
-              $result .= $char . $newline . str_repeat($tab, $tabcount);
-            }
-            break;
-
-          case '}':
-            if ($inquote) {
-              $result .= $char;
-            }
-            else {
-              $tabcount--;
-              $result = trim($result) . $newline . str_repeat($tab, $tabcount) . $char;
-            }
-            break;
-
-          case ',':
-            if ($inquote || $inarray) {
-              $result .= $char;
-            }
-            else {
-              $result .= $char . $newline . str_repeat($tab, $tabcount);
-            }
-            break;
-
-          case '"':
-            $inquote = !$inquote;
-            $result .= $char;
-            break;
-
-          case '\\':
-            if ($inquote) {
-              $ignorenext = TRUE;
-            }
-            $result .= $char;
-            break;
-
-          case '[':
-            $inarray = TRUE;
-            $result .= $char;
-            break;
-
-          case ']':
-            $inarray = FALSE;
-            $result .= $char;
-            break;
-
-          default:
-            $result .= $char;
-        }
-      }
-    }
-
-    return $result;
-  }
-
-  /**
    * @return array|int
    */
   public static function handle() {
     $requestParams = CRM_Utils_Request::exportValues();
 
     // Get the function name being called from the q parameter in the query string
-    $q = CRM_Utils_array::value('q', $requestParams);
+    $q = CRM_Utils_Array::value('q', $requestParams);
     // or for the rest interface, from fnName
-    $r = CRM_Utils_array::value('fnName', $requestParams);
+    $r = CRM_Utils_Array::value('fnName', $requestParams);
     if (!empty($r)) {
       $q = $r;
     }
-    $entity = CRM_Utils_array::value('entity', $requestParams);
+    $entity = CRM_Utils_Array::value('entity', $requestParams);
     if (empty($entity) && !empty($q)) {
       $args = explode('/', $q);
       // If the function isn't in the civicrm namespace, reject the request.
@@ -312,16 +218,16 @@ class CRM_Utils_REST {
       // or the api format (entity+action)
       $args = array();
       $args[0] = 'civicrm';
-      $args[1] = CRM_Utils_array::value('entity', $requestParams);
-      $args[2] = CRM_Utils_array::value('action', $requestParams);
+      $args[1] = CRM_Utils_Array::value('entity', $requestParams);
+      $args[2] = CRM_Utils_Array::value('action', $requestParams);
     }
 
     // Everyone should be required to provide the server key, so the whole
-    //  interface can be disabled in more change to the configuration file.
+    // interface can be disabled in more change to the configuration file.
     // first check for civicrm site key
     if (!CRM_Utils_System::authenticateKey(FALSE)) {
       $docLink = CRM_Utils_System::docURL2("Managing Scheduled Jobs", TRUE, NULL, NULL, NULL, "wiki");
-      $key = CRM_Utils_array::value('key', $requestParams);
+      $key = CRM_Utils_Array::value('key', $requestParams);
       if (empty($key)) {
         return self::error("FATAL: mandatory param 'key' missing. More info at: " . $docLink);
       }
@@ -329,8 +235,7 @@ class CRM_Utils_REST {
     }
 
     // At this point we know we are not calling ping which does not require authentication.
-    // Therefore we now need a valid server key and API key
-
+    // Therefore we now need a valid server key and API key.
     // Check and see if a valid secret API key is provided.
     $api_key = CRM_Utils_Request::retrieve('api_key', 'String', $store, FALSE, NULL, 'REQUEST');
     if (!$api_key || strtolower($api_key) == 'null') {
@@ -525,8 +430,9 @@ class CRM_Utils_REST {
 
   /**
    * This is a wrapper so you can call an api via json (it returns json too)
-   * http://example.org/civicrm/api/json?entity=Contact&action=Get"&json={"contact_type":"Individual","email.get.email":{}} to take all the emails from individuals
-   * works for POST & GET (POST recommended)
+   * http://example.org/civicrm/api/json?entity=Contact&action=Get"&json={"contact_type":"Individual","email.get.email":{}}
+   * to take all the emails from individuals.
+   * Works for POST & GET (POST recommended).
    */
   public static function ajaxJson() {
     $requestParams = CRM_Utils_Request::exportValues();
@@ -670,13 +576,14 @@ class CRM_Utils_REST {
    */
   public function loadCMSBootstrap() {
     $requestParams = CRM_Utils_Request::exportValues();
-    $q = CRM_Utils_array::value('q', $requestParams);
+    $q = CRM_Utils_Array::value('q', $requestParams);
     $args = explode('/', $q);
 
     // Proceed with bootstrap for "?entity=X&action=Y"
     // Proceed with bootstrap for "?q=civicrm/X/Y" but not "?q=civicrm/ping"
     if (!empty($q)) {
       if (count($args) == 2 && $args[1] == 'ping') {
+        CRM_Utils_System::loadBootStrap(array(), FALSE, FALSE);
         return NULL; // this is pretty wonky but maybe there's some reason I can't see
       }
       if (count($args) != 3) {
@@ -692,6 +599,7 @@ class CRM_Utils_REST {
       // FIXME: At time of writing, this doesn't actually do anything because
       // authenticateKey abends, but that's a bad behavior which sends a
       // malformed response.
+      CRM_Utils_System::loadBootStrap(array(), FALSE, FALSE);
       return self::error('Failed to authenticate key');
     }
 
@@ -700,6 +608,7 @@ class CRM_Utils_REST {
       $store = NULL;
       $api_key = CRM_Utils_Request::retrieve('api_key', 'String', $store, FALSE, NULL, 'REQUEST');
       if (empty($api_key)) {
+        CRM_Utils_System::loadBootStrap(array(), FALSE, FALSE);
         return self::error("FATAL: mandatory param 'api_key' (user key) missing");
       }
       $contact_id = CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Contact', $api_key, 'id', 'api_key');
@@ -708,11 +617,18 @@ class CRM_Utils_REST {
       }
     }
 
-    if ($uid) {
+    if ($uid && $contact_id) {
       CRM_Utils_System::loadBootStrap(array('uid' => $uid), TRUE, FALSE);
+      $session = CRM_Core_Session::singleton();
+      $session->set('ufID', $uid);
+      $session->set('userID', $contact_id);
+      CRM_Core_DAO::executeQuery('SET @civicrm_user_id = %1',
+        array(1 => array($contact_id, 'Integer'))
+      );
       return NULL;
     }
     else {
+      CRM_Utils_System::loadBootStrap(array(), FALSE, FALSE);
       return self::error('ERROR: No CMS user associated with given api-key');
     }
   }

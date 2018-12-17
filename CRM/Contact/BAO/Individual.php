@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -59,7 +59,7 @@ class CRM_Contact_BAO_Individual extends CRM_Contact_DAO_Contact {
 
     // "null" value for example is passed by dedupe merge in order to empty.
     // Display name computation shouldn't consider such values.
-    foreach (array('first_name', 'middle_name', 'last_name', 'nick_name', 'formal_title') as $displayField) {
+    foreach (array('first_name', 'middle_name', 'last_name', 'nick_name', 'formal_title', 'birth_date', 'deceased_date') as $displayField) {
       if (CRM_Utils_Array::value($displayField, $params) == "null") {
         $params[$displayField] = '';
       }
@@ -214,20 +214,16 @@ class CRM_Contact_BAO_Individual extends CRM_Contact_DAO_Contact {
       }
 
       //build the sort name.
-      $format = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
-        'sort_name_format'
-      );
+      $format = Civi::settings()->get('sort_name_format');
       $sortName = CRM_Utils_Address::format($formatted, $format,
-        FALSE, FALSE, TRUE, $tokenFields
+        FALSE, FALSE, $tokenFields
       );
       $sortName = trim($sortName);
 
       //build the display name.
-      $format = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
-        'display_name_format'
-      );
+      $format = Civi::settings()->get('display_name_format');
       $displayName = CRM_Utils_Address::format($formatted, $format,
-        FALSE, FALSE, TRUE, $tokenFields
+        FALSE, FALSE, $tokenFields
       );
       $displayName = trim($displayName);
     }

@@ -78,7 +78,7 @@
       <table>civicrm_currency</table>
       <keyColumn>name</keyColumn>
       <labelColumn>full_name</labelColumn>
-      <nameColumn>numeric_code</nameColumn>
+      <nameColumn>name</nameColumn>
     </pseudoconstant>
     <html>
       <type>Select</type>
@@ -129,6 +129,9 @@
     <type>varchar</type>
     <title>Soft Contribution PCP Note</title>
     <length>255</length>
+    <html>
+      <type>TextArea</type>
+    </html>
     <default>NULL</default>
     <add>2.2</add>
   </field>

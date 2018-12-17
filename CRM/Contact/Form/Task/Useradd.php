@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -123,6 +123,10 @@ class CRM_Contact_Form_Task_Useradd extends CRM_Core_Form {
 
   /**
    * Validation Rule.
+   *
+   * @param array $params
+   *
+   * @return array|bool
    */
   public static function usernameRule($params) {
     $config = CRM_Core_Config::singleton();

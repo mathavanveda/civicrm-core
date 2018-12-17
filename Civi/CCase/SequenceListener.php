@@ -16,7 +16,7 @@ class SequenceListener implements CaseChangeListener {
   /**
    * @param bool $reset
    *   Whether to forcibly rebuild the entire container.
-   * @return \Symfony\Component\DependencyInjection\TaggedContainerInterface
+   * @return SequenceListener
    */
   public static function singleton($reset = FALSE) {
     if ($reset || self::$singleton === NULL) {
@@ -33,9 +33,14 @@ class SequenceListener implements CaseChangeListener {
   }
 
   /**
+   * Triggers next case activity in sequence if current activity status is updated
+   * to type=COMPLETED(See CRM-21598). The adjoining activity is created according
+   * to the sequence configured in case type.
+   *
    * @param \Civi\CCase\Event\CaseChangeEvent $event
    *
    * @throws \CiviCRM_API3_Exception
+   * @return void
    */
   public function onCaseChange(\Civi\CCase\Event\CaseChangeEvent $event) {
     /** @var \Civi\CCase\Analyzer $analyzer */
@@ -47,7 +52,7 @@ class SequenceListener implements CaseChangeListener {
     }
 
     $actTypes = array_flip(\CRM_Core_PseudoConstant::activityType(TRUE, TRUE, FALSE, 'name'));
-    $actStatuses = array_flip(\CRM_Core_PseudoConstant::activityStatus('name'));
+    $actStatuses = array_flip(\CRM_Activity_BAO_Activity::getStatusesByType(\CRM_Activity_BAO_Activity::COMPLETED));
 
     $actIndex = $analyzer->getActivityIndex(array('activity_type_id', 'status_id'));
 
@@ -58,13 +63,21 @@ class SequenceListener implements CaseChangeListener {
         $this->createActivity($analyzer, $actTypeXML);
         return;
       }
-      elseif (empty($actIndex[$actTypeId][$actStatuses['Completed']])) {
+      elseif (!in_array(key($actIndex[$actTypeId]), $actStatuses)) {
         // Haven't gotten past this step yet!
         return;
       }
     }
 
-    // OK, the activity has completed every step in the sequence!
+    //CRM-17452 - Close the case only if all the activities are complete
+    $activities = $analyzer->getActivities();
+    foreach ($activities as $activity) {
+      if (!in_array($activity['status_id'], $actStatuses)) {
+        return;
+      }
+    }
+
+    // OK, the all activities have completed
     civicrm_api3('Case', 'create', array(
       'id' => $analyzer->getCaseId(),
       'status_id' => 'Closed',

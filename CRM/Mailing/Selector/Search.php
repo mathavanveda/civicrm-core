@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -60,6 +60,7 @@ class CRM_Mailing_Selector_Search extends CRM_Core_Selector_Base implements CRM_
     'contact_id',
     'mailing_id',
     'mailing_name',
+    'language',
     'sort_name',
     'email',
     'mailing_subject',
@@ -356,6 +357,11 @@ class CRM_Mailing_Selector_Search extends CRM_Core_Selector_Base implements CRM_
         array(
           'name' => ts('Mailing Name'),
           'sort' => 'mailing_name',
+          'direction' => CRM_Utils_Sort::DONTCARE,
+        ),
+        array(
+          'name' => ts('Language'),
+          'sort' => 'language',
           'direction' => CRM_Utils_Sort::DONTCARE,
         ),
         array(

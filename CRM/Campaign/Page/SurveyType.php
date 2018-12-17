@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -81,7 +81,7 @@ class CRM_Campaign_Page_SurveyType extends CRM_Core_Page_Basic {
 
     CRM_Utils_System::setTitle(ts('%1 Options', array(1 => $this->_GName)));
 
-    $this->assign('addSurveyType', CRM_Utils_System::url("civicrm/admin/campaign/surveyType", 'reset=1&action=add'));
+    $this->assign('addSurveyType', array("civicrm/admin/campaign/surveyType", "reset=1&action=add"));
   }
 
   /**

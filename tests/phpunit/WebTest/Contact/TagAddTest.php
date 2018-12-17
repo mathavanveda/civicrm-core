@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -101,7 +101,7 @@ class WebTest_Contact_TagAddTest extends CiviSeleniumTestCase {
     $this->assertTrue($this->isTextPresent("The tag '$tagSetName' has been saved."));
 
     // sort by ID desc
-    $this->click("xpath=//div[@id='cat']/div/table/thead/tr/th[2]/div[text()='ID']");
+    $this->click("xpath=//table[@class='display dataTable no-footer']/thead/tr/th[2]/div[text()='ID']");
     $this->waitForElementPresent("css=table.display tbody tr td");
 
     // verify text

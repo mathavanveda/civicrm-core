@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -106,7 +106,7 @@ class CRM_Campaign_Form_Search_Campaign extends CRM_Core_Form {
     $this->assign('campaignStatus', json_encode($campaignStatus));
 
     //active campaigns
-    $this->addElement('select', 'is_active', ts('Is Actief?'), array(
+    $this->addElement('select', 'is_active', ts('Is Active?'), array(
       '' => ts('- select -'),
       '0' => ts('Yes'),
       '1' => ts('No'),

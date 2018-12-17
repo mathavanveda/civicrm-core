@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,7 +30,7 @@ namespace Civi\Core\Transaction;
 /**
  *
  * @package Civi
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class Manager {
 
@@ -63,7 +63,7 @@ class Manager {
   }
 
   /**
-   * @param CRM_Core_DAO $dao
+   * @param \CRM_Core_DAO $dao
    *   Handle for the DB connection that will execute transaction statements.
    *   (all we really care about is the query() function)
    */
@@ -163,7 +163,7 @@ class Manager {
    * @return \Civi\Core\Transaction\Frame
    */
   protected function createBaseFrame() {
-    return new Frame($this->dao, 'BEGIN', 'COMMIT', 'ROLLBACK');;
+    return new Frame($this->dao, 'BEGIN', 'COMMIT', 'ROLLBACK');
   }
 
   /**

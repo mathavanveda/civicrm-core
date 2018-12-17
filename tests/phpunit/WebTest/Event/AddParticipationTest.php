@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -229,9 +229,6 @@ class WebTest_Event_AddParticipationTest extends CiviSeleniumTestCase {
     //clicking save
     $this->clickAjaxLink('_qf_Field_done-bottom');
 
-    // Visit home page for a sec to give caches time to be cleared
-    $this->openCiviPage('');
-
     $this->openCiviPage("participant/add", "reset=1&action=add&context=standalone", "_qf_Participant_upload-bottom");
 
     // Type contact last name in contact auto-complete, wait for dropdown and click first result
@@ -243,10 +240,10 @@ class WebTest_Event_AddParticipationTest extends CiviSeleniumTestCase {
     // Select roles
     $this->multiselect2('role_id', array('Volunteer', 'Host'));
 
-    $this->waitForElementPresent("xpath=//div[@class='crm-customData-block']//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper collapsed']");
-    $this->click("xpath=//div[@class='crm-customData-block']//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper collapsed']//div[1]");
-    $this->click("xpath=//div[@class='crm-customData-block']//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper']//div[2]//table//tbody//tr[2]//td[2]//table//tbody//tr[1]//td[1]//label");
-    $this->click("xpath=//div[@class='crm-customData-block']//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper']//div[2]//table//tbody//tr[4]//td[2]//table//tbody//tr[1]//td[1]//label");
+    $this->waitForElementPresent("xpath=//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper collapsed']");
+    $this->click("xpath=//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper collapsed']//div[1]");
+    $this->click("xpath=//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper']//div[2]//table//tbody//tr[2]//td[2]//table//tbody//tr[1]//td[1]//label");
+    $this->click("xpath=//div[@class='custom-group custom-group-$customGroupTitle crm-accordion-wrapper']//div[2]//table//tbody//tr[4]//td[2]//table//tbody//tr[1]//td[1]//label");
 
     // Choose Registration Date.
     // Using helper webtestFillDate function.
@@ -264,11 +261,12 @@ class WebTest_Event_AddParticipationTest extends CiviSeleniumTestCase {
     $this->assertTrue($this->isTextPresent('Source for this registration (if applicable).'));
 
     // Select an event fee
-    $this->waitForElementPresent('priceset');
+    $this->waitForElementPresent("xpath=//div[@class='crm-event-form-fee-block']");
 
     $this->click("xpath=//input[@class='crm-form-radio']");
 
     // Enter amount to be paid (note: this should default to selected fee level amount, s/b fixed during 3.2 cycle)
+    $this->waitForElementPresent('total_amount');
     $this->type('total_amount', '800');
 
     // Select payment method = Check and enter chk number
@@ -282,9 +280,9 @@ class WebTest_Event_AddParticipationTest extends CiviSeleniumTestCase {
     // Is status message correct?
     $this->checkCRMAlert("Event registration for $displayName has been added");
 
-    $this->waitForElementPresent("xpath=//*[@id='Search']//table//tbody/tr[1]/td[8]/span/a[text()='View']");
+    $this->waitForElementPresent("xpath=//form[@class='CRM_Event_Form_Search crm-search-form']/table/tbody/tr[1]/td[8]/span/a[text()='View']");
     //click through to the participant view screen
-    $this->clickAjaxLink("xpath=//*[@id='Search']/table/tbody/tr[1]/td[8]/span/a[text()='View']", '_qf_ParticipantView_cancel-bottom');
+    $this->clickAjaxLink("xpath=//form[@class='CRM_Event_Form_Search crm-search-form']/table/tbody/tr[1]/td[8]/span/a[text()='View']", '_qf_ParticipantView_cancel-bottom');
 
     $this->webtestVerifyTabularData(
       array(
@@ -438,8 +436,8 @@ class WebTest_Event_AddParticipationTest extends CiviSeleniumTestCase {
     foreach ($return as $values) {
       foreach ($values as $entityType => $customData) {
         //checking for duplicate custom data present or not
-        $this->assertElementPresent("xpath=//*[@class='crm-customData-block']/div[@class='custom-group custom-group-{$customData['cgtitle']} crm-accordion-wrapper ']");
-        $this->assertEquals(1, $this->getXpathCount("//*[@class='crm-customData-block']/div[@class='custom-group custom-group-{$customData['cgtitle']} crm-accordion-wrapper ']"));
+        $this->assertElementPresent("xpath=//div[@class='custom-group custom-group-{$customData['cgtitle']} crm-accordion-wrapper ']");
+        $this->assertEquals(1, $this->getXpathCount("//div[@class='custom-group custom-group-{$customData['cgtitle']} crm-accordion-wrapper ']"));
       }
     }
   }

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -29,9 +29,7 @@
  *
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -44,7 +42,7 @@ class CRM_Event_Form_EventFees {
    *
    * @param CRM_Core_Form $form
    *
-   * @return void
+   * @throws \CRM_Core_Exception
    */
   public static function preProcess(&$form) {
     //as when call come from register.php
@@ -66,13 +64,11 @@ class CRM_Event_Form_EventFees {
   }
 
   /**
-   * This function sets the default values for the form in edit/view mode
-   * the default values are retrieved from the database
-   *
+   * This function sets the default values for the form in edit/view mode.
    *
    * @param CRM_Core_Form $form
    *
-   * @return void
+   * @return array
    */
   public static function setDefaultValues(&$form) {
     $defaults = array();
@@ -117,7 +113,7 @@ class CRM_Event_Form_EventFees {
         $defaults[$form->_pId]['receipt_text'] = $details[$form->_eventId]['confirm_email_text'];
       }
 
-      list($defaults[$form->_pId]['receive_date'], $defaults[$form->_pId]['receive_date_time']) = CRM_Utils_Date::setDateDefaults();
+      $defaults[$form->_pId]['receive_date'] = date('Y-m-d H:i:s');
     }
 
     //CRM-11601 we should keep the record contribution
@@ -143,12 +139,6 @@ class CRM_Event_Form_EventFees {
 
       $billingDefaults = $form->getProfileDefaults('Billing', $form->_contactId);
       $defaults[$form->_pId] = array_merge($defaults[$form->_pId], $billingDefaults);
-
-      //             // hack to simplify credit card entry for testing
-      //             $defaults[$form->_pId]['credit_card_type']     = 'Visa';
-      //             $defaults[$form->_pId]['credit_card_number']   = '4807731747657838';
-      //             $defaults[$form->_pId]['cvv2']                 = '000';
-      //             $defaults[$form->_pId]['credit_card_exp_date'] = array( 'Y' => '2012', 'M' => '05' );
     }
 
     // if user has selected discount use that to set default
@@ -230,6 +220,7 @@ class CRM_Event_Form_EventFees {
 
     // CRM-4395
     if ($contriId = $form->get('onlinePendingContributionId')) {
+      $defaults[$form->_pId]['record_contribution'] = 1;
       $contribution = new CRM_Contribute_DAO_Contribution();
       $contribution->id = $contriId;
       $contribution->find(TRUE);
@@ -240,12 +231,7 @@ class CRM_Event_Form_EventFees {
                  'receive_date',
                  'total_amount',
                ) as $f) {
-        if ($f == 'receive_date') {
-          list($defaults[$form->_pId]['receive_date']) = CRM_Utils_Date::setDateDefaults($contribution->$f);
-        }
-        else {
-          $defaults[$form->_pId][$f] = $contribution->$f;
-        }
+        $defaults[$form->_pId][$f] = $contribution->$f;
       }
     }
     return $defaults[$form->_pId];
@@ -254,12 +240,11 @@ class CRM_Event_Form_EventFees {
   /**
    * This function sets the default values for price set.
    *
-   *
    * @param int $participantID
    * @param int $eventID
    * @param bool $includeQtyZero
    *
-   * @return void
+   * @return array
    */
   public static function setDefaultPriceSet($participantID, $eventID = NULL, $includeQtyZero = TRUE) {
     $defaults = array();
@@ -277,7 +262,7 @@ class CRM_Event_Form_EventFees {
     }
 
     // use line items for setdefault price set fields, CRM-4090
-    $lineItems[$participantID] = CRM_Price_BAO_LineItem::getLineItems($participantID, 'participant', NULL, $includeQtyZero);
+    $lineItems[$participantID] = CRM_Price_BAO_LineItem::getLineItems($participantID, 'participant', FALSE, $includeQtyZero);
 
     if (is_array($lineItems[$participantID]) &&
       !CRM_Utils_System::isNull($lineItems[$participantID])
@@ -342,8 +327,6 @@ SELECT  id, html_type
    * Build the form object.
    *
    * @param CRM_Core_Form $form
-   *
-   * @return void
    */
   public static function buildQuickForm(&$form) {
     if ($form->_eventId) {
@@ -377,7 +360,7 @@ SELECT  id, html_type
       CRM_Event_Form_Registration::initEventFee($form, $event['id']);
       CRM_Event_Form_Registration_Register::buildAmount($form, TRUE, $form->_discountId);
       $lineItem = array();
-      $invoiceSettings = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::CONTRIBUTE_PREFERENCES_NAME, 'contribution_invoice_settings');
+      $invoiceSettings = Civi::settings()->get('contribution_invoice_settings');
       $invoicing = CRM_Utils_Array::value('invoicing', $invoiceSettings);
       $totalTaxAmount = 0;
       if (!CRM_Utils_System::isNull(CRM_Utils_Array::value('line_items', $form->_values))) {
@@ -410,20 +393,33 @@ SELECT  id, html_type
           $element->freeze();
         }
       }
-      if ($form->_mode) {
-        CRM_Core_Payment_Form::buildPaymentForm($form, $form->_paymentProcessor, FALSE, TRUE);
+      if (CRM_Financial_BAO_FinancialType::isACLFinancialTypeStatus()
+        && !CRM_Utils_Array::value('fee', $form->_values)
+        && CRM_Utils_Array::value('snippet', $_REQUEST) == CRM_Core_Smarty::PRINT_NOFORM
+      ) {
+        CRM_Core_Session::setStatus(ts('You do not have all the permissions needed for this page.'), 'Permission Denied', 'error');
+        return FALSE;
       }
-      elseif (!$form->_mode) {
+
+      CRM_Core_Payment_Form::buildPaymentForm($form, $form->_paymentProcessor, FALSE, TRUE, self::getDefaultPaymentInstrumentId());
+      if (!$form->_mode) {
         $form->addElement('checkbox', 'record_contribution', ts('Record Payment?'), NULL,
           array('onclick' => "return showHideByValue('record_contribution','','payment_information','table-row','radio',false);")
         );
+        // Check permissions for financial type first
+        if (CRM_Financial_BAO_FinancialType::isACLFinancialTypeStatus()) {
+          CRM_Financial_BAO_FinancialType::getAvailableFinancialTypes($financialTypes, $form->_action);
+        }
+        else {
+          $financialTypes = CRM_Contribute_PseudoConstant::financialType();
+        }
 
         $form->add('select', 'financial_type_id',
           ts('Financial Type'),
-          array('' => ts('- select -')) + CRM_Contribute_PseudoConstant::financialType()
+          array('' => ts('- select -')) + $financialTypes
         );
 
-        $form->addDateTime('receive_date', ts('Received'), FALSE, array('formatType' => 'activityDateTime'));
+        $form->add('datepicker', 'receive_date', ts('Received'), array(), FALSE, array('time' => TRUE));
 
         $form->add('select', 'payment_instrument_id',
           ts('Payment Method'),
@@ -441,23 +437,8 @@ SELECT  id, html_type
           $form->assign('showTransactionId', TRUE);
         }
 
-        $status = CRM_Contribute_PseudoConstant::contributionStatus();
-
-        // CRM-14417 suppressing contribution statuses that are NOT relevant to new participant registrations
-        $statusName = CRM_Contribute_PseudoConstant::contributionStatus(NULL, 'name');
-        foreach (array(
-                   'Cancelled',
-                   'Failed',
-                   'In Progress',
-                   'Overdue',
-                   'Refunded',
-                   'Pending refund',
-                 ) as $suppress) {
-          unset($status[CRM_Utils_Array::key($suppress, $statusName)]);
-        }
-
         $form->add('select', 'contribution_status_id',
-          ts('Payment Status'), $status
+          ts('Payment Status'), CRM_Contribute_BAO_Contribution_Utils::getContributionStatuses('participant')
         );
 
         $form->add('text', 'check_number', ts('Check Number'),
@@ -500,11 +481,24 @@ SELECT  id, html_type
       }
     }
 
-    $mailingInfo = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MAILING_PREFERENCES_NAME,
-      'mailing_backend'
-    );
+    $mailingInfo = Civi::settings()->get('mailing_backend');
     $form->assign('outBound_option', $mailingInfo['outBound_option']);
     $form->assign('hasPayment', $form->_paymentId);
+  }
+
+  /**
+   * Get the default payment instrument id.
+   *
+   * @todo resolve relationship between this form & abstractEdit -which should be it's parent.
+   *
+   * @return int
+   */
+  protected static function getDefaultPaymentInstrumentId() {
+    $paymentInstrumentID = CRM_Utils_Request::retrieve('payment_instrument_id', 'Integer');
+    if ($paymentInstrumentID) {
+      return $paymentInstrumentID;
+    }
+    return key(CRM_Core_OptionGroup::values('payment_instrument', FALSE, FALSE, FALSE, 'AND is_default = 1'));
   }
 
 }

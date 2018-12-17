@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Case_Page_CaseDetails extends CRM_Core_Page {
 
@@ -41,8 +41,7 @@ class CRM_Case_Page_CaseDetails extends CRM_Core_Page {
    */
   public function run() {
     $this->_action = CRM_Utils_Request::retrieve('action', 'String', $this, FALSE, 'browse');
-    $this->_context = CRM_Utils_Request::retrieve('context', 'String', $this);
-    $type = CRM_Utils_Request::retrieve('type', 'String', CRM_Core_DAO::$_nullObject);
+    $this->_context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
 
     $this->assign('action', $this->_action);
     $this->assign('context', $this->_context);
@@ -51,29 +50,11 @@ class CRM_Case_Page_CaseDetails extends CRM_Core_Page {
 
     $caseId = CRM_Utils_Request::retrieve('caseId', 'Positive', $this);
 
-    CRM_Case_Page_Tab::setContext();
+    CRM_Case_Page_Tab::setContext($this);
 
-    $params = array('date_range' => 0);
-
-    $caseDetails = array();
-    if (CRM_Case_BAO_Case::accessCiviCase()) {
-      $caseDetails = CRM_Case_BAO_Case::getCaseActivity($caseId, $params, $this->_contactId, NULL, NULL, $type);
-    }
-
-    $this->assign('rows', $caseDetails);
-    $this->assign('caseId', $caseId);
-    $this->assign('contactId', $this->_contactId);
-
-    // Make it easy to refresh this table
-    $params = array(
-      'caseId' => $caseId,
-      'type' => $type,
-      'context' => $this->_context,
-      'cid' => $this->_contactId,
-      'action' => $this->_action,
-      'snippet' => 4,
-    );
-    $this->assign('data_params', json_encode($params));
+    $this->assign('caseID', $caseId);
+    $this->assign('contactID', $this->_contactId);
+    $this->assign('userID', CRM_Core_Session::singleton()->get('userID'));
 
     return parent::run();
   }

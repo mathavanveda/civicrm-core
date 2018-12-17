@@ -25,13 +25,15 @@
 
   <tr>
    <td>
-  <p>{contact.email_greeting},</p>
+     {assign var="greeting" value="{contact.email_greeting}"}{if $greeting}<p>{$greeting},</p>{/if}
 
     {if $event.confirm_email_text AND (not $isOnWaitlist AND not $isRequireApproval)}
      <p>{$event.confirm_email_text|htmlize}</p>
 
     {else}
-  <p>Thank you for your participation.  This letter is a confirmation that your registration has been received and your status has been updated to <strong>{if $participant_status}{$participant_status}{else}{if $isOnWaitlist}waitlisted{else}registered{/if}{/if}</strong>.</p>
+     <p>{ts}Thank you for your participation.{/ts}
+     {if $participant_status}{ts 1=$participant_status}This letter is a confirmation that your registration has been received and your status has been updated to <strong> %1</strong>.{/ts}
+     {else}{if $isOnWaitlist}{ts}This letter is a confirmation that your registration has been received and your status has been updated to <strong>waitlisted</strong>.{/ts}{else}{ts}This letter is a confirmation that your registration has been received and your status has been updated to <strong>registered<strong>.{/ts}{/if}{/if}.</p>
 
     {/if}
 
@@ -105,21 +107,7 @@
      {if $isShowLocation}
       <tr>
        <td colspan="2" {$valueStyle}>
-        {if $location.address.1.name}
-         {$location.address.1.name}<br />
-        {/if}
-        {if $location.address.1.street_address}
-         {$location.address.1.street_address}<br />
-        {/if}
-        {if $location.address.1.supplemental_address_1}
-         {$location.address.1.supplemental_address_1}<br />
-        {/if}
-        {if $location.address.1.supplemental_address_2}
-         {$location.address.1.supplemental_address_2}<br />
-        {/if}
-        {if $location.address.1.city}
-         {$location.address.1.city}, {$location.address.1.state_province} {$location.address.1.postal_code}{if $location.address.1.postal_code_suffix} - {$location.address.1.postal_code_suffix}{/if}<br />
-        {/if}
+        {$location.address.1.display|nl2br}
        </td>
       </tr>
      {/if}
@@ -189,7 +177,7 @@
        </td>
      </tr>
     {/if}
-    {if $event.is_monetary}
+    {if $event.is_monetary and not $isRequireApproval}
 
       <tr>
        <th {$headerStyle}>
@@ -366,13 +354,13 @@
         </tr>
        {/if}
 
-       {if $contributionTypeName}
+       {if $financialTypeName}
         <tr>
          <td {$labelStyle}>
           {ts}Financial Type{/ts}
          </td>
          <td {$valueStyle}>
-          {$contributionTypeName}
+          {$financialTypeName}
          </td>
         </tr>
        {/if}
@@ -507,8 +495,16 @@
        {/foreach}
       {/foreach}
      {/if}
-
     </table>
+    {if $event.allow_selfcancelxfer }
+     <tr>
+      <td colspan="2" {$valueStyle}>
+        {ts 1=$event.selfcancelxfer_time}You may transfer your registration to another participant or cancel your registration up to %1 hours before the event.{/ts} {if $totalAmount}{ts}Cancellations are not refundable.{/ts}{/if}<br />
+        {capture assign=selfService}{crmURL p='civicrm/event/selfsvcupdate' q="reset=1&pid=`$participant.id`&{contact.checksum}"  h=0 a=1 fe=1}{/capture}
+        <a href="{$selfService}">{ts}Click here to transfer or cancel your registration.{/ts}</a>
+      </td>
+     </tr>
+    {/if}
    </td>
   </tr>
  </table>

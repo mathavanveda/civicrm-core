@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,9 +30,7 @@
  * system.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Extension_System {
   private static $singleton;
@@ -44,6 +42,11 @@ class CRM_Extension_System {
   private $manager = NULL;
   private $browser = NULL;
   private $downloader = NULL;
+
+  /**
+   * @var CRM_Extension_ClassLoader
+   * */
+  private $classLoader;
 
   /**
    * The URL of the remote extensions repository.
@@ -95,6 +98,7 @@ class CRM_Extension_System {
     $parameters['extensionsDir'] = CRM_Utils_Array::value('extensionsDir', $parameters, $config->extensionsDir);
     $parameters['extensionsURL'] = CRM_Utils_Array::value('extensionsURL', $parameters, $config->extensionsURL);
     $parameters['resourceBase'] = CRM_Utils_Array::value('resourceBase', $parameters, $config->resourceBase);
+    $parameters['uploadDir'] = CRM_Utils_Array::value('uploadDir', $parameters, $config->uploadDir);
     $parameters['userFrameworkBaseURL'] = CRM_Utils_Array::value('userFrameworkBaseURL', $parameters, $config->userFrameworkBaseURL);
     if (!array_key_exists('civicrm_root', $parameters)) {
       $parameters['civicrm_root'] = $GLOBALS['civicrm_root'];
@@ -141,7 +145,7 @@ class CRM_Extension_System {
         if (is_dir($vendorPath)) {
           $containers['cmsvendor'] = new CRM_Extension_Container_Basic(
             $vendorPath,
-            $this->parameters['userFrameworkBaseURL'] . DIRECTORY_SEPARATOR . 'vendor',
+            CRM_Utils_File::addTrailingSlash($this->parameters['userFrameworkBaseURL'], '/') . 'vendor',
             $this->getCache(),
             'cmsvendor'
           );
@@ -185,6 +189,16 @@ class CRM_Extension_System {
   }
 
   /**
+   * @return \CRM_Extension_ClassLoader
+   */
+  public function getClassLoader() {
+    if ($this->classLoader === NULL) {
+      $this->classLoader = new CRM_Extension_ClassLoader($this->getMapper(), $this->getFullContainer(), $this->getManager());
+    }
+    return $this->classLoader;
+  }
+
+  /**
    * Get the service for enabling and disabling extensions.
    *
    * @return CRM_Extension_Manager
@@ -210,8 +224,8 @@ class CRM_Extension_System {
   public function getBrowser() {
     if ($this->browser === NULL) {
       $cacheDir = NULL;
-      if ($this->getDefaultContainer()) {
-        $cacheDir = $this->getDefaultContainer()->getBaseDir() . DIRECTORY_SEPARATOR . 'cache';
+      if (!empty($this->parameters['uploadDir'])) {
+        $cacheDir = CRM_Utils_File::addTrailingSlash($this->parameters['uploadDir']) . 'cache';
       }
       $this->browser = new CRM_Extension_Browser($this->getRepositoryUrl(), '', $cacheDir);
     }
@@ -258,11 +272,10 @@ class CRM_Extension_System {
    */
   public function getRepositoryUrl() {
     if (empty($this->_repoUrl) && $this->_repoUrl !== FALSE) {
-      $config = CRM_Core_Config::singleton();
-      $url = CRM_Core_BAO_Setting::getItem('Extension Preferences', 'ext_repo_url', NULL, CRM_Extension_Browser::DEFAULT_EXTENSIONS_REPOSITORY);
+      $url = Civi::settings()->get('ext_repo_url');
 
       // boolean false means don't try to check extensions
-      // http://issues.civicrm.org/jira/browse/CRM-10575
+      // CRM-10575
       if ($url === FALSE) {
         $this->_repoUrl = FALSE;
       }
@@ -271,6 +284,56 @@ class CRM_Extension_System {
       }
     }
     return $this->_repoUrl;
+  }
+
+  /**
+   * Take an extension's raw XML info and add information about the
+   * extension's status on the local system.
+   *
+   * The result format resembles the old CRM_Core_Extensions_Extension.
+   *
+   * @param CRM_Extension_Info $obj
+   *
+   * @return array
+   */
+  public static function createExtendedInfo(CRM_Extension_Info $obj) {
+    $mapper = CRM_Extension_System::singleton()->getMapper();
+    $manager = CRM_Extension_System::singleton()->getManager();
+
+    $extensionRow = (array) $obj;
+    try {
+      $extensionRow['path'] = $mapper->keyToBasePath($obj->key);
+    }
+    catch (CRM_Extension_Exception $e) {
+      $extensionRow['path'] = '';
+    }
+    $extensionRow['status'] = $manager->getStatus($obj->key);
+
+    switch ($extensionRow['status']) {
+      case CRM_Extension_Manager::STATUS_UNINSTALLED:
+        $extensionRow['statusLabel'] = ''; // ts('Uninstalled');
+        break;
+
+      case CRM_Extension_Manager::STATUS_DISABLED:
+        $extensionRow['statusLabel'] = ts('Disabled');
+        break;
+
+      case CRM_Extension_Manager::STATUS_INSTALLED:
+        $extensionRow['statusLabel'] = ts('Enabled'); // ts('Installed');
+        break;
+
+      case CRM_Extension_Manager::STATUS_DISABLED_MISSING:
+        $extensionRow['statusLabel'] = ts('Disabled (Missing)');
+        break;
+
+      case CRM_Extension_Manager::STATUS_INSTALLED_MISSING:
+        $extensionRow['statusLabel'] = ts('Enabled (Missing)'); // ts('Installed');
+        break;
+
+      default:
+        $extensionRow['statusLabel'] = '(' . $extensionRow['status'] . ')';
+    }
+    return $extensionRow;
   }
 
 }

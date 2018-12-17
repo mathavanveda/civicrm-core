@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,13 +27,17 @@
   <div class="icon inform-icon"></div>
       {include file="CRM/Contribute/Form/Task.tpl"}
 </div>
-<div id="help">
+<div class="help">
     {ts}You may choose to email receipts to contributors OR download a PDF file containing one receipt per page to your local computer by clicking <strong>Process Receipt(s)</strong>. Your browser may display the file for you automatically, or you may need to open it for printing using any PDF reader (such as Adobe&reg; Reader).{/ts}
 </div>
 
 <table class="form-layout-compressed">
   <tr>
     <td>{$form.output.email_receipt.html}</td>
+  </tr>
+  <tr id="selectEmailFrom" style="display: none" class="crm-contactEmail-form-block-fromEmailAddress crm-email-element">
+    <td class="label">{$form.from_email_address.label}</td>
+    <td>{$form.from_email_address.html} {help id="id-from_email" file="CRM/Contact/Form/Task/Email.hlp" isAdmin=$isAdmin}</td>
   </tr>
   <tr>
     <td>{$form.output.pdf_receipt.html}</td>

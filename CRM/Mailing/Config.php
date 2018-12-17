@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Mailing_Config {
 
@@ -38,5 +38,10 @@ class CRM_Mailing_Config {
   const OUTBOUND_OPTION_MAIL = 3;
   const OUTBOUND_OPTION_MOCK = 4; // seems to be the same as 2, but also calls Mail's pre/post hooks? - see packages/Mail
   const OUTBOUND_OPTION_REDIRECT_TO_DB = 5;
+
+  // special value for mail bulk inserts to avoid
+  // potential duplication, assuming a smaller number reduces number of queries
+  // by some factor, so some tradeoff. CRM-8678
+  const BULK_MAIL_INSERT_COUNT = 10;
 
 }

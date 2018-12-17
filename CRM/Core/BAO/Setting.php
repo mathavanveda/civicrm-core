@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -64,7 +64,7 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
    * Retrieve the value of a setting from the DB table.
    *
    * @param string $group
-   *   (required) The group name of the item.
+   *   The group name of the item (deprecated).
    * @param string $name
    *   (required) The name under which this item is stored.
    * @param int $componentID
@@ -90,22 +90,20 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
     /** @var \Civi\Core\SettingsManager $manager */
     $manager = \Civi::service('settings_manager');
     $settings = ($contactID === NULL) ? $manager->getBagByDomain($domainID) : $manager->getBagByContact($domainID, $contactID);
-    if (TRUE) {
-      if ($name === NULL) {
-        CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name should be provided.\n");
-      }
-      if ($componentID !== NULL) {
-        CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name='$name'. Component should be omitted\n");
-      }
-      if ($defaultValue !== NULL) {
-        CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name='$name'. Defaults should come from metadata\n");
-      }
+    if ($name === NULL) {
+      CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name should be provided.\n");
+    }
+    if ($componentID !== NULL) {
+      CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name='$name'. Component should be omitted\n");
+    }
+    if ($defaultValue !== NULL) {
+      CRM_Core_Error::debug_log_message("Deprecated: Group='$group'. Name='$name'. Defaults should come from metadata\n");
     }
     return $name ? $settings->get($name) : $settings->all();
   }
 
   /**
-   * Store multiple items in the setting table.
+   * Get multiple items from the setting table.
    *
    * @param array $params
    *   (required) An api formatted array of keys and values.
@@ -122,16 +120,10 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
     if (!empty($settingsToReturn) && !is_array($settingsToReturn)) {
       $settingsToReturn = array($settingsToReturn);
     }
-    $reloadConfig = FALSE;
 
     $fields = $result = array();
     $fieldsToGet = self::validateSettingsInput(array_flip($settingsToReturn), $fields, FALSE);
     foreach ($domains as $domainID) {
-      if ($domainID != CRM_Core_Config::domainID()) {
-        $reloadConfig = TRUE;
-        CRM_Core_BAO_Domain::setDomain($domainID);
-      }
-      $config = CRM_Core_Config::singleton($reloadConfig, $reloadConfig);
       $result[$domainID] = array();
       foreach ($fieldsToGet as $name => $value) {
         $contactID = CRM_Utils_Array::value('contact_id', $params);
@@ -142,7 +134,6 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
           $result[$domainID][$name] = $setting;
         }
       }
-      CRM_Core_BAO_Domain::resetDomain();
     }
     return $result;
   }
@@ -155,7 +146,7 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
    * @param object $value
    *   (required) The value that will be serialized and stored.
    * @param string $group
-   *   (required) The group name of the item.
+   *   The group name of the item (deprecated).
    * @param string $name
    *   (required) The name of the setting.
    * @param int $componentID
@@ -208,6 +199,10 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
     $fieldsToSet = self::validateSettingsInput($params, $fields);
 
     foreach ($fieldsToSet as $settingField => &$settingValue) {
+      if (empty($fields['values'][$settingField])) {
+        Civi::log()->warning('Deprecated Path: There is a setting (' . $settingField . ') not correctly defined. You may see unpredictability due to this. CRM_Core_Setting::setItems', array('civi.tag' => 'deprecated'));
+        $fields['values'][$settingField] = array();
+      }
       self::validateSetting($settingValue, $fields['values'][$settingField]);
     }
 
@@ -235,8 +230,6 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
    *   name => value array of the fields to be set (with extraneous removed)
    */
   public static function validateSettingsInput($params, &$fields, $createMode = TRUE) {
-    $group = CRM_Utils_Array::value('group', $params);
-
     $ignoredParams = array(
       'version',
       'id',
@@ -255,6 +248,14 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
       'check_permissions',
       'options',
       'prettyprint',
+      // CRM-18347: ignore params unintentionally passed by API explorer on WP
+      'page',
+      'noheader',
+      // CRM-18347: ignore params unintentionally passed by wp CLI tool
+      '',
+      // CRM-19877: ignore params extraneously passed by Joomla
+      'option',
+      'task',
     );
     $settingParams = array_diff_key($params, array_fill_keys($ignoredParams, TRUE));
     $getFieldsParams = array('version' => 3);
@@ -279,12 +280,17 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
   }
 
   /**
-   * Validate & convert settings input
+   * Validate & convert settings input.
    *
-   * @value mixed value of the setting to be set
-   * @fieldSpec array Metadata for given field (drawn from the xml)
+   * @param mixed $value
+   *   value of the setting to be set
+   * @param array $fieldSpec
+   *   Metadata for given field (drawn from the xml)
+   *
+   * @return bool
+   * @throws \api_Exception
    */
-  public static function validateSetting(&$value, $fieldSpec) {
+  public static function validateSetting(&$value, array $fieldSpec) {
     if ($fieldSpec['type'] == 'String' && is_array($value)) {
       $value = CRM_Core_DAO::VALUE_SEPARATOR . implode(CRM_Core_DAO::VALUE_SEPARATOR, $value) . CRM_Core_DAO::VALUE_SEPARATOR;
     }
@@ -300,10 +306,13 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
   }
 
   /**
-   * Validate & convert settings input - translate True False to 0 or 1
+   * Validate & convert settings input - translate True False to 0 or 1.
    *
-   * @value mixed value of the setting to be set
-   * @fieldSpec array Metadata for given field (drawn from the xml)
+   * @param mixed $value value of the setting to be set
+   * @param array $fieldSpec Metadata for given field (drawn from the xml)
+   *
+   * @return bool
+   * @throws \api_Exception
    */
   public static function validateBoolSetting(&$value, $fieldSpec) {
     if (!CRM_Utils_Rule::boolean($value)) {
@@ -422,7 +431,7 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
   }
 
   /**
-   * @param $group
+   * @param $group (deprecated)
    * @param string $name
    * @param $value
    * @param bool $system
@@ -467,18 +476,65 @@ class CRM_Core_BAO_Setting extends CRM_Core_DAO_Setting {
   }
 
   /**
-   * Civicrm_setting didn't exist before 4.1.alpha1 and this function helps taking decisions during upgrade
+   * Check if environment is explicitly set.
    *
    * @return bool
    */
-  public static function isUpgradeFromPreFourOneAlpha1() {
-    if (CRM_Core_Config::isUpgradeMode()) {
-      $currentVer = CRM_Core_BAO_Domain::version();
-      if (version_compare($currentVer, '4.1.alpha1') < 0) {
-        return TRUE;
-      }
+  public static function isEnvironmentSet($setting, $value = NULL) {
+    $environment = CRM_Core_Config::environment();
+    if ($setting == 'environment' && $environment) {
+      return TRUE;
     }
     return FALSE;
+  }
+
+  /**
+   * Check if job is able to be executed by API.
+   *
+   * @throws API_Exception
+   */
+  public static function isAPIJobAllowedToRun($params) {
+    $environment = CRM_Core_Config::environment(NULL, TRUE);
+    if ($environment != 'Production') {
+      if (CRM_Utils_Array::value('runInNonProductionEnvironment', $params)) {
+        $mailing = Civi::settings()->get('mailing_backend_store');
+        if ($mailing) {
+          Civi::settings()->set('mailing_backend', $mailing);
+        }
+      }
+      else {
+        throw new Exception(ts("Job has not been executed as it is a %1 (non-production) environment.", array(1 => $environment)));
+      }
+    }
+  }
+
+  /**
+   * Setting Callback - On Change.
+   *
+   * Respond to changes in the "environment" setting.
+   *
+   * @param array $oldValue
+   *   Value of old environment mode.
+   * @param array $newValue
+   *   Value of new environment mode.
+   * @param array $metadata
+   *   Specification of the setting (per *.settings.php).
+   */
+  public static function onChangeEnvironmentSetting($oldValue, $newValue, $metadata) {
+    if ($newValue != 'Production') {
+      $mailing = Civi::settings()->get('mailing_backend');
+      if ($mailing['outBound_option'] != 2) {
+        Civi::settings()->set('mailing_backend_store', $mailing);
+      }
+      Civi::settings()->set('mailing_backend', array('outBound_option' => CRM_Mailing_Config::OUTBOUND_OPTION_DISABLED));
+      CRM_Core_Session::setStatus(ts('Outbound emails have been disabled. Scheduled jobs will not run unless runInNonProductionEnvironment=TRUE is added as a parameter for a specific job'), ts("Non-production environment set"), "success");
+    }
+    else {
+      $mailing = Civi::settings()->get('mailing_backend_store');
+      if ($mailing) {
+        Civi::settings()->set('mailing_backend', $mailing);
+      }
+    }
   }
 
 }

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,20 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * This class previews the uploaded file and returns summary statistics.
  */
 class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
+
+  /**
+   * Whether USPS validation should be disabled during import.
+   *
+   * @var bool
+   */
+  protected $_disableUSPS;
 
   /**
    * Set variables up before form is built.
@@ -47,6 +54,7 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
     $conflictRowCount = $this->get('conflictRowCount');
     $mismatchCount = $this->get('unMatchCount');
     $columnNames = $this->get('columnNames');
+    $this->_disableUSPS = $this->get('disableUSPS');
 
     //assign column names
     $this->assign('columnNames', $columnNames);
@@ -113,13 +121,7 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
       $this->assign($property, $this->get($property));
     }
 
-    $statusID = $this->get('statusID');
-    if (!$statusID) {
-      $statusID = md5(uniqid(rand(), TRUE));
-      $this->set('statusID', $statusID);
-    }
-    $statusUrl = CRM_Utils_System::url('civicrm/ajax/status', "id={$statusID}", FALSE, NULL, FALSE);
-    $this->assign('statusUrl', $statusUrl);
+    $this->setStatusUrl();
 
     $showColNames = TRUE;
     if ('CRM_Import_DataSource_CSV' == $this->get('dataSource') &&
@@ -134,8 +136,16 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
    * Build the form object.
    */
   public function buildQuickForm() {
-    $this->addElement('text', 'newGroupName', ts('Name for new group'));
+    $this->addElement('text', 'newGroupName', ts('Name for new group'), CRM_Core_DAO::getAttribute('CRM_Contact_DAO_Group', 'title'));
     $this->addElement('text', 'newGroupDesc', ts('Description of new group'));
+    $groupTypes = CRM_Core_OptionGroup::values('group_type', TRUE);
+    if (!empty($groupTypes)) {
+      $this->addCheckBox('newGroupType',
+        ts('Group Type'),
+        $groupTypes,
+        NULL, NULL, NULL, NULL, '&nbsp;&nbsp;&nbsp;'
+      );
+    }
 
     $groups = $this->get('groups');
 
@@ -147,8 +157,8 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
     }
 
     //display new tag
-    $this->addElement('text', 'newTagName', ts('Tag'));
-    $this->addElement('text', 'newTagDesc', ts('Description'));
+    $this->addElement('text', 'newTagName', ts('Tag'), CRM_Core_DAO::getAttribute('CRM_Core_DAO_Tag', 'name'));
+    $this->addElement('text', 'newTagDesc', ts('Description'), CRM_Core_DAO::getAttribute('CRM_Core_DAO_Tag', 'description'));
 
     $tag = $this->get('tag');
     if (!empty($tag)) {
@@ -177,7 +187,6 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
         'name' => ts('Import Now'),
         'spacing' => '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
         'isDefault' => TRUE,
-        'js' => array('onclick' => "return verify( );"),
       ),
       array(
         'type' => 'cancel',
@@ -255,6 +264,7 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
       'dedupe' => $this->get('dedupe'),
       'newGroupName' => $this->controller->exportValue($this->_name, 'newGroupName'),
       'newGroupDesc' => $this->controller->exportValue($this->_name, 'newGroupDesc'),
+      'newGroupType' => $this->controller->exportValue($this->_name, 'newGroupType'),
       'groups' => $this->controller->exportValue($this->_name, 'groups'),
       'allGroups' => $this->get('groups'),
       'newTagName' => $this->controller->exportValue($this->_name, 'newTagName'),
@@ -282,16 +292,14 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
       CRM_ACL_BAO_Cache::updateEntry($userID);
     }
 
+    CRM_Utils_Address_USPS::disable($this->_disableUSPS);
+
     // run the import
     $importJob->runImport($this);
 
-    // update cache after we done with runImport
-    if (!CRM_Core_Permission::check('view all contacts')) {
-      CRM_ACL_BAO_Cache::updateEntry($userID);
-    }
-
-    // clear all caches
-    CRM_Contact_BAO_Contact_Utils::clearContactCaches();
+    // Clear all caches, forcing any searches to recheck the ACLs or group membership as the import
+    // may have changed it.
+    CRM_Contact_BAO_Contact_Utils::clearContactCaches(TRUE);
 
     // add all the necessary variables to the form
     $importJob->setFormVariables($this);
@@ -343,6 +351,7 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
     $onDuplicate = $this->get('onDuplicate');
     $newGroupName = $this->controller->exportValue($this->_name, 'newGroupName');
     $newGroupDesc = $this->controller->exportValue($this->_name, 'newGroupDesc');
+    $newGroupType = $this->controller->exportValue($this->_name, 'newGroupType');
     $groups = $this->controller->exportValue($this->_name, 'groups');
     $allGroups = $this->get('groups');
     $newTagName = $this->controller->exportValue($this->_name, 'newTagName');
@@ -474,6 +483,7 @@ class CRM_Contact_Import_Form_Preview extends CRM_Import_Form_Preview {
         'name' => $newGroupName,
         'title' => $newGroupName,
         'description' => $newGroupDesc,
+        'group_type' => $newGroupType,
         'is_active' => TRUE,
       );
       $group = CRM_Contact_BAO_Group::create($gParams);

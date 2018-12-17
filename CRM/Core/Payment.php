@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -83,22 +83,148 @@ abstract class CRM_Core_Payment {
   protected $_paymentProcessor;
 
   /**
-   * Base url of the calling form.
-   *
-   * This is used for processors that need to return the browser back to the CiviCRM site.
+   * Base url of the calling form (offsite processors).
    *
    * @var string
    */
   protected $baseReturnUrl;
 
   /**
-   * Set Base return URL.
+   * Return url upon success (offsite processors).
+   *
+   * @var string
+   */
+  protected $successUrl;
+
+  /**
+   * Return url upon failure (offsite processors).
+   *
+   * @var string
+   */
+  protected $cancelUrl;
+
+  /**
+   * Processor type label.
+   *
+   * (Deprecated parameter but used in some messages).
+   *
+   * @deprecated
+   *
+   * @var string
+   */
+  public $_processorName;
+
+  /**
+   * The profile configured to show on the billing form.
+   *
+   * Currently only the pseudo-profile 'billing' is supported but hopefully in time we will take an id and
+   * load that from the DB and the processor will be able to return a set of fields that combines it's minimum
+   * requirements with the configured requirements.
+   *
+   * Currently only the pseudo-processor 'manual' or 'pay-later' uses this setting to return a 'curated' set
+   * of fields.
+   *
+   * Note this change would probably include converting 'billing' to a reserved profile.
+   *
+   * @var int|string
+   */
+  protected $billingProfile;
+
+  /**
+   * Payment instrument ID.
+   *
+   * This is normally retrieved from the payment_processor table.
+   *
+   * @var int
+   */
+  protected $paymentInstrumentID;
+
+  /**
+   * Is this a back office transaction.
+   *
+   * @var bool
+   */
+  protected $backOffice = FALSE;
+
+  /**
+   * @return bool
+   */
+  public function isBackOffice() {
+    return $this->backOffice;
+  }
+
+  /**
+   * Set back office property.
+   *
+   * @param bool $isBackOffice
+   */
+  public function setBackOffice($isBackOffice) {
+    $this->backOffice = $isBackOffice;
+  }
+
+  /**
+   * Get payment instrument id.
+   *
+   * @return int
+   */
+  public function getPaymentInstrumentID() {
+    return $this->paymentInstrumentID ? $this->paymentInstrumentID : $this->_paymentProcessor['payment_instrument_id'];
+  }
+
+  /**
+   * Set payment Instrument id.
+   *
+   * By default we actually ignore the form value. The manual processor takes it more seriously.
+   *
+   * @param int $paymentInstrumentID
+   */
+  public function setPaymentInstrumentID($paymentInstrumentID) {
+    $this->paymentInstrumentID = $this->_paymentProcessor['payment_instrument_id'];
+  }
+
+  /**
+   * Set base return path (offsite processors).
+   *
+   * This is only useful with an internal civicrm form.
    *
    * @param string $url
-   *   Url of site to return browser to.
+   *   Internal civicrm path.
    */
   public function setBaseReturnUrl($url) {
     $this->baseReturnUrl = $url;
+  }
+
+  /**
+   * Set success return URL (offsite processors).
+   *
+   * This overrides $baseReturnUrl
+   *
+   * @param string $url
+   *   Full url of site to return browser to upon success.
+   */
+  public function setSuccessUrl($url) {
+    $this->successUrl = $url;
+  }
+
+  /**
+   * Set cancel return URL (offsite processors).
+   *
+   * This overrides $baseReturnUrl
+   *
+   * @param string $url
+   *   Full url of site to return browser to upon failure.
+   */
+  public function setCancelUrl($url) {
+    $this->cancelUrl = $url;
+  }
+
+  /**
+   * Set the configured payment profile.
+   *
+   * @param int|string $value
+   */
+  public function setBillingProfile($value) {
+    $this->billingProfile = $value;
   }
 
   /**
@@ -224,6 +350,10 @@ abstract class CRM_Core_Payment {
   /**
    * Does this processor support cancelling recurring contributions through code.
    *
+   * If the processor returns true it must be possible to take action from within CiviCRM
+   * that will result in no further payments being processed. In the case of token processors (e.g
+   * IATS, eWay) updating the contribution_recur table is probably sufficient.
+   *
    * @return bool
    */
   protected function supportsCancelRecurring() {
@@ -243,6 +373,18 @@ abstract class CRM_Core_Payment {
    */
   protected function supportsPreApproval() {
     return FALSE;
+  }
+
+  /**
+   * Does this processor support updating billing info for recurring contributions through code.
+   *
+   * If the processor returns true then it must be possible to update billing info from within CiviCRM
+   * that will be updated at the payment processor.
+   *
+   * @return bool
+   */
+  protected function supportsUpdateSubscriptionBillingInfo() {
+    return method_exists(CRM_Utils_System::getClassName($this), 'updateSubscriptionBillingInfo');
   }
 
   /**
@@ -297,8 +439,9 @@ abstract class CRM_Core_Payment {
    * @param array $errors
    */
   public function validatePaymentInstrument($values, &$errors) {
+    CRM_Core_Form::validateMandatoryFields($this->getMandatoryFields(), $values, $errors);
     if ($this->_paymentProcessor['payment_type'] == 1) {
-      CRM_Core_Payment_Form::validateCreditCard($values, $errors);
+      CRM_Core_Payment_Form::validateCreditCard($values, $errors, $this->_paymentProcessor['id']);
     }
   }
 
@@ -345,6 +488,42 @@ abstract class CRM_Core_Payment {
   }
 
   /**
+   * Get help text information (help, description, etc.) about this payment,
+   * to display to the user.
+   *
+   * @param string $context
+   *   Context of the text.
+   *   Only explicitly supported contexts are handled without error.
+   *   Currently supported:
+   *   - contributionPageRecurringHelp (params: is_recur_installments, is_email_receipt)
+   *
+   * @param array $params
+   *   Parameters for the field, context specific.
+   *
+   * @return string
+   */
+  public function getText($context, $params) {
+    // I have deliberately added a noisy fail here.
+    // The function is intended to be extendable, but not by changes
+    // not documented clearly above.
+    switch ($context) {
+      case 'contributionPageRecurringHelp':
+        // require exactly two parameters
+        if (array_keys($params) == array('is_recur_installments', 'is_email_receipt')) {
+          $gotText = ts('Your recurring contribution will be processed automatically.');
+          if ($params['is_recur_installments']) {
+            $gotText .= ' ' . ts('You can specify the number of installments, or you can leave the number of installments blank if you want to make an open-ended commitment. In either case, you can choose to cancel at any time.');
+          }
+          if ($params['is_email_receipt']) {
+            $gotText .= ' ' . ts('You will receive an email receipt for each recurring contribution.');
+          }
+        }
+        break;
+    }
+    return $gotText;
+  }
+
+  /**
    * Getter for accessing member vars.
    *
    * @todo believe this is unused
@@ -377,8 +556,17 @@ abstract class CRM_Core_Payment {
 
   /**
    * Get array of fields that should be displayed on the payment form.
-   * @todo make payment type an option value & use it in the function name - currently on debit & credit card work
+   *
+   * Common results are
+   *   array('credit_card_type', 'credit_card_number', 'cvv2', 'credit_card_exp_date')
+   *   or
+   *   array('account_holder', 'bank_account_number', 'bank_identification_number', 'bank_name')
+   *   or
+   *   array()
+   *
    * @return array
+   *   Array of payment fields appropriate to the payment processor.
+   *
    * @throws CiviCRM_API3_Exception
    */
   public function getPaymentFormFields() {
@@ -388,6 +576,76 @@ abstract class CRM_Core_Payment {
     return $this->_paymentProcessor['payment_type'] == 1 ? $this->getCreditCardFormFields() : $this->getDirectDebitFormFields();
   }
 
+  /**
+   * Get an array of the fields that can be edited on the recurring contribution.
+   *
+   * Some payment processors support editing the amount and other scheduling details of recurring payments, especially
+   * those which use tokens. Others are fixed. This function allows the processor to return an array of the fields that
+   * can be updated from the contribution recur edit screen.
+   *
+   * The fields are likely to be a subset of these
+   *  - 'amount',
+   *  - 'installments',
+   *  - 'frequency_interval',
+   *  - 'frequency_unit',
+   *  - 'cycle_day',
+   *  - 'next_sched_contribution_date',
+   *  - 'end_date',
+   * - 'failure_retry_day',
+   *
+   * The form does not restrict which fields from the contribution_recur table can be added (although if the html_type
+   * metadata is not defined in the xml for the field it will cause an error.
+   *
+   * Open question - would it make sense to return membership_id in this - which is sometimes editable and is on that
+   * form (UpdateSubscription).
+   *
+   * @return array
+   */
+  public function getEditableRecurringScheduleFields() {
+    if ($this->supports('changeSubscriptionAmount')) {
+      return array('amount');
+    }
+  }
+
+  /**
+   * Get the help text to present on the recurring update page.
+   *
+   * This should reflect what can or cannot be edited.
+   *
+   * @return string
+   */
+  public function getRecurringScheduleUpdateHelpText() {
+    if (!in_array('amount', $this->getEditableRecurringScheduleFields())) {
+      return ts('Updates made using this form will change the recurring contribution information stored in your CiviCRM database, but will NOT be sent to the payment processor. You must enter the same changes using the payment processor web site.');
+    }
+    return ts('Use this form to change the amount or number of installments for this recurring contribution. Changes will be automatically sent to the payment processor. You can not change the contribution frequency.');
+  }
+
+  /**
+   * Get the metadata for all required fields.
+   *
+   * @return array;
+   */
+  protected function getMandatoryFields() {
+    $mandatoryFields = array();
+    foreach ($this->getAllFields() as $field_name => $field_spec) {
+      if (!empty($field_spec['is_required'])) {
+        $mandatoryFields[$field_name] = $field_spec;
+      }
+    }
+    return $mandatoryFields;
+  }
+
+  /**
+   * Get the metadata of all the fields configured for this processor.
+   *
+   * @return array
+   */
+  protected function getAllFields() {
+    $paymentFields = array_intersect_key($this->getPaymentFormFieldsMetadata(), array_flip($this->getPaymentFormFields()));
+    $billingFields = array_intersect_key($this->getBillingAddressFieldsMetadata(), array_flip($this->getBillingAddressFields()));
+    return array_merge($paymentFields, $billingFields);
+  }
   /**
    * Get array of fields that should be displayed on the payment form for credit cards.
    *
@@ -427,12 +685,15 @@ abstract class CRM_Core_Payment {
   public function getPaymentFormFieldsMetadata() {
     //@todo convert credit card type into an option value
     $creditCardType = array('' => ts('- select -')) + CRM_Contribute_PseudoConstant::creditCard();
+    $isCVVRequired = Civi::settings()->get('cvv_backoffice_required');
+    if (!$this->isBackOffice()) {
+      $isCVVRequired = TRUE;
+    }
     return array(
       'credit_card_number' => array(
         'htmlType' => 'text',
         'name' => 'credit_card_number',
         'title' => ts('Card Number'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 20,
           'maxlength' => 20,
@@ -440,18 +701,18 @@ abstract class CRM_Core_Payment {
           'class' => 'creditcard',
         ),
         'is_required' => TRUE,
+        // 'description' => '16 digit card number', // If you enable a description field it will be shown below the field on the form
       ),
       'cvv2' => array(
         'htmlType' => 'text',
         'name' => 'cvv2',
         'title' => ts('Security Code'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 5,
           'maxlength' => 10,
           'autocomplete' => 'off',
         ),
-        'is_required' => Civi::settings()->get('cvv_backoffice_required'),
+        'is_required' => $isCVVRequired,
         'rules' => array(
           array(
             'rule_message' => ts('Please enter a valid value for your card security code. This is usually the last 3-4 digits on the card\'s signature panel.'),
@@ -464,7 +725,6 @@ abstract class CRM_Core_Payment {
         'htmlType' => 'date',
         'name' => 'credit_card_exp_date',
         'title' => ts('Expiration Date'),
-        'cc_field' => TRUE,
         'attributes' => CRM_Core_SelectValues::date('creditCard'),
         'is_required' => TRUE,
         'rules' => array(
@@ -474,12 +734,12 @@ abstract class CRM_Core_Payment {
             'rule_parameters' => TRUE,
           ),
         ),
+        'extra' => ['class' => 'crm-form-select'],
       ),
       'credit_card_type' => array(
         'htmlType' => 'select',
         'name' => 'credit_card_type',
         'title' => ts('Card Type'),
-        'cc_field' => TRUE,
         'attributes' => $creditCardType,
         'is_required' => FALSE,
       ),
@@ -487,7 +747,6 @@ abstract class CRM_Core_Payment {
         'htmlType' => 'text',
         'name' => 'account_holder',
         'title' => ts('Account Holder'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 20,
           'maxlength' => 34,
@@ -500,7 +759,6 @@ abstract class CRM_Core_Payment {
         'htmlType' => 'text',
         'name' => 'bank_account_number',
         'title' => ts('Bank Account Number'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 20,
           'maxlength' => 34,
@@ -520,7 +778,6 @@ abstract class CRM_Core_Payment {
         'htmlType' => 'text',
         'name' => 'bank_identification_number',
         'title' => ts('Bank Identification Number'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 20,
           'maxlength' => 11,
@@ -539,7 +796,6 @@ abstract class CRM_Core_Payment {
         'htmlType' => 'text',
         'name' => 'bank_name',
         'title' => ts('Bank Name'),
-        'cc_field' => TRUE,
         'attributes' => array(
           'size' => 20,
           'maxlength' => 64,
@@ -547,6 +803,39 @@ abstract class CRM_Core_Payment {
         ),
         'is_required' => TRUE,
 
+      ),
+      'check_number' => array(
+        'htmlType' => 'text',
+        'name' => 'check_number',
+        'title' => ts('Check Number'),
+        'is_required' => FALSE,
+        'attributes' => NULL,
+      ),
+      'pan_truncation' => array(
+        'htmlType' => 'text',
+        'name' => 'pan_truncation',
+        'title' => ts('Last 4 digits of the card'),
+        'is_required' => FALSE,
+        'attributes' => array(
+          'size' => 4,
+          'maxlength' => 4,
+          'minlength' => 4,
+          'autocomplete' => 'off',
+        ),
+        'rules' => array(
+          array(
+            'rule_message' => ts('Please enter valid last 4 digit card number.'),
+            'rule_name' => 'numeric',
+            'rule_parameters' => NULL,
+          ),
+        ),
+      ),
+      'payment_token' => array(
+        'htmlType' => 'hidden',
+        'name' => 'payment_token',
+        'title' => ts('Authorization token'),
+        'is_required' => FALSE,
+        'attributes' => ['size' => 10, 'autocomplete' => 'off', 'id' => 'payment_token'],
       ),
     );
   }
@@ -561,7 +850,13 @@ abstract class CRM_Core_Payment {
    *
    * @return array
    */
-  public function getBillingAddressFields($billingLocationID) {
+  public function getBillingAddressFields($billingLocationID = NULL) {
+    if (!$billingLocationID) {
+      // Note that although the billing id is passed around the forms the idea that it would be anything other than
+      // the result of the function below doesn't seem to have eventuated.
+      // So taking this as a param is possibly something to be removed in favour of the standard default.
+      $billingLocationID = CRM_Core_BAO_LocationType::getBilling();
+    }
     if ($this->_paymentProcessor['billing_mode'] != 1 && $this->_paymentProcessor['billing_mode'] != 3) {
       return array();
     }
@@ -585,7 +880,13 @@ abstract class CRM_Core_Payment {
    * @return array
    *    Array of metadata for address fields.
    */
-  public function getBillingAddressFieldsMetadata($billingLocationID) {
+  public function getBillingAddressFieldsMetadata($billingLocationID = NULL) {
+    if (!$billingLocationID) {
+      // Note that although the billing id is passed around the forms the idea that it would be anything other than
+      // the result of the function below doesn't seem to have eventuated.
+      // So taking this as a param is possibly something to be removed in favour of the standard default.
+      $billingLocationID = CRM_Core_BAO_LocationType::getBilling();
+    }
     $metadata = array();
     $metadata['billing_first_name'] = array(
       'htmlType' => 'text',
@@ -707,14 +1008,44 @@ abstract class CRM_Core_Payment {
   }
 
   /**
-   * Get url to return to after cancelled or failed transaction
+   * Get the currency for the transaction.
    *
-   * @param $qfKey
-   * @param $participantID
+   * Handle any inconsistency about how it is passed in here.
+   *
+   * @param $params
+   *
+   * @return string
+   */
+  protected function getCurrency($params) {
+    return CRM_Utils_Array::value('currencyID', $params, CRM_Utils_Array::value('currency', $params));
+  }
+
+  /**
+   * Get the currency for the transaction.
+   *
+   * Handle any inconsistency about how it is passed in here.
+   *
+   * @param $params
+   *
+   * @return string
+   */
+  protected function getAmount($params) {
+    return CRM_Utils_Money::format($params['amount'], NULL, NULL, TRUE);
+  }
+
+  /**
+   * Get url to return to after cancelled or failed transaction.
+   *
+   * @param string $qfKey
+   * @param int $participantID
    *
    * @return string cancel url
    */
-  protected function getCancelUrl($qfKey, $participantID) {
+  public function getCancelUrl($qfKey, $participantID) {
+    if (isset($this->cancelUrl)) {
+      return $this->cancelUrl;
+    }
+
     if ($this->_component == 'event') {
       return CRM_Utils_System::url($this->getBaseReturnUrl(), array(
         'reset' => 1,
@@ -742,6 +1073,10 @@ abstract class CRM_Core_Payment {
    * @return string
    */
   protected function getReturnSuccessUrl($qfKey) {
+    if (isset($this->successUrl)) {
+      return $this->successUrl;
+    }
+
     return CRM_Utils_System::url($this->getBaseReturnUrl(), array(
       '_qf_ThankYou_display' => 1,
       'qfKey' => $qfKey,
@@ -761,6 +1096,10 @@ abstract class CRM_Core_Payment {
    *   URL for a failing transactor to be redirected to.
    */
   protected function getReturnFailUrl($key, $participantID = NULL, $eventID = NULL) {
+    if (isset($this->cancelUrl)) {
+      return $this->cancelUrl;
+    }
+
     $test = $this->_is_test ? '&action=preview' : '';
     if ($this->_component == "event") {
       return CRM_Utils_System::url('civicrm/event/register',
@@ -805,7 +1144,9 @@ abstract class CRM_Core_Payment {
     $url = CRM_Utils_System::url(
       'civicrm/payment/ipn/' . $this->_paymentProcessor['id'],
       array(),
-      TRUE
+      TRUE,
+      NULL,
+      FALSE
     );
     return (stristr($url, '.')) ? $url : '';
   }
@@ -826,7 +1167,7 @@ abstract class CRM_Core_Payment {
   }
 
   /**
-   * Process payment - this function wraps around both doTransferPayment and doDirectPayment.
+   * Process payment - this function wraps around both doTransferCheckout and doDirectPayment.
    *
    * The function ensures an exception is thrown & moves some of this logic out of the form layer and makes the forms
    * more agnostic.
@@ -852,7 +1193,16 @@ abstract class CRM_Core_Payment {
    */
   public function doPayment(&$params, $component = 'contribute') {
     $this->_component = $component;
-    $statuses = CRM_Contribute_BAO_Contribution::buildOptions('contribution_status_id');
+    $statuses = CRM_Contribute_BAO_Contribution::buildOptions('contribution_status_id', 'validate');
+
+    // If we have a $0 amount, skip call to processor and set payment_status to Completed.
+    // Conceivably a processor might override this - perhaps for setting up a token - but we don't
+    // have an example of that at the mome.
+    if ($params['amount'] == 0) {
+      $result['payment_status_id'] = array_search('Completed', $statuses);
+      return $result;
+    }
+
     if ($this->_paymentProcessor['billing_mode'] == 4) {
       $result = $this->doTransferCheckout($params, $component);
       if (is_array($result) && !isset($result['payment_status_id'])) {
@@ -943,7 +1293,6 @@ abstract class CRM_Core_Payment {
         'processor_name' => @$_GET['processor_name'],
         'processor_id' => @$_GET['processor_id'],
         'mode' => @$_GET['mode'],
-        'q' => @$_GET['q'],
       )
     );
     CRM_Utils_System::civiExit();
@@ -968,12 +1317,13 @@ abstract class CRM_Core_Payment {
    */
   public static function handlePaymentMethod($method, $params = array()) {
     if (!isset($params['processor_id']) && !isset($params['processor_name'])) {
-      $q = explode('/', CRM_Utils_Array::value('q', $params, ''));
+      $q = explode('/', CRM_Utils_Array::value(CRM_Core_Config::singleton()->userFrameworkURLVar, $_GET, ''));
       $lastParam = array_pop($q);
       if (is_numeric($lastParam)) {
         $params['processor_id'] = $_GET['processor_id'] = $lastParam;
       }
       else {
+        self::logPaymentNotification($params);
         throw new CRM_Core_Exception("Either 'processor_id' (recommended) or 'processor_name' (deprecated) is required for payment callback.");
       }
     }
@@ -1023,7 +1373,7 @@ abstract class CRM_Core_Payment {
         require_once $ext->classToPath($paymentClass);
       }
 
-      $processorInstance = Civi\Payment\System::singleton()->getById($dao->processor_id);
+      $processorInstance = System::singleton()->getById($dao->processor_id);
 
       // Should never be empty - we already established this processor_id exists and is active.
       if (empty($processorInstance)) {
@@ -1044,6 +1394,9 @@ abstract class CRM_Core_Payment {
       $extension_instance_found = TRUE;
     }
 
+    // Call IPN postIPNProcess hook to allow for custom processing of IPN data.
+    $IPNParams = array_merge($_GET, $_REQUEST);
+    CRM_Utils_Hook::postIPNProcess($IPNParams);
     if (!$extension_instance_found) {
       $message = "No extension instances of the '%1' payment processor were found.<br />" .
         "%2 method is unsupported in legacy payment processors.";
@@ -1061,7 +1414,7 @@ abstract class CRM_Core_Payment {
    *
    * @return bool
    */
-  public function isSupported($method = 'cancelSubscription') {
+  public function isSupported($method) {
     return method_exists(CRM_Utils_System::getClassName($this), $method);
   }
 
@@ -1117,7 +1470,7 @@ abstract class CRM_Core_Payment {
 
       case 'billing':
         //in notify mode don't return the update billing url
-        if (!$this->isSupported('updateSubscriptionBillingInfo')) {
+        if (!$this->supports('updateSubscriptionBillingInfo')) {
           return NULL;
         }
         $url = 'civicrm/contribute/updatebilling';
@@ -1128,8 +1481,7 @@ abstract class CRM_Core_Payment {
         break;
     }
 
-    $session = CRM_Core_Session::singleton();
-    $userId = $session->get('userID');
+    $userId = CRM_Core_Session::singleton()->get('userID');
     $contactID = 0;
     $checksumValue = '';
     $entityArg = '';
@@ -1149,11 +1501,10 @@ abstract class CRM_Core_Payment {
 
         case 'recur':
           $sql = "
-    SELECT con.contact_id
+    SELECT DISTINCT con.contact_id
       FROM civicrm_contribution_recur rec
 INNER JOIN civicrm_contribution con ON ( con.contribution_recur_id = rec.id )
-     WHERE rec.id = %1
-  GROUP BY rec.id";
+     WHERE rec.id = %1";
           $contactID = CRM_Core_DAO::singleValueQuery($sql, array(1 => array($entityID, 'Integer')));
           $entityArg = 'crid';
           break;
@@ -1170,12 +1521,94 @@ INNER JOIN civicrm_contribution con ON ( con.contribution_recur_id = rec.id )
     }
 
     // Else login URL
-    if ($this->isSupported('accountLoginURL')) {
+    if ($this->supports('accountLoginURL')) {
       return $this->accountLoginURL();
     }
 
     // Else default
     return isset($this->_paymentProcessor['url_recur']) ? $this->_paymentProcessor['url_recur'] : '';
+  }
+
+  /**
+   * Get description of payment to pass to processor.
+   *
+   * This is often what people see in the interface so we want to get
+   * as much unique information in as possible within the field length (& presumably the early part of the field)
+   *
+   * People seeing these can be assumed to be advanced users so quantity of information probably trumps
+   * having field names to clarify
+   *
+   * @param array $params
+   * @param int $length
+   *
+   * @return string
+   */
+  protected function getPaymentDescription($params, $length = 24) {
+    $parts = array('contactID', 'contributionID', 'description', 'billing_first_name', 'billing_last_name');
+    $validParts = array();
+    if (isset($params['description'])) {
+      $uninformativeStrings = array(ts('Online Event Registration: '), ts('Online Contribution: '));
+      $params['description'] = str_replace($uninformativeStrings, '', $params['description']);
+    }
+    foreach ($parts as $part) {
+      if ((!empty($params[$part]))) {
+        $validParts[] = $params[$part];
+      }
+    }
+    return substr(implode('-', $validParts), 0, $length);
+  }
+
+  /**
+   * Checks if backoffice recurring edit is allowed
+   *
+   * @return bool
+   */
+  public function supportsEditRecurringContribution() {
+    return FALSE;
+  }
+
+  /**
+   * Does this processor support changing the amount for recurring contributions through code.
+   *
+   * If the processor returns true then it must be possible to update the amount from within CiviCRM
+   * that will be updated at the payment processor.
+   *
+   * @return bool
+   */
+  protected function supportsChangeSubscriptionAmount() {
+    return method_exists(CRM_Utils_System::getClassName($this), 'changeSubscriptionAmount');
+  }
+
+  /**
+   * Checks if payment processor supports recurring contributions
+   *
+   * @return bool
+   */
+  public function supportsRecurring() {
+    if (!empty($this->_paymentProcessor['is_recur'])) {
+      return TRUE;
+    }
+    return FALSE;
+  }
+
+  /**
+   * Checks if payment processor supports an account login URL
+   * TODO: This is checked by self::subscriptionURL but is only used if no entityID is found.
+   * TODO: It is implemented by AuthorizeNET, any others?
+   *
+   * @return bool
+   */
+  protected function supportsAccountLoginURL() {
+    return method_exists(CRM_Utils_System::getClassName($this), 'accountLoginURL');
+  }
+
+  /**
+   * Should a receipt be sent out for a pending payment.
+   *
+   * e.g for traditional pay later & ones with a delayed settlement a pending receipt makes sense.
+   */
+  public function isSendReceiptForPending() {
+    return FALSE;
   }
 
 }

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -112,7 +112,7 @@ class SettingsMetadata {
       $realFolder = realpath($metaDataFolder);
       if (is_dir($realFolder) && !isset($loadedFolders[$realFolder])) {
         $loadedFolders[$realFolder] = TRUE;
-        $settingsMetadata = $settingsMetadata + self::loadSettingsMetaData($metaDataFolder);
+        $settingsMetadata = $settingsMetadata + self::loadSettingsMetadata($metaDataFolder);
       }
     }
     return $settingsMetadata;
@@ -120,6 +120,10 @@ class SettingsMetadata {
 
   /**
    * Load up settings metadata from files.
+   *
+   * @param array $metaDataFolder
+   *
+   * @return array
    */
   protected static function loadSettingsMetadata($metaDataFolder) {
     $settingMetaData = array();

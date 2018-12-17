@@ -1,9 +1,9 @@
 <?php
 /*
   +--------------------------------------------------------------------+
-  | CiviCRM version 4.7                                                |
+  | CiviCRM version 5                                                  |
   +--------------------------------------------------------------------+
-  | Copyright CiviCRM LLC (c) 2004-2015                                |
+  | Copyright CiviCRM LLC (c) 2004-2019                                |
   +--------------------------------------------------------------------+
   | This file is a part of CiviCRM.                                    |
   |                                                                    |
@@ -188,6 +188,14 @@ function civicrm_api3_profile_submit($params) {
     }
   }
 
+  // Add custom greeting fields
+  $greetingFields = ['email_greeting', 'postal_greeting', 'addressee'];
+  foreach ($greetingFields as $greetingField) {
+    if (isset($profileFields[$greetingField]) && !isset($profileFields["{$greetingField}_custom"])) {
+      $profileFields["{$greetingField}_custom"] = ['name' => "{$greetingField}_custom"];
+    }
+  }
+
   foreach ($profileFields as $fieldName => $field) {
     if (!isset($params[$fieldName])) {
       continue;
@@ -202,14 +210,35 @@ function civicrm_api3_profile_submit($params) {
 
     $entity = strtolower(CRM_Utils_Array::value('entity', $field));
     if ($entity && !in_array($entity, array_merge($contactEntities, $locationEntities))) {
-      $contactParams['api.' . $entity . '.create'][$fieldName] = $value;
-      //@todo we are not currently declaring this option
-      if (isset($params['batch_id']) && strtolower($entity) == 'contribution') {
-        $contactParams['api.' . $entity . '.create']['batch_id'] = $params['batch_id'];
-      }
-      if (isset($params[$entity . '_id'])) {
-        //todo possibly declare $entity_id in getfields ?
-        $contactParams['api.' . $entity . '.create']['id'] = $params[$entity . '_id'];
+      switch ($entity) {
+        case 'note':
+          if ($value) {
+            $contactParams['api.Note.create'] = [
+              'note' => $value,
+              'contact_id' => 'user_contact_id',
+            ];
+          }
+          break;
+
+        case 'entity_tag':
+          if (!is_array($value)) {
+            $value = $value ? explode(',', $value) : [];
+          }
+          $contactParams['api.entity_tag.replace'] = [
+            'tag_id' => $value,
+          ];
+          break;
+
+        default:
+          $contactParams['api.' . $entity . '.create'][$fieldName] = $value;
+          //@todo we are not currently declaring this option
+          if (isset($params['batch_id']) && strtolower($entity) == 'contribution') {
+            $contactParams['api.' . $entity . '.create']['batch_id'] = $params['batch_id'];
+          }
+          if (isset($params[$entity . '_id'])) {
+            //todo possibly declare $entity_id in getfields ?
+            $contactParams['api.' . $entity . '.create']['id'] = $params[$entity . '_id'];
+          }
       }
     }
     else {
@@ -230,7 +259,7 @@ function civicrm_api3_profile_submit($params) {
     );
   }
 
-  $contactParams['contact_id'] = CRM_Utils_Array::value('contact_id', $params);
+  $contactParams['contact_id'] = empty($params['contact_id']) ? CRM_Utils_Array::value('id', $params) : $params['contact_id'];
   $contactParams['profile_id'] = $profileID;
   $contactParams['skip_custom'] = 1;
 
@@ -291,6 +320,11 @@ function _civicrm_api3_profile_submit_spec(&$params, $apirequest) {
   }
   $params['profile_id']['api.required'] = TRUE;
   $params['profile_id']['title'] = 'Profile ID';
+  // Profile forms submit tag values as a string; hack to get past api wrapper validation
+  if (!empty($params['tag_id'])) {
+    unset($params['tag_id']['pseudoconstant']);
+    $params['tag_id']['type'] = CRM_Utils_Type::T_STRING;
+  }
 }
 
 /**
@@ -348,12 +382,24 @@ function civicrm_api3_profile_apply($params) {
   );
 
   if (empty($data)) {
-    throw new API_Exception('Enable to format profile parameters.');
+    throw new API_Exception('Unable to format profile parameters.');
   }
 
   return civicrm_api3_create_success($data);
 }
 
+/**
+ * Adjust Metadata for Apply action.
+ *
+ * The metadata is used for setting defaults, documentation & validation.
+ *
+ * @param array $params
+ *   Array of parameters determined by getfields.
+ */
+function _civicrm_api3_profile_apply_spec(&$params) {
+  $params['profile_id']['api.required'] = 1;
+  $params['profile_id']['title'] = 'Profile ID';
+}
 
 /**
  * Get pseudo profile 'billing'.
@@ -372,8 +418,7 @@ function civicrm_api3_profile_apply($params) {
  */
 function _civicrm_api3_profile_getbillingpseudoprofile(&$params) {
 
-  $locations = civicrm_api3('address', 'getoptions', array('field' => 'location_type_id', 'context' => 'validate'));
-  $locationTypeID = array_search('Billing', $locations['values']);
+  $locationTypeID = CRM_Core_BAO_LocationType::getBilling();
 
   if (empty($params['contact_id'])) {
     $config = CRM_Core_Config::singleton();
@@ -646,12 +691,13 @@ function _civicrm_api3_map_profile_fields_to_entity(&$field) {
     'total_amount' => 'contribution',
     'receive_date' => 'contribution',
     'payment_instrument' => 'contribution',
-    'check_number' => 'contribution',
+    'contribution_check_number' => 'contribution',
     'contribution_status_id' => 'contribution',
     'soft_credit' => 'contribution',
     'soft_credit_type' => 'contribution_soft',
     'group' => 'group_contact',
     'tag' => 'entity_tag',
+    'note' => 'note',
   );
   if (array_key_exists($fieldName, $hardCodedEntityMappings)) {
     $entity = $hardCodedEntityMappings[$fieldName];

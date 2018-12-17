@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -49,7 +47,7 @@ class CRM_Utils_JSON {
   }
 
   /**
-   * encode data for dataTable plugin.
+   * Do not use this function. See CRM-16353.
    * @deprecated
    *
    * @param array $params
@@ -77,12 +75,12 @@ class CRM_Utils_JSON {
         if ($addcomma) {
           $sOutput .= ",";
         }
-        //CRM-7130 --lets addslashes to only double quotes,
-        //since we are using it to quote the field value.
-        //str_replace helps to provide a break for new-line
+        // CRM-7130 --lets addslashes to only double quotes,
+        // since we are using it to quote the field value.
+        // str_replace helps to provide a break for new-line
         $sOutput .= '"' . addcslashes(str_replace(array("\r\n", "\n", "\r"), '<br />', $value[$element]), '"\\') . '"';
 
-        //remove extra spaces and tab character that breaks dataTable CRM-12551
+        // remove extra spaces and tab character that breaks dataTable CRM-12551
         $sOutput = preg_replace("/\s+/", " ", $sOutput);
         $addcomma = TRUE;
       }

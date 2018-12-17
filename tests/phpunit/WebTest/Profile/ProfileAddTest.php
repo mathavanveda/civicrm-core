@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -194,9 +194,9 @@ class WebTest_Profile_ProfileAddTest extends CiviSeleniumTestCase {
     //check the existence of the two contacts in the group
     $this->openCiviPage('group', 'reset=1');
     $this->type('title', $groupName);
-    $this->click('_qf_Search_refresh');
-    $this->waitForElementPresent("xpath=//table[@class='crm-group-selector no-footer dataTable']/tbody/tr/td/span[text() = '$groupName']/parent::td/following-sibling::td[@class=' crm-group-group_links']/span/a");
-    $this->clickLink("xpath=//table[@class='crm-group-selector no-footer dataTable']/tbody/tr/td[1]/span[text() = '$groupName']/parent::td/following-sibling::td[@class=' crm-group-group_links']/span/a");
+    $this->click('title');
+    $this->waitForElementPresent("xpath=//div[text() = '$groupName']/parent::td/following-sibling::td[@class='crm-group-group_links']/span/a");
+    $this->clickLink("xpath=//div[text() = '$groupName']/parent::td/following-sibling::td[@class='crm-group-group_links']/span/a");
     $contactEmails = array(
       1 => "$lastName1, $firstName1",
       2 => "$lastName2, $firstName2",
@@ -282,7 +282,7 @@ class WebTest_Profile_ProfileAddTest extends CiviSeleniumTestCase {
     $this->select("field_name_2", "value=2");
 
     // click on Save buttonProfile Field Saved
-    $this->clickLink('_qf_Field_next-bottom', "xpath=//a/span[text()=' Add Field']", FALSE);
+    $this->clickLink("xpath=//button/span[text()='Save']", "xpath=//a/span/i[@class='crm-i fa-plus-circle']", FALSE);
 
     // Wait for "saved" status msg
     $this->waitForText('crm-notification-container', "Profile Field Saved");
@@ -293,7 +293,7 @@ class WebTest_Profile_ProfileAddTest extends CiviSeleniumTestCase {
     $id = $id[1];
 
     // click on Edit Settings
-    $this->clickLink("xpath=//a/span[text()=' Edit Settings']", '_qf_Group_next-bottom', FALSE);
+    $this->clickLink("xpath=//a/span/i[@class='crm-i fa-wrench']", '_qf_Group_next-bottom', FALSE);
 
     // check for description field
     $this->waitForElementPresent('description');
@@ -301,7 +301,7 @@ class WebTest_Profile_ProfileAddTest extends CiviSeleniumTestCase {
     $this->assertEquals($this->getValue('description'), $profileDescription);
 
     // click on save button
-    $this->clickLink('_qf_Group_next-bottom', "xpath=//a/span[text()=' Edit Settings']", FALSE);
+    $this->clickLink('_qf_Group_next-bottom', "xpath=//a/span/i[@class='crm-i fa-wrench']", FALSE);
 
     // Wait for "saved" status msg
     $this->waitForText('crm-notification-container', 'Profile Saved');

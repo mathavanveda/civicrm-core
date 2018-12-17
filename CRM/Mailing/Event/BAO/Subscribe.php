@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 
@@ -93,7 +93,6 @@ LEFT JOIN civicrm_email      ON contact_a.id = civicrm_email.contact_id
 
       $params = array(1 => array($email, 'String'));
       $dao = CRM_Core_DAO::executeQuery($query, $params);
-      $id = array();
       // lets just use the first contact id we got
       if ($dao->fetch()) {
         $contact_id = $dao->contact_id;
@@ -104,25 +103,16 @@ LEFT JOIN civicrm_email      ON contact_a.id = civicrm_email.contact_id
     $transaction = new CRM_Core_Transaction();
 
     if (!$contact_id) {
-      require_once 'CRM/Utils/DeprecatedUtils.php';
-
-      // If the contact does not exist, create one.
-
+      $locationType = CRM_Core_BAO_LocationType::getDefault();
       $formatted = array(
         'contact_type' => 'Individual',
-        'version' => 3,
-      );
-      $locationType = CRM_Core_BAO_LocationType::getDefault();
-      $value = array(
         'email' => $email,
         'location_type_id' => $locationType->id,
       );
-      _civicrm_api3_deprecated_add_formatted_param($value, $formatted);
 
       $formatted['onDuplicate'] = CRM_Import_Parser::DUPLICATE_SKIP;
       $formatted['fixAddress'] = TRUE;
-      require_once 'api/api.php';
-      $contact = civicrm_api('contact', 'create', $formatted);
+      $contact = civicrm_api3('contact', 'create', $formatted);
       if (civicrm_error($contact)) {
         return $success;
       }
@@ -136,9 +126,6 @@ LEFT JOIN civicrm_email      ON contact_a.id = civicrm_email.contact_id
     }
 
     // Get the primary email id from the contact to use as a hash input.
-
-    $dao = new CRM_Core_DAO();
-
     $query = "
 SELECT     civicrm_email.id as email_id
   FROM     civicrm_email
@@ -228,7 +215,7 @@ SELECT     civicrm_email.id as email_id
     $group->id = $this->group_id;
     $group->find(TRUE);
 
-    $component = new CRM_Mailing_BAO_Component();
+    $component = new CRM_Mailing_BAO_MailingComponent();
     $component->is_default = 1;
     $component->is_active = 1;
     $component->component_type = 'Subscribe';
@@ -240,7 +227,7 @@ SELECT     civicrm_email.id as email_id
       'From' => "\"{$domainEmailName}\" <{$domainEmailAddress}>",
       'To' => $email,
       'Reply-To' => $confirm,
-      'Return-Path' => "do-not-reply@$emailDomain",
+      'Return-Path' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
     );
 
     $url = CRM_Utils_System::url('civicrm/mailing/confirm',

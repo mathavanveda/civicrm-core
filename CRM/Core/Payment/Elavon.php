@@ -1,7 +1,7 @@
 <?php
 /*
  +----------------------------------------------------------------------------+
- | Elavon (Nova) Virtual Merchant Core Payment Module for CiviCRM version 4.7 |
+ | Elavon (Nova) Virtual Merchant Core Payment Module for CiviCRM version 5   |
  +----------------------------------------------------------------------------+
  | Licensed to CiviCRM under the Academic Free License version 3.0            |
  |                                                                            |
@@ -133,8 +133,8 @@ class CRM_Core_Payment_Elavon extends CRM_Core_Payment {
 
     // define variables for connecting with the gateway
     $requestFields['ssl_merchant_id'] = $this->_paymentProcessor['user_name'];
-    $requestFields['ssl_user_id'] = $this->_paymentProcessor['password'];
-    $requestFields['ssl_pin'] = $this->_paymentProcessor['signature'];
+    $requestFields['ssl_user_id'] = CRM_Utils_Array::value('password', $this->_paymentProcessor);
+    $requestFields['ssl_pin'] = CRM_Utils_Array::value('signature', $this->_paymentProcessor);
     $host = $this->_paymentProcessor['url_site'];
 
     if ($this->_mode == "test") {
@@ -161,8 +161,8 @@ class CRM_Core_Payment_Elavon extends CRM_Core_Payment {
       return self::errorExit(9004, 'Could not initiate connection to payment gateway');
     }
 
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL') ? 2 : 0);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL'));
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, Civi::settings()->get('verifySSL') ? 2 : 0);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, Civi::settings()->get('verifySSL'));
     // return the result on success, FALSE on failure
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_TIMEOUT, 36000);

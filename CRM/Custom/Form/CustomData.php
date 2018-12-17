@@ -1,9 +1,9 @@
 <?php
 /*
   +--------------------------------------------------------------------+
-  | CiviCRM version 4.7                                                |
+  | CiviCRM version 5                                                  |
   +--------------------------------------------------------------------+
-  | Copyright CiviCRM LLC (c) 2004-2015                                |
+  | Copyright CiviCRM LLC (c) 2004-2019                                |
   +--------------------------------------------------------------------+
   | This file is a part of CiviCRM.                                    |
   |                                                                    |
@@ -28,15 +28,45 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * this class builds custom data
  */
 class CRM_Custom_Form_CustomData {
+
+  /**
+   * Generic wrapper to add custom data to a form via a single line in preProcess.
+   *
+   * $this->getDefaultEntity() must be defined for the form class for this to work.
+   *
+   * If the postProcess form cannot use the api & instead uses a BAO function it will need.
+   *   $params['custom'] = CRM_Core_BAO_CustomField::postProcess($submitted, $this->_id, $this->getDefaultEntity());
+   *
+   * @param CRM_Core_Form $form
+   * @param null|string $subType values stored in civicrm_custom_group.extends_entity_column_value
+   *   e.g Student for contact type
+   * @param null|string $subName value in civicrm_custom_group.extends_entity_column_id
+   * @param null|int $groupCount number of entities that could have custom data
+   *
+   * @throws \CRM_Core_Exception
+   */
+  public static function addToForm(&$form, $subType = NULL, $subName = NULL, $groupCount = 1) {
+    $entityName = $form->getDefaultEntity();
+    $entityID = $form->getEntityId();
+
+    // when custom data is included in this page
+    if (!empty($_POST['hidden_custom'])) {
+      self::preProcess($form, $subName, $subType, $groupCount, $entityName, $entityID);
+      self::buildQuickForm($form);
+      self::setDefaultValues($form);
+    }
+    // need to assign custom data type and subtype to the template
+    $form->assign('customDataType', $entityName);
+    $form->assign('customDataSubType', $subType);
+    $form->assign('entityID', $entityID);
+  }
 
   /**
    * @param CRM_Core_Form $form
@@ -46,6 +76,8 @@ class CRM_Custom_Form_CustomData {
    * @param string $type
    * @param null|int $entityID
    * @param null $onlySubType
+   *
+   * @throws \CRM_Core_Exception
    */
   public static function preProcess(
     &$form, $subName = NULL, $subType = NULL,
@@ -90,7 +122,7 @@ class CRM_Custom_Form_CustomData {
     $form->assign('cgCount', $form->_groupCount);
 
     //carry qf key, since this form is not inhereting core form.
-    if ($qfKey = CRM_Utils_Request::retrieve('qfKey', 'String', CRM_Core_DAO::$_nullObject)) {
+    if ($qfKey = CRM_Utils_Request::retrieve('qfKey', 'String')) {
       $form->assign('qfKey', $qfKey);
     }
 
@@ -101,8 +133,8 @@ class CRM_Custom_Form_CustomData {
       $form->_entityId = CRM_Utils_Request::retrieve('entityID', 'Positive', $form);
     }
 
-    $typeCheck = CRM_Utils_Request::retrieve('type', 'String', CRM_Core_DAO::$_nullObject);
-    $urlGroupId = CRM_Utils_Request::retrieve('groupID', 'Positive', CRM_Core_DAO::$_nullObject);
+    $typeCheck = CRM_Utils_Request::retrieve('type', 'String');
+    $urlGroupId = CRM_Utils_Request::retrieve('groupID', 'Positive');
     if (isset($typeCheck) && $urlGroupId) {
       $form->_groupID = $urlGroupId;
     }
@@ -150,20 +182,33 @@ class CRM_Custom_Form_CustomData {
    *
    * @return array
    */
-  public static function setGroupTree(&$form, $subType, $gid, $onlySubType, $getCachedTree = FALSE) {
+  public static function setGroupTree(&$form, $subType, $gid, $onlySubType = NULL, $getCachedTree = FALSE) {
+    $singleRecord = NULL;
+    if (!empty($form->_groupCount) && !empty($form->_multiRecordDisplay) && $form->_multiRecordDisplay == 'single') {
+      $singleRecord = $form->_groupCount;
+    }
+    $mode = CRM_Utils_Request::retrieve('mode', 'String', $form);
+    // when a new record is being added for multivalued custom fields.
+    if (isset($form->_groupCount) && $form->_groupCount == 0 && $mode == 'add' &&
+      !empty($form->_multiRecordDisplay) && $form->_multiRecordDisplay == 'single') {
+      $singleRecord = 'new';
+    }
 
     $groupTree = CRM_Core_BAO_CustomGroup::getTree($form->_type,
-      $form,
+      NULL,
       $form->_entityId,
       $gid,
       $subType,
       $form->_subName,
       $getCachedTree,
-      $onlySubType
+      $onlySubType,
+      FALSE,
+      TRUE,
+      $singleRecord
     );
 
     if (property_exists($form, '_customValueCount') && !empty($groupTree)) {
-      $form->_customValueCount = CRM_Core_BAO_CustomGroup::buildCustomDataView($form, $groupTree, TRUE, NULL, NULL);
+      $form->_customValueCount = CRM_Core_BAO_CustomGroup::buildCustomDataView($form, $groupTree, TRUE, NULL, NULL, NULL, $form->_entityId);
     }
     // we should use simplified formatted groupTree
     $groupTree = CRM_Core_BAO_CustomGroup::formatGroupTree($groupTree, $form->_groupCount, $form);

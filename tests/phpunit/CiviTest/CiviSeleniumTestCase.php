@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,17 +25,7 @@
  +--------------------------------------------------------------------+
  */
 
-/**
- *  Include configuration
- */
-define('CIVICRM_SETTINGS_PATH', __DIR__ . '/civicrm.settings.dist.php');
-define('CIVICRM_SETTINGS_LOCAL_PATH', __DIR__ . '/civicrm.settings.local.php');
 define('CIVICRM_WEBTEST', 1);
-
-if (file_exists(CIVICRM_SETTINGS_LOCAL_PATH)) {
-  require_once CIVICRM_SETTINGS_LOCAL_PATH;
-}
-require_once CIVICRM_SETTINGS_PATH;
 
 /**
  *  Base class for CiviCRM Selenium tests
@@ -69,7 +59,6 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     parent::__construct($name, $data, $dataName, $browser);
     $this->loggedInAs = NULL;
 
-    require_once 'CiviSeleniumSettings.php';
     $this->settings = new CiviSeleniumSettings();
     if (property_exists($this->settings, 'serverStartupTimeOut') && $this->settings->serverStartupTimeOut) {
       global $CiviSeleniumTestCase_polled;
@@ -379,8 +368,7 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
   public function webtestGetValidCountryID() {
     static $_country_id;
     if (is_null($_country_id)) {
-      $config_backend = $this->webtestGetConfig('countryLimit');
-      $_country_id = current($config_backend);
+      $_country_id = Civi::settings()->get('defaultContactCountry');
     }
     return $_country_id;
   }
@@ -401,24 +389,6 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
   }
 
   /**
-   * @param $field
-   *
-   * @return mixed
-   */
-  public function webtestGetConfig($field) {
-    static $_config_backend;
-    if (is_null($_config_backend)) {
-      $result = $this->webtest_civicrm_api("Domain", "getvalue", array(
-        'current_domain' => 1,
-        'option.limit' => 1,
-        'return' => 'config_backend',
-      ));
-      $_config_backend = unserialize($result);
-    }
-    return $_config_backend[$field];
-  }
-
-  /**
    * @param string $field
    * @return mixed
    */
@@ -430,6 +400,16 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       $this->settingCache[$field] = $result[$field];
     }
     return $this->settingCache[$field];
+  }
+
+  /**
+   * override this since the built in function doesn't work with the new phpunit.
+   * @param string $element
+   * @param string $text
+   */
+  public function waitForText($element, $text) {
+    $this->waitForTextPresent($text);
+    $this->assertElementContainsText($element, $text);
   }
 
   /**
@@ -451,6 +431,30 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     if ($added) {
       $this->clickLink("_qf_Component_next-bottom");
       $this->checkCRMAlert("Saved");
+    }
+  }
+
+  /**
+   * Ensures the required currencies are enabled.
+   * @param $currencies
+   */
+  public function enableCurrency($currencies) {
+    $this->openCiviPage("admin/setting/localization", "reset=1", "_qf_Localization_next-bottom");
+    $enabledCurrency = $this->getSelectOptions("currencyLimit-t");
+    foreach ($enabledCurrency as $k => $val) {
+      $enabledCurrency[$k] = substr($val, 0, 3);
+    }
+    $added = FALSE;
+    foreach ((array) $currencies as $curr) {
+      if (!in_array($curr, $enabledCurrency)) {
+        $this->addSelection("currencyLimit-f", "value=$curr");
+        $this->click("//option[@value='$curr']");
+        $this->click("add");
+        $added = TRUE;
+      }
+    }
+    if ($added) {
+      $this->clickLink("_qf_Localization_next-bottom");
     }
   }
 
@@ -581,7 +585,7 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     $day = date('j', $timeStamp);
 
     if (!$multiselect) {
-      $this->click("xpath=//input[starts-with(@id, '{$dateElement}_display_')]");
+      $this->click("xpath=//input[@id='{$dateElement}']/following-sibling::input");
     }
     $this->waitForElementPresent("css=div#ui-datepicker-div.ui-datepicker div.ui-datepicker-header div.ui-datepicker-title select.ui-datepicker-month");
     $this->select("css=div#ui-datepicker-div.ui-datepicker div.ui-datepicker-header div.ui-datepicker-title select.ui-datepicker-month", "value=$mon");
@@ -623,13 +627,15 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       $tableLocator = "[@id='$tableId']";
     }
     foreach ($expected as $label => $value) {
+      //assertContains() accepts param as string
+      $value = "$value";
       if ($xpathPrefix) {
         $this->waitForElementPresent("xpath=//table{$tableLocator}/tbody/tr/td{$xpathPrefix}[text()='{$label}']/../following-sibling::td");
-        $this->verifyText("xpath=//table{$tableLocator}/tbody/tr/td{$xpathPrefix}[text()='{$label}']/../following-sibling::td", preg_quote($value));
+        $this->assertElementContainsText("xpath=//table{$tableLocator}/tbody/tr/td{$xpathPrefix}[text()='{$label}']/../following-sibling::td", $value);
       }
       else {
         $this->waitForElementPresent("xpath=//table{$tableLocator}/tbody/tr/td[text()='{$label}']/following-sibling::td");
-        $this->verifyText("xpath=//table{$tableLocator}/tbody/tr/td[text()='{$label}']/following-sibling::td", preg_quote($value));
+        $this->assertElementContainsText("xpath=//table{$tableLocator}/tbody/tr/td[text()='{$label}']/following-sibling::td", $value);
       }
     }
   }
@@ -691,7 +697,7 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       }
       $this->type("option_label_{$oIndex}", $oValue['label']);
       $this->type("option_amount_{$oIndex}", $oValue['amount']);
-      $this->click('link=another choice');
+      $this->click('link=add another choice');
     }
   }
 
@@ -875,13 +881,6 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
         'test_user_name' => '5ULu56ex',
         'password' => '7ARxW575w736eF5p',
         'test_password' => '7ARxW575w736eF5p',
-      );
-    }
-    elseif ($processorType == 'Google_Checkout') {
-      // FIXME: we 'll need to make a new separate account for testing
-      $processorSettings = array(
-        'test_user_name' => '559999327053114',
-        'test_password' => 'R2zv2g60-A7GXKJYl0nR0g',
       );
     }
     elseif ($processorType == 'PayPal') {
@@ -1133,7 +1132,8 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     $isConfirmEnabled = TRUE,
     $financialType = 'Donation',
     $fixedAmount = TRUE,
-    $membershipsRequired = TRUE
+    $membershipsRequired = TRUE,
+    $isPledgeStart = FALSE
   ) {
     if (!$hash) {
       $hash = substr(sha1(rand()), 0, 7);
@@ -1227,6 +1227,9 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
         $this->type('initial_reminder_day', 3);
         $this->type('max_reminders', 2);
         $this->type('additional_reminder_day', 1);
+        if ($isPledgeStart) {
+          $this->webtestFillDate('pledge_start_date', '+1 month');
+        }
       }
       elseif ($recurring) {
         $this->click('is_recur');
@@ -1260,7 +1263,7 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     if ($memPriceSetId || (($membershipTypes === TRUE) || (is_array($membershipTypes) && !empty($membershipTypes)))) {
       // go to step 3 (memberships)
       $this->click('link=Memberships');
-      $this->waitForElementPresent('_qf_MembershipBlock_next-bottom');
+      $this->waitForElementPresent('_qf_MembershipBlock_submit_savenext');
 
       // fill in step 3 (Memberships)
       $this->click('member_is_active');
@@ -1274,14 +1277,14 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       }
       else {
         if ($membershipTypes === TRUE) {
-          $membershipTypes = array(array('id' => 2));
+          $membershipTypes = array(array('id' => 2, 'name' => 'Student', 'default' => 1));
         }
 
         // FIXME: handle Introductory Message - New Memberships/Renewals
         foreach ($membershipTypes as $mType) {
           $this->click("membership_type_{$mType['id']}");
           if (array_key_exists('default', $mType)) {
-            // FIXME:
+            $this->click("xpath=//label[text() = '$mType[name]']/parent::td/parent::tr/td[2]/input");
           }
           if (array_key_exists('auto_renew', $mType)) {
             $this->select("auto_renew_{$mType['id']}", "label=Give option");
@@ -1290,15 +1293,13 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
         if ($membershipsRequired) {
           $this->click('is_required');
         }
-        $this->waitForElementPresent('CIVICRM_QFID_2_4');
-        $this->click('CIVICRM_QFID_2_4');
         if ($isSeparatePayment) {
           $this->click('is_separate_payment');
         }
       }
       $this->clickLink('_qf_MembershipBlock_next', '_qf_MembershipBlock_next-bottom');
       $text = "'MembershipBlock' information has been saved.";
-      $this->assertTrue($this->isTextPresent($text), 'Missing text: ' . $text);
+      $this->isTextPresent($text);
     }
 
     // go to step 4 (thank-you and receipting)
@@ -1377,13 +1378,13 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       $this->waitForPageToLoad($this->getTimeoutMsec());
       $text = "'Premium' information has been saved.";
       $this->assertTrue($this->isTextPresent($text), 'Missing text: ' . $text);
-      $this->openCiviPage("admin/contribute", "reset=1");
+      $this->openCiviPage("admin/contribute/premium", "reset=1&action=update&id={$pageId}");
       $this->waitForAjaxContent();
-      $this->click("xpath=//table['dataTables_wrapper no-footer']/tbody//tr/td[1]/strong[text()='$pageTitle']/../../td[4]/div[1]/span/ul/li[8]/a[text()='Premiums']");
       $this->waitForElementPresent('_qf_Premium_cancel-bottom');
       $this->click("xpath=//div[@class='messages status no-popup']/a[text()='add one']");
       $this->waitForElementPresent('_qf_AddProduct_cancel-bottom');
       $this->select('product_id', "value=1");
+      $this->select('financial_type_id', "value=1");
       $this->click('_qf_AddProduct_next-bottom');
       $this->waitForElementPresent('_qf_Premium_cancel-bottom');
       $this->click('_qf_Premium_next-bottom');
@@ -1503,10 +1504,12 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
    * @param int $duration_interval
    * @param string $duration_unit
    * @param string $auto_renew
+   * @param int $minimumFee
+   * @param string $financialType
    *
    * @return array
    */
-  public function webtestAddMembershipType($period_type = 'rolling', $duration_interval = 1, $duration_unit = 'year', $auto_renew = 'no', $minimumFee = 100) {
+  public function webtestAddMembershipType($period_type = 'rolling', $duration_interval = 1, $duration_unit = 'year', $auto_renew = 'no', $minimumFee = 100, $financialType = 'Member Dues') {
     $membershipTitle = substr(sha1(rand()), 0, 7);
     $membershipOrg = $membershipTitle . ' memorg';
     $this->webtestAddOrganization($membershipOrg, TRUE);
@@ -1515,7 +1518,7 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     $memTypeParams = array(
       'membership_type' => $title,
       'member_of_contact' => $membershipOrg,
-      'financial_type' => 2,
+      'financial_type' => $financialType,
       'period_type' => $period_type,
     );
 
@@ -1527,17 +1530,17 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     // select the radio first since the element id changes after membership org search results are loaded
     switch ($auto_renew) {
       case 'optional':
-        $this->click("xpath=//div[@id='membership_type_form']//table/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'Give option, but not required')]");
+        $this->click("xpath=//table[@class='form-layout-compressed']/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'Give option, but not required')]");
         break;
 
       case 'required':
-        $this->click("xpath=//div[@id='membership_type_form']//table/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'Auto-renew required')]");
+        $this->click("xpath=//table[@class='form-layout-compressed']/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'Auto-renew required')]");
         break;
 
       default:
         //check if for the element presence (the Auto renew options can be absent when proper payment processor not configured)
         if ($this->isElementPresent("xpath=//div[@id='membership_type_form']//table/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'No auto-renew option')]")) {
-          $this->click("xpath=//div[@id='membership_type_form']//table/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'No auto-renew option')]");
+          $this->click("xpath=//table[@class='form-layout-compressed']/tbody/tr[6]/td/label[contains(text(), 'Auto-renew Option')]/../../td[2]/label[contains(text(), 'No auto-renew option')]");
         }
         break;
     }
@@ -1545,11 +1548,12 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     $this->select2('member_of_contact_id', $membershipTitle);
 
     $this->type('minimum_fee', $minimumFee);
-    $this->select('financial_type_id', "value={$memTypeParams['financial_type']}");
+    $this->select('financial_type_id', "label={$memTypeParams['financial_type']}");
 
     $this->type('duration_interval', $duration_interval);
+    $this->waitForElementPresent('duration_unit');
     $this->select('duration_unit', "label={$duration_unit}");
-
+    $this->waitForElementPresent('period_type');
     $this->select('period_type', "value={$period_type}");
 
     $this->click('_qf_MembershipType_upload-bottom');
@@ -1592,10 +1596,10 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     }
 
     // Clicking save.
-    $this->clickLink('_qf_Edit_upload-bottom');
+    $this->click('_qf_Edit_upload-bottom');
 
     // Is status message correct?
-    $this->waitForText('crm-notification-container', "$groupName");
+    $this->waitForText('crm-notification-container', "The Group '$groupName' has been saved.");
     return $groupName;
   }
 
@@ -1958,6 +1962,122 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
   }
 
   /**
+   * @param $setTitle
+   * @param $usedFor
+   * @param $setHelp
+   * @param null $financialType
+   */
+  public function _testAddSet($setTitle, $usedFor, $setHelp, $financialType = NULL) {
+    $this->openCiviPage("admin/price", "reset=1&action=add", '_qf_Set_next-bottom');
+
+    // Enter Priceset fields (Title, Used For ...)
+    $this->type('title', $setTitle);
+    if ($usedFor == 'Event') {
+      $this->check('extends_1');
+    }
+    elseif ($usedFor == 'Contribution') {
+      $this->check('extends_2');
+    }
+
+    if ($financialType) {
+      $this->select("financial_type_id", "label={$financialType}");
+    }
+    $this->type('help_pre', $setHelp);
+
+    $this->assertChecked('is_active', 'Verify that Is Active checkbox is set.');
+    $this->clickLink('_qf_Set_next-bottom');
+  }
+
+  /**
+   * @param $fields
+   * @param $validateString
+   * @param $financialType
+   * @param bool $dateSpecificFields
+   */
+  public function _testAddPriceFields(&$fields, &$validateString, $financialType, $dateSpecificFields = FALSE) {
+    $validateStrings[] = $financialType;
+    $sid = $this->urlArg('sid');
+    $this->openCiviPage('admin/price/field', "reset=1&action=add&sid=$sid", 'label');
+    foreach ($fields as $label => $type) {
+      $validateStrings[] = $label;
+
+      $this->type('label', $label);
+      $this->select('html_type', "value={$type}");
+
+      switch ($type) {
+        case 'Text':
+          $validateStrings[] = '525.00';
+          $this->type('price', '525.00');
+          if ($dateSpecificFields == TRUE) {
+            $this->webtestFillDateTime('active_on', '+1 week');
+          }
+          else {
+            $this->check('is_required');
+          }
+          break;
+
+        case 'Select':
+          $options = array(
+            1 => array(
+              'label' => 'Chicken',
+              'amount' => '30.00',
+            ),
+            2 => array(
+              'label' => 'Vegetarian',
+              'amount' => '25.00',
+            ),
+          );
+          $this->addMultipleChoiceOptions($options, $validateStrings);
+          if ($dateSpecificFields == TRUE) {
+            $this->webtestFillDateTime('expire_on', '-1 week');
+          }
+          break;
+
+        case 'Radio':
+          $options = array(
+            1 => array(
+              'label' => 'Yes',
+              'amount' => '50.00',
+            ),
+            2 => array(
+              'label' => 'No',
+              'amount' => '0',
+            ),
+          );
+          $this->addMultipleChoiceOptions($options, $validateStrings);
+          $this->check('is_required');
+          if ($dateSpecificFields == TRUE) {
+            $this->webtestFillDateTime('active_on', '-1 week');
+          }
+          break;
+
+        case 'CheckBox':
+          $options = array(
+            1 => array(
+              'label' => 'First Night',
+              'amount' => '15.00',
+            ),
+            2 => array(
+              'label' => 'Second Night',
+              'amount' => '15.00',
+            ),
+          );
+          $this->addMultipleChoiceOptions($options, $validateStrings);
+          if ($dateSpecificFields == TRUE) {
+            $this->webtestFillDateTime('expire_on', '+1 week');
+          }
+          break;
+
+        default:
+          break;
+      }
+      $this->select('financial_type_id', "label={$financialType}");
+      $this->clickLink('_qf_Field_next_new-bottom', '_qf_Field_next-bottom', FALSE);
+      $this->waitForText('crm-notification-container', "Price Field '$label' has been saved.");
+    }
+  }
+
+  /**
    * Delete Financial Account.
    * @param $financialAccountTitle
    */
@@ -2292,21 +2412,24 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
 
   /**
    * Type and select first occurrence of autocomplete.
+   *
    * @param $fieldName
-   * @param $label
+   * @param string $labels
    * @param bool $multiple
    * @param bool $xpath
    */
-  public function select2($fieldName, $label, $multiple = FALSE, $xpath = FALSE) {
+  public function select2($fieldName, $labels, $multiple = FALSE, $xpath = FALSE) {
     // In the case of chainSelect, wait for options to load
     $this->waitForElementNotPresent('css=select.loading');
     if ($multiple) {
-      $this->clickAt("//*[@id='$fieldName']/../div/ul/li");
-      $this->keyDown("//*[@id='$fieldName']/../div/ul/li//input", " ");
-      $this->type("//*[@id='$fieldName']/../div/ul/li//input", $label);
-      $this->typeKeys("//*[@id='$fieldName']/../div/ul/li//input", $label);
-      $this->waitForElementPresent("//*[@class='select2-result-label']");
-      $this->clickAt("//*[contains(@class,'select2-result-selectable')]/div[contains(@class, 'select2-result-label')]");
+      foreach ((array) $labels as $label) {
+        $this->clickAt("//*[@id='$fieldName']/../div/ul/li");
+        $this->keyDown("//*[@id='$fieldName']/../div/ul/li//input", " ");
+        $this->type("//*[@id='$fieldName']/../div/ul/li//input", $label);
+        $this->typeKeys("//*[@id='$fieldName']/../div/ul/li//input", $label);
+        $this->waitForElementPresent("//*[@class='select2-result-label']");
+        $this->clickAt("//*[contains(@class,'select2-result-selectable')]/div[contains(@class, 'select2-result-label')]");
+      }
     }
     else {
       if ($xpath) {
@@ -2317,8 +2440,8 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
       }
       $this->waitForElementPresent("//*[@id='select2-drop']/div/input");
       $this->keyDown("//*[@id='select2-drop']/div/input", " ");
-      $this->type("//*[@id='select2-drop']/div/input", $label);
-      $this->typeKeys("//*[@id='select2-drop']/div/input", $label);
+      $this->type("//*[@id='select2-drop']/div/input", $labels);
+      $this->typeKeys("//*[@id='select2-drop']/div/input", $labels);
       $this->waitForElementPresent("//*[@class='select2-result-label']");
       $this->clickAt("//*[contains(@class,'select2-result-selectable')]/div[contains(@class, 'select2-result-label')]");
     }
@@ -2328,23 +2451,23 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
 
   /**
    * Select multiple options.
-   * @param $fieldid
-   * @param $params
+   * @param $fieldId
+   * @param $options
    * @param $isDate if multiple date is to be selected from datepicker
    */
-  public function multiselect2($fieldid, $params, $isDate = FALSE) {
+  public function multiselect2($fieldId, $options, $isDate = FALSE) {
     // In the case of chainSelect, wait for options to load
     $this->waitForElementNotPresent('css=select.loading');
-    foreach ($params as $value) {
+    foreach ($options as $value) {
       if ($isDate) {
-        $this->clickAt("xpath=//*[@id='$fieldid']/../div/ul//li/input");
-        $this->webtestFillDate($fieldid, $value, TRUE);
+        $this->clickAt("xpath=//*[@id='$fieldId']/../div/ul//li/input");
+        $this->webtestFillDate($fieldId, $value, TRUE);
       }
       else {
-        $this->clickAt("xpath=//*[@id='$fieldid']/../div/ul//li/input");
+        $this->clickAt("xpath=//*[@id='$fieldId']/../div/ul//li/input");
         $this->waitForElementPresent("xpath=//ul[@class='select2-results']");
         $this->clickAt("xpath=//ul[@class='select2-results']//li/div[text()='$value']");
-        $this->assertElementContainsText("xpath=//*[@id='$fieldid']/preceding-sibling::div[1]/", $value);
+        $this->assertElementContainsText("xpath=//*[@id='$fieldId']/preceding-sibling::div[1]/", $value);
       }
     }
     // Wait a sec for select2 to update the original element
@@ -2437,6 +2560,102 @@ class CiviSeleniumTestCase extends PHPUnit_Extensions_SeleniumTestCase {
     }
     $this->assertFalse(civicrm_error($apiResult), $prefix . $errorMessage);
     //$this->assertEquals(0, $apiResult['is_error']);
+  }
+
+  /**
+   * Add a pledge
+   *
+   * @return array
+   */
+  public function webtestStandalonePledgeAdd() {
+    $this->webtestLogin();
+
+    $this->openCiviPage('pledge/add', 'reset=1&context=standalone', '_qf_Pledge_upload');
+
+    // create new contact using dialog
+    $contact = $this->createDialogContact();
+
+    $this->type('amount', '100');
+    $this->type('installments', '10');
+    $this->select('frequency_unit', 'value=week');
+    $this->type('frequency_day', '2');
+
+    $this->webtestFillDate('acknowledge_date', 'now');
+    $this->waitForElementPresent('contribution_page_id');
+    $this->select('contribution_page_id', 'value=3');
+    $this->waitForAjaxContent();
+
+    //PaymentReminders
+    $this->click('PaymentReminders');
+    $this->waitForElementPresent('additional_reminder_day');
+    $this->type('initial_reminder_day', '4');
+    $this->type('max_reminders', '2');
+    $this->type('additional_reminder_day', '4');
+
+    $this->click('_qf_Pledge_upload-bottom');
+
+    $this->waitForText('crm-notification-container', "Pledge has been recorded and the payment schedule has been created.");
+
+    // verify if Pledge is created
+    $this->waitForElementPresent("xpath=//div[@class='view-content']//table//tbody/tr[1]/td[10]/span/a[text()='View']");
+
+    //click through to the Pledge view screen
+    $this->click("xpath=//div[@class='view-content']//table//tbody/tr[1]/td[10]/span/a[text()='View']");
+    $this->waitForElementPresent('_qf_PledgeView_next-bottom');
+    $pledgeDate = date('F jS, Y', strtotime('now'));
+
+    $this->webtestVerifyTabularData(array(
+        'Pledge By' => $contact['display_name'],
+        'Total Pledge Amount' => '$ 100.00',
+        'To be paid in' => '10 installments of $ 10.00 every 1 week(s)',
+        'Payments are due on the' => '2 day of the period',
+        'Pledge Made' => $pledgeDate,
+        'Financial Type' => 'Donation',
+        'Pledge Status' => 'Pending',
+        'Initial Reminder Day' => '4 days prior to schedule date',
+        'Maximum Reminders Send' => 2,
+        'Send additional reminders' => '4 days after the last one sent',
+      )
+    );
+    $this->clickLink('_qf_PledgeView_next-bottom', "xpath=//div[@class='view-content']//table[@class='selector row-highlight']//tbody/tr[1]/td[1]/a", FALSE);
+    $this->waitForAjaxContent();
+    $this->click("xpath=//form[@class='CRM_Pledge_Form_Search crm-search-form']//div[@class='view-content']//table[@class='selector row-highlight']//tbody/tr[1]/td[1]/a");
+    $this->waitForElementPresent("xpath=//form[@class='CRM_Pledge_Form_Search crm-search-form']//div[@class='view-content']//table//tbody/tr[2]/td/div/table/tbody/tr[2]/td[8]/a[text()='Record Payment']");
+    return $contact;
+  }
+
+  /**
+   * Add a contact via profile
+   */
+  public function webtestAddViaCreateProfile() {
+    $this->webtestLogin();
+
+    $this->openCiviPage('profile/create', 'reset=1&gid=1', '_qf_Edit_next');
+
+    $firstName = 'Jo' . substr(sha1(rand()), 0, 4);
+    $lastName = 'Ad' . substr(sha1(rand()), 0, 7);
+
+    //contact details section
+    //fill in first name
+    $this->type("first_name", $firstName);
+
+    //fill in last name
+    $this->type("last_name", $lastName);
+
+    //address section
+    $this->waitForElementPresent('street_address-1');
+    $this->type("street_address-1", "902C El Camino Way SW");
+    $this->waitForElementPresent('city-1');
+    $this->type("city-1", "Dumfries");
+    $this->type("postal_code-1", "1234");
+    $this->assertSelected('country-1', "UNITED STATES");
+    $this->select("state_province-1", "value=1019");
+
+    // Clicking save.
+    $this->click("_qf_Edit_next");
+    $this->waitForPageToLoad($this->getTimeoutMsec());
+
+    $this->assertElementContainsText('css=.msg-text', "Your information has been saved.");
   }
 
 }

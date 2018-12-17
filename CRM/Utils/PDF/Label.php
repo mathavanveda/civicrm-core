@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,15 +26,12 @@
  */
 
 /**
- *  Class to print labels in Avery or custom formats
+ * Class to print labels in Avery or custom formats
  * functionality and smarts to the base PDF_Label.
  *
- * @copyright CiviCRM LLC (c) 2004-2015
- *
- *
+ * @package CRM
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
-
-require_once 'tcpdf/tcpdf.php';
 
 /**
  * Class CRM_Utils_PDF_Label
@@ -187,8 +184,10 @@ class CRM_Utils_PDF_Label extends TCPDF {
    * @param string $text
    */
   public function generateLabel($text) {
+    // paddingLeft is used for both left & right padding so needs to be
+    // subtracted twice from width to get the width that is available for text
     $args = array(
-      'w' => $this->width,
+      'w' => $this->width - 2 * $this->paddingLeft,
       'h' => 0,
       'txt' => $text,
       'border' => 0,
@@ -258,6 +257,11 @@ class CRM_Utils_PDF_Label extends TCPDF {
     }
   }
 
+  /**
+   * Get the available font names.
+   *
+   * @return array
+   */
   public function getFontNames() {
     // Define labels for TCPDF core fonts
     $fontLabel = array(
@@ -270,7 +274,7 @@ class CRM_Utils_PDF_Label extends TCPDF {
     // Check to see if we have any additional fonts to add. You can specify more fonts in
     // civicrm.settings.php via: $config['CiviCRM Preferences']['additional_fonts']
     // CRM-13307
-    $additionalFonts = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'additional_fonts');
+    $additionalFonts = Civi::settings()->get('additional_fonts');
     if (is_array($additionalFonts)) {
       $fontLabel = array_merge($fontLabel, $additionalFonts);
     }

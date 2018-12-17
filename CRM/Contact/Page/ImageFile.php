@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_Page_ImageFile extends CRM_Core_Page {
   /**
@@ -60,9 +60,10 @@ class CRM_Contact_Page_ImageFile extends CRM_Core_Page {
     }
     if ($cid) {
       $config = CRM_Core_Config::singleton();
+      $fileExtension = strtolower(pathinfo($_GET['photo'], PATHINFO_EXTENSION));
       $this->download(
         $config->customFileUploadDir . $_GET['photo'],
-        'image/' . pathinfo($_GET['photo'], PATHINFO_EXTENSION),
+        'image/' . ($fileExtension == 'jpg' ? 'jpeg' : $fileExtension),
         $this->ttl
       );
       CRM_Utils_System::civiExit();

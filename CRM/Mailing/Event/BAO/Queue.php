@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Mailing_Event_BAO_Queue extends CRM_Mailing_Event_DAO_Queue {
 
@@ -59,7 +59,9 @@ class CRM_Mailing_Event_BAO_Queue extends CRM_Mailing_Event_DAO_Queue {
   }
 
   /**
-   * Create a security hash from the job, email and contact ids
+   * Create a security hash from the job, email and contact ids.
+   *
+   * @param array $params
    *
    * @return int
    *   The hash
@@ -75,7 +77,7 @@ class CRM_Mailing_Event_BAO_Queue extends CRM_Mailing_Event_DAO_Queue {
   }
 
   /**
-   * Verify that a queue event exists with the specified id/job id/hash
+   * Verify that a queue event exists with the specified id/job id/hash.
    *
    * @param int $job_id
    *   The job ID of the event to find.
@@ -204,7 +206,8 @@ class CRM_Mailing_Event_BAO_Queue extends CRM_Mailing_Event_DAO_Queue {
     }
 
     $query = "
-            SELECT      $contact.display_name as display_name,
+            SELECT      $queue.id as queue_id,
+                        $contact.display_name as display_name,
                         $contact.id as contact_id,
                         $email.email as email,
                         $job.start_date as date
@@ -239,7 +242,7 @@ class CRM_Mailing_Event_BAO_Queue extends CRM_Mailing_Event_DAO_Queue {
       $url = CRM_Utils_System::url('civicrm/contact/view',
         "reset=1&cid={$dao->contact_id}"
       );
-      $results[] = array(
+      $results[$dao->queue_id] = array(
         'name' => "<a href=\"$url\">{$dao->display_name}</a>",
         'email' => $dao->email,
         'date' => CRM_Utils_Date::customFormat($dao->date),
@@ -291,7 +294,7 @@ SELECT DISTINCT(civicrm_mailing_event_queue.contact_id) as contact_id,
    AND civicrm_mailing_event_queue.email_id = civicrm_email.id
    AND civicrm_mailing_event_queue.id = " . CRM_Utils_Type::escape($queueID, 'Integer');
 
-    $dao = CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+    $dao = CRM_Core_DAO::executeQuery($query);
 
     $displayName = 'Unknown';
     $email = 'Unknown';

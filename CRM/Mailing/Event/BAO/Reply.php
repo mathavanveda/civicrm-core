@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,10 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 require_once 'Mail/mime.php';
-
-require_once 'ezc/Base/src/ezc_bootstrap.php';
-require_once 'ezc/autoload/mail_autoload.php';
 
 /**
  * Class CRM_Mailing_Event_BAO_Reply
@@ -65,7 +62,6 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
    */
   public static function &reply($job_id, $queue_id, $hash, $replyto = NULL) {
     // First make sure there's a matching queue event.
-
     $q = CRM_Mailing_Event_BAO_Queue::verify($job_id, $queue_id, $hash);
 
     $success = NULL;
@@ -121,6 +117,8 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
     $emails = CRM_Core_BAO_Email::getTableName();
     $queue = CRM_Mailing_Event_BAO_Queue::getTableName();
     $contacts = CRM_Contact_BAO_Contact::getTableName();
+    $domain_id = CRM_Core_Config::domainID();
+    $domainValues = civicrm_api3('Domain', 'get', array('sequential' => 1, 'id' => $domain_id));
 
     $eq = new CRM_Core_DAO();
     $eq->query("SELECT     $contacts.display_name as display_name,
@@ -147,6 +145,11 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
       // to the forward goes to the sender of the reply
       $parsed->setHeader('Reply-To', $replyto instanceof ezcMailAddress ? $replyto : $parsed->from->__toString());
 
+      // CRM-17754 Include re-sent headers to indicate that we have forwarded on the email
+      $domainEmail = $domainValues['values'][0]['from_email'];
+      $parsed->setHeader('Resent-From', $domainEmail);
+      $parsed->setHeader('Resent-Date', date('r'));
+
       // $h must be an array, so we can't use generateHeaders()'s result,
       // but we have to regenerate the headers because we changed To
       $parsed->generateHeaders();
@@ -170,8 +173,6 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
       }
     }
     else {
-      $emailDomain = CRM_Core_BAO_MailSettings::defaultDomain();
-
       if (empty($eq->display_name)) {
         $from = $eq->email;
       }
@@ -186,7 +187,10 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
         'To' => $mailing->replyto_email,
         'From' => $from,
         'Reply-To' => empty($replyto) ? $eq->email : $replyto,
-        'Return-Path' => "do-not-reply@{$emailDomain}",
+        'Return-Path' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
+        // CRM-17754 Include re-sent headers to indicate that we have forwarded on the email
+        'Resent-From' => $domainValues['values'][0]['from_email'],
+        'Resent-Date' => date('r'),
       );
 
       $message->setTxtBody($bodyTxt);
@@ -238,7 +242,7 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
 
     $to = empty($replyto) ? $eq->email : $replyto;
 
-    $component = new CRM_Mailing_BAO_Component();
+    $component = new CRM_Mailing_BAO_MailingComponent();
     $component->id = $mailing->reply_id;
     $component->find(TRUE);
 
@@ -247,18 +251,15 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
     $domain = CRM_Core_BAO_Domain::getDomain();
     list($domainEmailName, $_) = CRM_Core_BAO_Domain::getNameAndEmail();
 
-    $emailDomain = CRM_Core_BAO_MailSettings::defaultDomain();
-
     $headers = array(
       'Subject' => $component->subject,
       'To' => $to,
-      'From' => "\"$domainEmailName\" <do-not-reply@$emailDomain>",
-      'Reply-To' => "do-not-reply@$emailDomain",
-      'Return-Path' => "do-not-reply@$emailDomain",
+      'From' => "\"$domainEmailName\" <" . CRM_Core_BAO_Domain::getNoReplyEmailAddress() . '>',
+      'Reply-To' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
+      'Return-Path' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
     );
 
     // TODO: do we need reply tokens?
-
     $html = $component->body_html;
     if ($component->body_text) {
       $text = $component->body_text;
@@ -406,7 +407,7 @@ class CRM_Mailing_Event_BAO_Reply extends CRM_Mailing_Event_DAO_Reply {
     }
 
     if ($is_distinct) {
-      $query .= " GROUP BY $queue.id ";
+      $query .= " GROUP BY $queue.id, $contact.id, $reply.time_stamp ";
     }
 
     $orderBy = "sort_name ASC, {$reply}.time_stamp DESC";

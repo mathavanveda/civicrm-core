@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,9 +26,8 @@
  */
 
 /**
- *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -37,11 +36,11 @@
 class CRM_Utils_Recent {
 
   /**
-   * Max number of items in queue.
+   * Store name
    *
-   * @int
+   * @var string
    */
-  const MAX_ITEMS = 10, STORE_NAME = 'CRM_Utils_Recent';
+  const MAX_ITEMS = 30, STORE_NAME = 'CRM_Utils_Recent';
 
   /**
    * The list of recently viewed items.
@@ -51,9 +50,19 @@ class CRM_Utils_Recent {
   static private $_recent = NULL;
 
   /**
+   * Maximum stack size
+   * @var int
+   */
+  static private $_maxItems = 10;
+
+  /**
    * Initialize this class and set the static variables.
    */
   public static function initialize() {
+    $maxItemsSetting = Civi::settings()->get('recentItemsMaxCount');
+    if (isset($maxItemsSetting) && $maxItemsSetting > 0 && $maxItemsSetting < self::MAX_ITEMS) {
+      self::$_maxItems = $maxItemsSetting;
+    }
     if (!self::$_recent) {
       $session = CRM_Core_Session::singleton();
       self::$_recent = $session->get(self::STORE_NAME);
@@ -98,11 +107,16 @@ class CRM_Utils_Recent {
     $others = array()
   ) {
     self::initialize();
+
+    if (!self::isProviderEnabled($type)) {
+      return;
+    }
+
     $session = CRM_Core_Session::singleton();
 
     // make sure item is not already present in list
     for ($i = 0; $i < count(self::$_recent); $i++) {
-      if (self::$_recent[$i]['url'] == $url) {
+      if (self::$_recent[$i]['type'] === $type && self::$_recent[$i]['id'] == $id) {
         // delete item from array
         array_splice(self::$_recent, $i, 1);
         break;
@@ -128,7 +142,8 @@ class CRM_Utils_Recent {
         'delete_url' => CRM_Utils_Array::value('deleteUrl', $others),
       )
     );
-    if (count(self::$_recent) > self::MAX_ITEMS) {
+
+    if (count(self::$_recent) > self::$_maxItems) {
       array_pop(self::$_recent);
     }
 
@@ -147,7 +162,7 @@ class CRM_Utils_Recent {
     self::initialize();
     $tempRecent = self::$_recent;
 
-    self::$_recent = '';
+    self::$_recent = array();
 
     // make sure item is not already present in list
     for ($i = 0; $i < count($tempRecent); $i++) {
@@ -159,6 +174,7 @@ class CRM_Utils_Recent {
       }
     }
 
+    CRM_Utils_Hook::recent(self::$_recent);
     $session = CRM_Core_Session::singleton();
     $session->set(self::STORE_NAME, self::$_recent);
   }
@@ -174,7 +190,7 @@ class CRM_Utils_Recent {
 
     $tempRecent = self::$_recent;
 
-    self::$_recent = '';
+    self::$_recent = array();
 
     // rebuild recent.
     for ($i = 0; $i < count($tempRecent); $i++) {
@@ -185,8 +201,59 @@ class CRM_Utils_Recent {
       self::$_recent[] = $tempRecent[$i];
     }
 
+    CRM_Utils_Hook::recent(self::$_recent);
     $session = CRM_Core_Session::singleton();
     $session->set(self::STORE_NAME, self::$_recent);
+  }
+
+  /**
+   * Check if a provider is allowed to add stuff.
+   * If corresponding setting is empty, all are allowed
+   *
+   * @param string $providerName
+   * @return bool
+   */
+  public static function isProviderEnabled($providerName) {
+
+    // Join contact types to providerName 'Contact'
+    $contactTypes = CRM_Contact_BAO_ContactType::contactTypes(TRUE);
+    if (in_array($providerName, $contactTypes)) {
+      $providerName = 'Contact';
+    }
+    $allowed = TRUE;
+
+    // Use core setting recentItemsProviders if configured
+    $providersPermitted = Civi::settings()->get('recentItemsProviders');
+    if ($providersPermitted) {
+      $allowed = in_array($providerName, $providersPermitted);
+    }
+    // Else allow
+    return $allowed;
+  }
+
+  /**
+   * Gets the list of available providers to civi's recent items stack
+   *
+   * @return array
+   */
+  public static function getProviders() {
+    $providers = array(
+      'Contact' => ts('Contacts'),
+      'Relationship' => ts('Relationships'),
+      'Activity' => ts('Activities'),
+      'Note' => ts('Notes'),
+      'Group' => ts('Groups'),
+      'Case' => ts('Cases'),
+      'Contribution' => ts('Contributions'),
+      'Participant' => ts('Participants'),
+      'Grant' => ts('Grants'),
+      'Membership' => ts('Memberships'),
+      'Pledge' => ts('Pledges'),
+      'Event' => ts('Events'),
+      'Campaign' => ts('Campaigns'),
+    );
+
+    return $providers;
   }
 
 }

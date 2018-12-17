@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,15 +28,11 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
 
   protected $_fileName;
-
-  /**#@+
-   * @var integer
-   */
 
   /**
    * Imported file size.
@@ -77,7 +73,9 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
     &$mapper,
     $skipColumnHeader = FALSE,
     $mode = self::MODE_PREVIEW,
-    $onDuplicate = self::DUPLICATE_SKIP
+    $onDuplicate = self::DUPLICATE_SKIP,
+    $statusID = NULL,
+    $totalRowCount = NULL
   ) {
     if (!is_array($fileName)) {
       CRM_Core_Error::fatal();
@@ -111,6 +109,10 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
     else {
       $this->_activeFieldCount = count($this->_activeFields);
     }
+    if ($statusID) {
+      $this->progressImport($statusID);
+      $startTimestamp = $currTimestamp = $prevTimestamp = time();
+    }
 
     while (!feof($fd)) {
       $this->_lineCount++;
@@ -128,7 +130,7 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
         continue;
       }
 
-      /* trim whitespace around the values */
+      // Trim whitespace around the values.
 
       $empty = TRUE;
       foreach ($values as $k => $v) {
@@ -152,6 +154,9 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
       }
       elseif ($mode == self::MODE_IMPORT) {
         $returnCode = $this->import($onDuplicate, $values);
+        if ($statusID && (($this->_lineCount % 50) == 0)) {
+          $prevTimestamp = $this->progressImport($statusID, FALSE, $startTimestamp, $prevTimestamp, $totalRowCount);
+        }
       }
       else {
         $returnCode = self::ERROR;
@@ -175,14 +180,12 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
 
       if ($returnCode & self::ERROR) {
         $this->_invalidRowCount++;
-        if ($this->_invalidRowCount < $this->_maxErrorCount) {
-          $recordNumber = $this->_lineCount;
-          if ($this->_haveColumnHeader) {
-            $recordNumber--;
-          }
-          array_unshift($values, $recordNumber);
-          $this->_errors[] = $values;
+        $recordNumber = $this->_lineCount;
+        if ($this->_haveColumnHeader) {
+          $recordNumber--;
         }
+        array_unshift($values, $recordNumber);
+        $this->_errors[] = $values;
       }
 
       if ($returnCode & self::CONFLICT) {
@@ -197,8 +200,8 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
 
       if ($returnCode & self::DUPLICATE) {
         if ($returnCode & self::MULTIPLE_DUPE) {
-          /* TODO: multi-dupes should be counted apart from singles
-           * on non-skip action */
+          // TODO: multi-dupes should be counted apart from singles
+          // on non-skip action.
         }
         $this->_duplicateCount++;
         $recordNumber = $this->_lineCount;
@@ -268,7 +271,6 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
         self::exportCSV($this->_duplicateFileName, $headers, $this->_duplicates);
       }
     }
-    //echo "$this->_totalCount,$this->_invalidRowCount,$this->_conflictCount,$this->_duplicateCount";
     return $this->fini();
   }
 
@@ -371,7 +373,6 @@ abstract class CRM_Activity_Import_Parser extends CRM_Import_Parser {
         $store->set('duplicatesFileName', $this->_duplicateFileName);
       }
     }
-    //echo "$this->_totalCount,$this->_invalidRowCount,$this->_conflictCount,$this->_duplicateCount";
   }
 
   /**

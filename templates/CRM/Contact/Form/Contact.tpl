@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -32,7 +32,7 @@
   {/if}
   <div class="crm-form-block crm-search-form-block">
     {if call_user_func(array('CRM_Core_Permission','check'), 'administer CiviCRM') }
-      <a href='{crmURL p="civicrm/admin/setting/preferences/display" q="reset=1"}' title="{ts}Click here to configure the panes.{/ts}"><span class="icon ui-icon-wrench"></span></a>
+      <a href='{crmURL p="civicrm/admin/setting/preferences/display" q="reset=1"}' title="{ts}Click here to configure the panes.{/ts}"><i class="crm-i fa-wrench"></i></a>
     {/if}
     <span style="float:right;"><a href="#expand" id="expand">{ts}Expand all tabs{/ts}</a></span>
     <div class="crm-submit-buttons">
@@ -111,8 +111,10 @@
 
   <script type="text/javascript" >
   CRM.$(function($) {
-    var $form = $("form.{/literal}{$form.formClass}{literal}");
-    var action = "{/literal}{$action}{literal}";
+    var $form = $("form.{/literal}{$form.formClass}{literal}"),
+      action = {/literal}{$action|intval}{literal},
+      cid = {/literal}{$contactId|intval}{literal},
+      _ = CRM._;
 
     $('.crm-accordion-body').each( function() {
       //remove tab which doesn't have any element
@@ -127,7 +129,7 @@
         $(this).parents('.collapsed').crmAccordionToggle();
       }
     });
-    if (action == '2') {
+    if (action === 2) {
       $('.crm-accordion-wrapper').not('.crm-accordion-wrapper .crm-accordion-wrapper').each(function() {
         highlightTabs(this);
       });
@@ -191,29 +193,32 @@
     });
 
     $('.customDataPresent').change(function() {
-      //$('.crm-custom-accordion').remove();
       var values = $("#contact_sub_type").val();
-      var contactType = {/literal}"{$contactType}"{literal};
-      CRM.buildCustomData(contactType, values);
-      loadMultiRecordFields(values);
-      $('.crm-custom-accordion').each(function() {
+      CRM.buildCustomData({/literal}"{$contactType}"{literal}, values).one('crmLoad', function() {
         highlightTabs(this);
+        loadMultiRecordFields(values);
       });
     });
 
     function loadMultiRecordFields(subTypeValues) {
-      if (subTypeValues == false) {
-        var subTypeValues = null;
+      if (subTypeValues === false) {
+        subTypeValues = null;
       }
-        else if (!subTypeValues) {
-        var subTypeValues = {/literal}"{$paramSubType}"{literal};
+      else if (!subTypeValues) {
+        subTypeValues = {/literal}"{$paramSubType}"{literal};
+      }
+      function loadNextRecord(i, groupValue, groupCount) {
+        if (i < groupCount) {
+          CRM.buildCustomData({/literal}"{$contactType}"{literal}, subTypeValues, null, i, groupValue, true).one('crmLoad', function() {
+            highlightTabs(this);
+            loadNextRecord(i+1, groupValue, groupCount);
+          });
+        }
       }
       {/literal}
       {foreach from=$customValueCount item="groupCount" key="groupValue"}
       {if $groupValue}{literal}
-        for ( var i = 1; i < {/literal}{$groupCount}{literal}; i++ ) {
-          CRM.buildCustomData( {/literal}"{$contactType}"{literal}, subTypeValues, null, i, {/literal}{$groupValue}{literal}, true );
-        }
+        loadNextRecord(1, {/literal}{$groupValue}{literal}, {/literal}{$groupCount}{literal});
       {/literal}
       {/if}
       {/foreach}
@@ -234,7 +239,7 @@
         }
       });
       if ( warning ) {
-        return confirm({/literal}'{ts escape="js"}One or more contact subtypes have been de-selected from the list for this contact. Any custom data associated with de-selected subtype will be removed. Click OK to proceed, or Cancel to review your changes before saving.{/ts}'{literal});
+        return confirm({/literal}'{ts escape="js"}One or more contact subtypes have been de-selected from the list for this contact. Any custom data associated with de-selected subtype will be removed as long as the contact does not have a contact subtype still selected. Click OK to proceed, or Cancel to review your changes before saving.{/ts}'{literal});
       }
       return true;
     });
@@ -255,8 +260,163 @@
           $('div' + addClass).last().show();
         });
     });
-  });
 
+    {/literal}{* Ajax check for matching contacts *}
+    {if $checkSimilar == 1}
+    var contactType = {$contactType|@json_encode},
+      rules = {*$ruleFields|@json_encode*}{literal}[
+        'first_name',
+        'last_name',
+        'nick_name',
+        'household_name',
+        'organization_name',
+        'email'
+      ],
+      ruleFields = {},
+      $ruleElements = $(),
+      matchMessage,
+      dupeTpl = _.template($('#duplicates-msg-tpl').html()),
+      runningCheck = 0;
+    $.each(rules, function(i, field) {
+      // Match regular fields
+      var $el = $('#' + field + ', #' + field + '_1_' + field, $form).filter(':input');
+      // Match custom fields
+      if (!$el.length && field.lastIndexOf('_') > 0) {
+        var pieces = field.split('_');
+        field = 'custom_' + pieces[pieces.length-1];
+        $el = $('#' + field + ', [name=' + field + '_-1]', $form).filter(':input');
+      }
+      if ($el.length) {
+        ruleFields[field] = $el;
+        $ruleElements = $ruleElements.add($el);
+      }
+    });
+    // Check for matches on input when action == ADD
+    if (action === 1) {
+      $ruleElements.on('change', function () {
+        if ($(this).is('input[type=text]') && $(this).val().length < 3) {
+          return;
+        }
+        checkMatches().done(function (data) {
+          var params = {
+            title: data.count == 1 ? {/literal}"{ts escape='js'}Similar Contact Found{/ts}" : "{ts escape='js'}Similar Contacts Found{/ts}"{literal},
+            info: "{/literal}{ts escape='js'}If the contact you were trying to add is listed below, click their name to view or edit their record{/ts}{literal}:",
+            contacts: data.values,
+            cid: cid
+          };
+          if (data.count) {
+            openDupeAlert(params);
+          }
+        });
+      });
+    }
+
+    // Call the api to check for matching contacts
+    function checkMatches(rule) {
+      var match = {contact_type: contactType},
+        response = $.Deferred(),
+        checkNum = ++runningCheck,
+        params = {
+          options: {sort: 'sort_name'},
+          return: ['display_name', 'email']
+        };
+      $.each(ruleFields, function(fieldName, ruleField) {
+        if (ruleField.length > 1) {
+          match[fieldName] = ruleField.filter(':checked').val();
+        } else if (ruleField.is('input[type=text]')) {
+          if (ruleField.val().length > 2) {
+            match[fieldName] = ruleField.val() + (rule ? '' : '%');
+          }
+        } else {
+          match[fieldName] = ruleField.val();
+        }
+      });
+      // CRM-20565 - Need a good default matching rule before using the dedupe engine for checking on-the-fly.
+      // Defaulting to contact.get.
+      var action = rule ? 'duplicatecheck' : 'get';
+      if (rule) {
+        params.rule_type = rule;
+        params.match = match;
+        params.exclude = cid ? [cid] : [];
+      } else {
+        _.extend(params, match);
+      }
+      CRM.api3('contact', action, params).done(function(data) {
+        // If a new request has started running, cancel this one.
+        if (checkNum < runningCheck) {
+          response.reject();
+        } else {
+          response.resolve(data);
+        }
+      });
+      return response;
+    }
+
+    // Open an alert about possible duplicate contacts
+    function openDupeAlert(data, iconType) {
+      // Close msg if it exists
+      matchMessage && matchMessage.close && matchMessage.close();
+      matchMessage = CRM.alert(dupeTpl(data), _.escape(data.title), iconType, {expires: false});
+      $('.matching-contacts-actions', '#crm-notification-container').on('click', 'a', function() {
+        // No confirmation dialog on click
+        $('[data-warn-changes=true]').attr('data-warn-changes', 'false');
+      });
+    }
+
+    // Update the duplicate alert after getting results
+    function updateDupeAlert(data, iconType) {
+      var $alert = $('.matching-contacts-actions', '#crm-notification-container')
+        .closest('.ui-notify-message');
+      $alert
+        .removeClass('crm-msg-loading success info alert error')
+        .addClass(iconType)
+        .find('h1').text(data.title);
+      $alert
+        .find('.notify-content')
+        .html(dupeTpl(data));
+    }
+
+    // Ajaxify the "Check for Matching Contact(s)" button
+    $('#_qf_Contact_refresh_dedupe').click(function(e) {
+      var placeholder = {{/literal}
+        title: "{ts escape='js'}Fetching Matches{/ts}",
+        info: "{ts escape='js'}Checking for similar contacts...{/ts}",
+        contacts: []
+      {literal}};
+      openDupeAlert(placeholder, 'crm-msg-loading');
+      checkMatches('Supervised').done(function(data) {
+        var params = {
+          title: data.count ? {/literal}"{ts escape='js'}Similar Contact Found{/ts}" : "{ts escape='js'}None Found{/ts}"{literal},
+          info: data.count ?
+            "{/literal}{ts escape='js'}If the contact you were trying to add is listed below, click their name to view or edit their record{/ts}{literal}:" :
+            "{/literal}{ts escape='js'}No matches found using the default Supervised deduping rule.{/ts}{literal}",
+          contacts: data.values,
+          cid: cid
+        };
+        updateDupeAlert(params, data.count ? 'alert' : 'success');
+      });
+      e.preventDefault();
+    });
+    {/literal}{/if}{literal}
+  });
+</script>
+
+<script type="text/template" id="duplicates-msg-tpl">
+  <em><%- info %></em>
+  <ul class="matching-contacts-actions">
+    <% _.forEach(contacts, function(contact) { %>
+      <li>
+        <a href="<%= CRM.url('civicrm/contact/view', {reset: 1, cid: contact.id}) %>">
+          <%- contact.display_name %>
+        </a>
+        <%- contact.email %>
+        <% if (cid) { %>
+          <% var params = {reset: 1, action: 'update', oid: contact.id > cid ? contact.id : cid, cid: contact.id > cid ? cid : contact.id }; %>
+          (<a href="<%= CRM.url('civicrm/contact/merge', params) %>">{/literal}{ts}Merge{/ts}{literal}</a>)
+        <% } %>
+      </li>
+    <% }); %>
+  </ul>
 </script>
 {/literal}
 

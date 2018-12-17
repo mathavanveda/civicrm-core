@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,13 +25,11 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
-
 /**
  * Test class for GroupOrganization API - civicrm_group_organization_*
  *
  * @package   CiviCRM
+ * @group headless
  */
 class api_v3_GroupOrganizationTest extends CiviUnitTestCase {
   protected $_apiversion;
@@ -82,7 +80,7 @@ class api_v3_GroupOrganizationTest extends CiviUnitTestCase {
       'sequential' => 1,
     );
     $getResult = $this->callAPISuccess('group_organization', 'get', $getParams);
-    $this->assertEquals($createResult['values'], $getResult['values'][0]);
+    $this->assertEquals($createResult['values'][$createResult['id']], $getResult['values'][0]);
   }
 
   /**

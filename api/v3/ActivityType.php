@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -72,13 +72,12 @@ function civicrm_api3_activity_type_get($params) {
 function civicrm_api3_activity_type_create($params) {
 
   $action = 1;
-  $groupParams = array('name' => 'activity_type');
 
   if ($optionValueID = CRM_Utils_Array::value('option_value_id', $params)) {
     $action = 2;
   }
 
-  $activityObject = CRM_Core_OptionValue::addOptionValue($params, $groupParams, $action, $optionValueID);
+  $activityObject = CRM_Core_OptionValue::addOptionValue($params, 'activity_type', $action, $optionValueID);
   $activityType = array();
   _civicrm_api3_object_to_array($activityObject, $activityType[$activityObject->id]);
   return civicrm_api3_create_success($activityType, $params, 'activity_type', 'create');
@@ -110,12 +109,14 @@ function _civicrm_api3_activity_type_create_spec(&$params) {
  *
  * @param array $params
  *   Array including id of activity_type to delete.
- *
- * @return array
- *   API result array
- *
+ * @return array API result array
+ * @throws API_Exception
  * @deprecated use OptionValue api
  */
 function civicrm_api3_activity_type_delete($params) {
-  return civicrm_api3_create_success(CRM_Core_BAO_OptionValue::del($params['id']), $params);
+  $result = CRM_Core_BAO_OptionValue::del($params['id']);
+  if ($result) {
+    return civicrm_api3_create_success(TRUE, $params);
+  }
+  throw new API_Exception("Failure to delete activity type id {$params['id']}");
 }

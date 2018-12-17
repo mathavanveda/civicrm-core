@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -91,8 +89,7 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
   }
 
   /**
-   * Set default values for the form. Note that in edit/view mode
-   * the default values are retrieved from the database
+   * Set default values for the form.
    *
    * @return array
    *   array of default values
@@ -108,31 +105,23 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
 
       // if text, retrieve price
       if ($defaults['html_type'] == 'Text') {
+        $isActive = $defaults['is_active'];
         $valueParams = array('price_field_id' => $this->_fid);
 
         CRM_Price_BAO_PriceFieldValue::retrieve($valueParams, $defaults);
 
         // fix the display of the monetary value, CRM-4038
         $defaults['price'] = CRM_Utils_Money::format($defaults['amount'], NULL, '%a');
+        $defaults['is_active'] = $isActive;
       }
 
-      if (!empty($defaults['active_on'])) {
-        list($defaults['active_on'],
-          $defaults['active_on_time']
-          ) = CRM_Utils_Date::setDateDefaults($defaults['active_on'], 'activityDateTime');
-      }
-
-      if (!empty($defaults['expire_on'])) {
-        list($defaults['expire_on'],
-          $defaults['expire_on_time']
-          ) = CRM_Utils_Date::setDateDefaults($defaults['expire_on'], 'activityDateTime');
-      }
     }
     else {
       $defaults['is_active'] = 1;
       for ($i = 1; $i <= self::NUM_OPTION; $i++) {
         $defaults['option_status[' . $i . ']'] = 1;
         $defaults['option_weight[' . $i . ']'] = $i;
+        $defaults['option_visibility_id[' . $i . ']'] = 1;
       }
     }
 
@@ -182,9 +171,21 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
 
     // Financial Type
     $financialType = CRM_Financial_BAO_FinancialType::getIncomeFinancialType();
+    foreach ($financialType as $finTypeId => $type) {
+      if (CRM_Financial_BAO_FinancialType::isACLFinancialTypeStatus()
+        && !CRM_Core_Permission::check('add contributions of type ' . $type)
+      ) {
+        unset($financialType[$finTypeId]);
+      }
+    }
     if (count($financialType)) {
       $this->assign('financialType', $financialType);
     }
+
+    //Visibility Type Options
+    $visibilityType = CRM_Core_PseudoConstant::visibility();
+    $this->assign('visibilityType', $visibilityType);
+
     $enabledComponents = CRM_Core_Component::getEnabledComponents();
     $eventComponentId = $memberComponentId = NULL;
     if (array_key_exists('CiviEvent', $enabledComponents)) {
@@ -228,6 +229,10 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
     $this->add('text', 'price', ts('Price'));
     $this->registerRule('price', 'callback', 'money', 'CRM_Utils_Rule');
     $this->addRule('price', ts('must be a monetary value'), 'money');
+
+    $this->add('text', 'non_deductible_amount', ts('Non-deductible Amount'), NULL);
+    $this->registerRule('non_deductible_amount', 'callback', 'money', 'CRM_Utils_Rule');
+    $this->addRule('non_deductible_amount', ts('Please enter a monetary value for this field.'), 'money');
 
     if ($this->_action == CRM_Core_Action::UPDATE) {
       $this->freeze('html_type');
@@ -292,6 +297,7 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
       // is active ?
       $this->add('checkbox', 'option_status[' . $i . ']', ts('Active?'));
 
+      $this->add('select', 'option_visibility_id[' . $i . ']', ts('Visibility'), $visibilityType);
       $defaultOption[$i] = $this->createElement('radio', NULL, NULL, NULL, $i);
 
       //for checkbox handling of default option
@@ -312,22 +318,19 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
     $this->add('text', 'options_per_line', ts('Options Per Line'));
     $this->addRule('options_per_line', ts('must be a numeric value'), 'numeric');
 
-    // help post, mask, attributes, javascript ?
-    $this->add('textarea', 'help_post', ts('Field Help'),
+    $this->add('textarea', 'help_pre', ts('Pre Field Help'),
       CRM_Core_DAO::getAttribute('CRM_Price_DAO_PriceField', 'help_post')
     );
 
-    // active_on
-    $date_options = array(
-      'format' => 'dmY His',
-      'minYear' => date('Y') - 1,
-      'maxYear' => date('Y') + 5,
-      'addEmptyOption' => TRUE,
+    // help post, mask, attributes, javascript ?
+    $this->add('textarea', 'help_post', ts('Post Field Help'),
+      CRM_Core_DAO::getAttribute('CRM_Price_DAO_PriceField', 'help_post')
     );
-    $this->addDateTime('active_on', ts('Active On'), FALSE, array('formatType' => 'activityDateTime'));
+
+    $this->add('datepicker', 'active_on', ts('Active On'), [], FALSE, array('time' => TRUE));
 
     // expire_on
-    $this->addDateTime('expire_on', ts('Expire On'), FALSE, array('formatType' => 'activityDateTime'));
+    $this->add('datepicker', 'expire_on', ts('Expire On'), [], FALSE, array('time' => TRUE));
 
     // is required ?
     $this->add('checkbox', 'is_required', ts('Required?'));
@@ -337,22 +340,21 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
 
     // add buttons
     $this->addButtons(array(
-        array(
-          'type' => 'next',
-          'name' => ts('Save'),
-          'isDefault' => TRUE,
-        ),
-        array(
-          'type' => 'next',
-          'name' => ts('Save and New'),
-          'subName' => 'new',
-        ),
-        array(
-          'type' => 'cancel',
-          'name' => ts('Cancel'),
-        ),
-      )
-    );
+      array(
+        'type' => 'next',
+        'name' => ts('Save'),
+        'isDefault' => TRUE,
+      ),
+      array(
+        'type' => 'next',
+        'name' => ts('Save and New'),
+        'subName' => 'new',
+      ),
+      array(
+        'type' => 'cancel',
+        'name' => ts('Cancel'),
+      ),
+    ));
     // is public?
     $this->add('select', 'visibility_id', ts('Visibility'), CRM_Core_PseudoConstant::visibility());
 
@@ -394,15 +396,14 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
      *  Incomplete row checking is also required.
      */
     if (($form->_action & CRM_Core_Action::ADD || $form->_action & CRM_Core_Action::UPDATE) &&
-      $fields['html_type'] == 'Text' && $fields['price'] == NULL
+      $fields['html_type'] == 'Text'
     ) {
-      $errors['price'] = ts('Price is a required field');
-    }
-
-    if (($form->_action & CRM_Core_Action::ADD || $form->_action & CRM_Core_Action::UPDATE) &&
-      $fields['html_type'] == 'Text' && $fields['financial_type_id'] == ''
-    ) {
-      $errors['financial_type_id'] = ts('Financial Type is a required field');
+      if ($fields['price'] == NULL) {
+        $errors['price'] = ts('Price is a required field');
+      }
+      if ($fields['financial_type_id'] == '') {
+        $errors['financial_type_id'] = ts('Financial Type is a required field');
+      }
     }
 
     //avoid the same price field label in Within PriceSet
@@ -430,9 +431,10 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
     if ($form->_action & CRM_Core_Action::ADD) {
       if ($fields['html_type'] != 'Text') {
         $countemptyrows = 0;
-        $_flagOption = $_rowError = 0;
+        $publicOptionCount = $_flagOption = $_rowError = 0;
 
         $_showHide = new CRM_Core_ShowHideBlocks('', '');
+        $visibilityOptions = CRM_Price_BAO_PriceFieldValue::buildOptions('visibility_id', NULL, array('labelColumn' => 'name'));
 
         for ($index = 1; $index <= self::NUM_OPTION; $index++) {
 
@@ -518,6 +520,12 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
             $_showHide->addHide($hideBlock);
           }
 
+          if (!empty($fields['option_visibility_id'][$index]) && (!$noLabel || !$noAmount)) {
+            if ($visibilityOptions[$fields['option_visibility_id'][$index]] == 'public') {
+              $publicOptionCount++;
+            }
+          }
+
           $_flagOption = $_emptyRow = 0;
         }
 
@@ -565,6 +573,29 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
           $errors['option_label[1]'] = $errors['option_amount[1]'] = ts('Label and value cannot be empty.');
           $_flagOption = 1;
         }
+
+        if ($visibilityOptions[$fields['visibility_id']] == 'public' && $publicOptionCount == 0) {
+          $errors['visibility_id'] = ts('You have selected to make this field public but have not enabled any public price options. Please update your selections to include a public price option, or make this field admin visibility only.');
+          for ($index = 1; $index <= self::NUM_OPTION; $index++) {
+            if (!empty($fields['option_label'][$index]) || !empty($fields['option_amount'][$index])) {
+              $errors["option_visibility_id[{$index}]"] = ts('Public field should at least have one public option.');
+            }
+          }
+        }
+
+        if ($visibilityOptions[$fields['visibility_id']] == 'admin' && $publicOptionCount > 0) {
+          $errors['visibility_id'] = ts('Field with \'Admin\' visibility should only contain \'Admin\' options.');
+
+          for ($index = 1; $index <= self::NUM_OPTION; $index++) {
+
+            $isOptionSet = !empty($fields['option_label'][$index]) || !empty($fields['option_amount'][$index]);
+            $currentOptionVisibility = CRM_Utils_Array::value($fields['option_visibility_id'][$index], $visibilityOptions);
+
+            if ($isOptionSet && $currentOptionVisibility == 'public') {
+              $errors["option_visibility_id[{$index}]"] = ts('\'Admin\' field should only have \'Admin\' visibility options.');
+            }
+          }
+        }
       }
       elseif (!empty($fields['max_value']) &&
         !empty($fields['count']) &&
@@ -597,23 +628,10 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
     // store the submitted values in an array
     $params = $this->controller->exportValues('Field');
 
-    $params['name'] = CRM_Utils_String::titleToVar($params['label']);
     $params['is_display_amounts'] = CRM_Utils_Array::value('is_display_amounts', $params, FALSE);
     $params['is_required'] = CRM_Utils_Array::value('is_required', $params, FALSE);
     $params['is_active'] = CRM_Utils_Array::value('is_active', $params, FALSE);
     $params['financial_type_id'] = CRM_Utils_Array::value('financial_type_id', $params, FALSE);
-    if (isset($params['active_on'])) {
-      $params['active_on'] = CRM_Utils_Date::processDate($params['active_on'],
-        CRM_Utils_Array::value('active_on_time', $params),
-        TRUE
-      );
-    }
-    if (isset($params['expire_on'])) {
-      $params['expire_on'] = CRM_Utils_Date::processDate($params['expire_on'],
-        CRM_Utils_Array::value('expire_on_time', $params),
-        TRUE
-      );
-    }
     $params['visibility_id'] = CRM_Utils_Array::value('visibility_id', $params, FALSE);
     $params['count'] = CRM_Utils_Array::value('count', $params, FALSE);
 
@@ -647,7 +665,7 @@ class CRM_Price_Form_Field extends CRM_Core_Form {
       //$params['option_description']  = array( 1 => $params['description'] );
       $params['option_weight'] = array(1 => $params['weight']);
       $params['option_financial_type_id'] = array(1 => $params['financial_type_id']);
-      $params['is_active'] = array(1 => 1);
+      $params['option_visibility_id'] = array(1 => CRM_Utils_Array::value('visibility_id', $params));
     }
 
     if ($this->_fid) {

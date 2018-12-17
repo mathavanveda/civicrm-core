@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -44,10 +44,18 @@
           </tr>
         <td class="label">{$form.name.label}</td>
               <td>{$form.name.html}</td></tr>
+          <tr class="crm-admin-optiongroup-form-block-data-type">
+            <td class="label">{$form.data_type.label}</td>
+            <td>{$form.data_type.html}</td>
+          </tr>
           <tr class="crm-admin-optiongroup-form-block-is_active">
               <td class="label">{$form.is_active.label}</td>
               <td>{$form.is_active.html}</td>
           </tr>
+        <tr class="crm-admin-optiongroup-form-block-is_reserved">
+          <td class="label">{$form.is_reserved.label}</td>
+          <td>{$form.is_reserved.html}</td>
+        </tr>
       </table>
      {/if}
      <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="bottom"}</div>

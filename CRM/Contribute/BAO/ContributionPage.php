@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -74,8 +74,8 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     return CRM_Core_DAO::setFieldValue('CRM_Contribute_DAO_ContributionPage', $id, 'is_active', $is_active);
@@ -150,8 +150,32 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
    * @param array $fieldTypes
    */
   public static function sendMail($contactID, $values, $isTest = FALSE, $returnMessageText = FALSE, $fieldTypes = NULL) {
-    $gIds = $params = array();
+    $gIds = array();
+    $params = array('custom_pre_id' => array(), 'custom_post_id' => array());
     $email = NULL;
+
+    // We are trying to fight the good fight against leaky variables (CRM-17519) so let's get really explicit
+    // about ensuring the variables we want for the template are defined.
+    // @todo add to this until all tpl params are explicit in this function and not waltzing around the codebase.
+    // Next stage is to remove this & ensure there are no e-notices - ie. all are set before they hit this fn.
+    $valuesRequiredForTemplate = array(
+      'customPre',
+      'customPost',
+      'customPre_grouptitle',
+      'customPost_grouptitle',
+      'useForMember',
+      'membership_assign',
+      'amount',
+      'receipt_date',
+      'is_pay_later',
+    );
+
+    foreach ($valuesRequiredForTemplate as $valueRequiredForTemplate) {
+      if (!isset($values[$valueRequiredForTemplate])) {
+        $values[$valueRequiredForTemplate] = NULL;
+      }
+    }
+
     if (isset($values['custom_pre_id'])) {
       $preProfileType = CRM_Core_BAO_UFField::getProfileType($values['custom_pre_id']);
       if ($preProfileType == 'Membership' && !empty($values['membership_id'])) {
@@ -274,8 +298,7 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
 
       // get the billing location type
       if (!array_key_exists('related_contact', $values)) {
-        $locationTypes = CRM_Core_PseudoConstant::get('CRM_Core_DAO_Address', 'location_type_id', array(), 'validate');
-        $billingLocationTypeId = array_search('Billing', $locationTypes);
+        $billingLocationTypeId = CRM_Core_BAO_LocationType::getBilling();
       }
       else {
         // presence of related contact implies onbehalf of org case,
@@ -311,7 +334,7 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
             $userID = CRM_Utils_Array::value('related_contact', $values);
           }
         }
-        self::buildCustomDisplay($preID, 'customPre', $userID, $template, $params['custom_pre_id']);
+        list($values['customPre_grouptitle'], $values['customPre']) = self::getProfileNameAndFields($preID, $userID, $params['custom_pre_id']);
       }
       $userID = $contactID;
       if ($postID = CRM_Utils_Array::value('custom_post_id', $values)) {
@@ -322,7 +345,7 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
             $userID = CRM_Utils_Array::value('related_contact', $values);
           }
         }
-        self::buildCustomDisplay($postID, 'customPost', $userID, $template, $params['custom_post_id']);
+        list($values['customPost_grouptitle'], $values['customPost']) = self::getProfileNameAndFields($postID, $userID, $params['custom_post_id']);
       }
       if (isset($values['honor'])) {
         $honorValues = $values['honor'];
@@ -336,7 +359,8 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
 
       $title = isset($values['title']) ? $values['title'] : CRM_Contribute_PseudoConstant::contributionPage($values['contribution_page_id']);
 
-      // set email in the template here
+      // Set email variables explicitly to avoid leaky smarty variables.
+      // All of these will be assigned to the template, replacing any that might be assigned elsewhere.
       $tplParams = array(
         'email' => $email,
         'receiptFromEmail' => CRM_Utils_Array::value('receipt_from_email', $values),
@@ -351,12 +375,27 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
         'title' => $title,
         'isShare' => CRM_Utils_Array::value('is_share', $values),
         'thankyou_title' => CRM_Utils_Array::value('thankyou_title', $values),
+        'customPre' => $values['customPre'],
+        'customPre_grouptitle' => $values['customPre_grouptitle'],
+        'customPost' => $values['customPost'],
+        'customPost_grouptitle' => $values['customPost_grouptitle'],
+        'useForMember' => $values['useForMember'],
+        'membership_assign' => $values['membership_assign'],
+        'amount' => $values['amount'],
+        'is_pay_later' => $values['is_pay_later'],
+        'receipt_date' => !$values['receipt_date'] ? NULL : date('YmdHis', strtotime($values['receipt_date'])),
+        'pay_later_receipt' => CRM_Utils_Array::value('pay_later_receipt', $values),
+        'honor_block_is_active' => CRM_Utils_Array::value('honor_block_is_active', $values),
+        'contributionStatus' => CRM_Utils_Array::value('contribution_status', $values),
       );
 
       if ($contributionTypeId = CRM_Utils_Array::value('financial_type_id', $values)) {
-        $tplParams['contributionTypeId'] = $contributionTypeId;
-        $tplParams['contributionTypeName'] = CRM_Core_DAO::getFieldValue('CRM_Financial_DAO_FinancialType',
+        $tplParams['financialTypeId'] = $contributionTypeId;
+        $tplParams['financialTypeName'] = CRM_Core_DAO::getFieldValue('CRM_Financial_DAO_FinancialType',
           $contributionTypeId);
+        // Legacy support
+        $tplParams['contributionTypeName'] = $tplParams['financialTypeName'];
+        $tplParams['contributionTypeId'] = $contributionTypeId;
       }
 
       if ($contributionPageId = CRM_Utils_Array::value('id', $values)) {
@@ -412,6 +451,10 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
         );
       }
 
+      if (empty($values['receipt_from_name']) && empty($values['receipt_from_name'])) {
+        list($values['receipt_from_name'], $values['receipt_from_email']) = CRM_Core_BAO_Domain::getNameAndEmail();
+      }
+
       if ($values['is_email_receipt']) {
         $sendTemplateParams['from'] = CRM_Utils_Array::value('receipt_from_name', $values) . ' <' . $values['receipt_from_email'] . '>';
         $sendTemplateParams['toName'] = $displayName;
@@ -421,7 +464,7 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
         //send email with pdf invoice
         $template = CRM_Core_Smarty::singleton();
         $taxAmt = $template->get_template_vars('dataArray');
-        $prefixValue = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::CONTRIBUTE_PREFERENCES_NAME, 'contribution_invoice_settings');
+        $prefixValue = Civi::settings()->get('contribution_invoice_settings');
         $invoicing = CRM_Utils_Array::value('invoicing', $prefixValue);
         if (isset($invoicing) && isset($prefixValue['is_email_pdf'])) {
           $sendTemplateParams['isEmailPdf'] = TRUE;
@@ -446,6 +489,46 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
         CRM_Core_BAO_MessageTemplate::sendTemplate($sendTemplateParams);
       }
     }
+  }
+
+  /**
+   * Get the profile title and fields.
+   *
+   * @param int $gid
+   * @param int $cid
+   * @param array $params
+   * @param array $fieldTypes
+   *
+   * @return array
+   */
+  protected static function getProfileNameAndFields($gid, $cid, &$params, $fieldTypes = array()) {
+    $groupTitle = NULL;
+    $values = array();
+    if ($gid) {
+      if (CRM_Core_BAO_UFGroup::filterUFGroups($gid, $cid)) {
+        $fields = CRM_Core_BAO_UFGroup::getFields($gid, FALSE, CRM_Core_Action::VIEW, NULL, NULL, FALSE, NULL, FALSE, NULL, CRM_Core_Permission::CREATE, NULL);
+        foreach ($fields as $k => $v) {
+          if (!$groupTitle) {
+            $groupTitle = $v["groupTitle"];
+          }
+          // suppress all file fields from display and formatting fields
+          if (
+            CRM_Utils_Array::value('data_type', $v, '') == 'File' ||
+            CRM_Utils_Array::value('name', $v, '') == 'image_URL' ||
+            CRM_Utils_Array::value('field_type', $v) == 'Formatting'
+          ) {
+            unset($fields[$k]);
+          }
+
+          if (!empty($fieldTypes) && (!in_array($v['field_type'], $fieldTypes))) {
+            unset($fields[$k]);
+          }
+        }
+
+        CRM_Core_BAO_UFGroup::getValues($cid, $fields, $values, FALSE, $params);
+      }
+    }
+    return array($groupTitle, $values);
   }
 
   /**
@@ -527,7 +610,7 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
         // like in PaypalPro, & therefore we set it here additionally.
         $template = CRM_Core_Smarty::singleton();
         $paymentProcessor = CRM_Financial_BAO_PaymentProcessor::getProcessorForEntity($recur->id, 'recur', 'obj');
-        $url = $paymentProcessor->subscriptionURL($recur->id, 'recur');
+        $url = $paymentProcessor->subscriptionURL($recur->id, 'recur', 'cancel');
         $template->assign('cancelSubscriptionUrl', $url);
 
         $url = $paymentProcessor->subscriptionURL($recur->id, 'recur', 'billing');
@@ -549,7 +632,12 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
   }
 
   /**
-   * Add the custom fields for contribution page (ie profile)
+   * Add the custom fields for contribution page (ie profile).
+   *
+   * @deprecated assigning values to smarty like this is risky because
+   *  - it is hard to debug since $name is used in the assign
+   *  - it is potentially 'leaky' - it's better to do this on the form
+   *  or close to where it is used / required. See CRM-17519 for leakage e.g.
    *
    * @param int $gid
    *   Uf group id.
@@ -560,43 +648,14 @@ class CRM_Contribute_BAO_ContributionPage extends CRM_Contribute_DAO_Contributio
    * @param array $params
    *   Params to build component whereclause.
    *
-   * @param array $fieldTypes
+   * @param array|null $fieldTypes
    */
-  public static function buildCustomDisplay($gid, $name, $cid, &$template, &$params, $fieldTypes = array()) {
-    if ($gid) {
-      if (CRM_Core_BAO_UFGroup::filterUFGroups($gid, $cid)) {
-        $values = array();
-        $groupTitle = NULL;
-        $fields = CRM_Core_BAO_UFGroup::getFields($gid, FALSE, CRM_Core_Action::VIEW, NULL, NULL, FALSE, NULL, FALSE, NULL, CRM_Core_Permission::CREATE, NULL);
-        foreach ($fields as $k => $v) {
-          if (!$groupTitle) {
-            $groupTitle = $v["groupTitle"];
-          }
-          // suppress all file fields from display and formatting fields
-          if (
-            CRM_Utils_Array::value('data_type', $v, '') == 'File' ||
-            CRM_Utils_Array::value('name', $v, '') == 'image_URL' ||
-            CRM_Utils_Array::value('field_type', $v) == 'Formatting'
-          ) {
-            unset($fields[$k]);
-          }
-
-          if (!empty($fieldTypes) && (!in_array($v['field_type'], $fieldTypes))) {
-            unset($fields[$k]);
-          }
-        }
-
-        if ($groupTitle) {
-          $template->assign($name . "_grouptitle", $groupTitle);
-        }
-
-        CRM_Core_BAO_UFGroup::getValues($cid, $fields, $values, FALSE, $params);
-
-        if (count($values)) {
-          $template->assign($name, $values);
-        }
-      }
+  public static function buildCustomDisplay($gid, $name, $cid, &$template, &$params, $fieldTypes = NULL) {
+    list($groupTitle, $values) = self::getProfileNameAndFields($gid, $cid, $params, $fieldTypes);
+    if (!empty($values)) {
+      $template->assign($name, $values);
     }
+    $template->assign($name . "_grouptitle", $groupTitle);
   }
 
   /**
@@ -798,7 +857,7 @@ LEFT JOIN  civicrm_premiums            ON ( civicrm_premiums.entity_id = civicrm
    * @return array|string
    */
   public static function formatModuleData($params, $setDefault = FALSE, $module) {
-    global $tsLocale;
+    $tsLocale = CRM_Core_I18n::getLocale();
     $config = CRM_Core_Config::singleton();
     $json = $jsonDecode = NULL;
     $domain = new CRM_Core_DAO_Domain();
@@ -901,8 +960,7 @@ LEFT JOIN  civicrm_premiums            ON ( civicrm_premiums.entity_id = civicrm
       'output' => 'pdf_invoice',
       'forPage' => 'confirmpage',
     );
-    $pdfHtml = CRM_Contribute_Form_Task_Invoice::printPDF($contributionID,
-      $pdfParams, $contactId, CRM_Core_DAO::$_nullObject);
+    $pdfHtml = CRM_Contribute_Form_Task_Invoice::printPDF($contributionID, $pdfParams, $contactId);
     return $pdfHtml;
   }
 

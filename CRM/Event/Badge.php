@@ -1,7 +1,7 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -32,7 +32,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -75,12 +75,11 @@ class CRM_Event_Badge {
   }
 
   /**
-   * Create the labels (pdf)
+   * Create the labels (pdf).
+   *
    * It assumes the participants are from the same event
    *
    * @param array $participants
-   *
-   * @return;
    */
   public function run(&$participants) {
     // fetch the 1st participant, and take her event to retrieve its attributes
@@ -89,7 +88,7 @@ class CRM_Event_Badge {
     $this->event = self::retrieveEvent($eventID);
     //call function to create labels
     self::createLabels($participants);
-    CRM_Utils_System::civiExit(1);
+    CRM_Utils_System::civiExit();
   }
 
   /**
@@ -171,7 +170,9 @@ class CRM_Event_Badge {
   }
 
   /**
-   * This is supposed to be overrided.
+   * This is supposed to be overridden.
+   *
+   * @param array $participant
    */
   public function generateLabel($participant) {
     $txt = "{$this->event['title']}
@@ -185,11 +186,9 @@ class CRM_Event_Badge {
   }
 
   /**
-   * Create labels (pdf)
+   * Create labels (pdf).
    *
    * @param array $participants
-   *
-   * @return;
    */
   public function createLabels(&$participants) {
 

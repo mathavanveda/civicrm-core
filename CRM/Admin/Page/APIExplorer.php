@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,37 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * Api Explorer
  */
 class CRM_Admin_Page_APIExplorer extends CRM_Core_Page {
+
+  /**
+   * Return unique paths for checking for examples.
+   * @return array
+   */
+  private static function uniquePaths() {
+    // Ensure that paths with trailing slashes are properly dealt with
+    $paths = explode(PATH_SEPARATOR, get_include_path());
+    foreach ($paths as $id => $rawPath) {
+      $pathParts = explode(DIRECTORY_SEPARATOR, $rawPath);
+      foreach ($pathParts as $partId => $part) {
+        if (empty($part)) {
+          unset($pathParts[$partId]);
+        }
+      }
+      $newRawPath = implode(DIRECTORY_SEPARATOR, $pathParts);
+      if ($newRawPath != $rawPath) {
+        $paths[$id] = DIRECTORY_SEPARATOR . $newRawPath;
+      }
+    }
+    $paths = array_unique($paths);
+    return $paths;
+  }
+
 
   /**
    * Run page.
@@ -45,18 +69,26 @@ class CRM_Admin_Page_APIExplorer extends CRM_Core_Page {
     CRM_Core_Resources::singleton()
       ->addScriptFile('civicrm', 'templates/CRM/Admin/Page/APIExplorer.js')
       ->addScriptFile('civicrm', 'bower_components/google-code-prettify/bin/prettify.min.js', 99)
-      ->addStyleFile('civicrm', 'bower_components/google-code-prettify/bin/prettify.min.css', 99);
+      ->addStyleFile('civicrm', 'bower_components/google-code-prettify/bin/prettify.min.css', 99)
+      ->addVars('explorer', array('max_joins' => \Civi\API\Api3SelectQuery::MAX_JOINS));
 
     $this->assign('operators', CRM_Core_DAO::acceptedSQLOperators());
 
     // List example directories
-    global $civicrm_root;
+    // use get_include_path to ensure that extensions are captured.
     $examples = array();
-    foreach (scandir(CRM_Utils_file::addTrailingSlash($civicrm_root, '/') . 'api/v3/examples') as $item) {
-      if ($item && strpos($item, '.') === FALSE) {
-        $examples[] = $item;
+    $paths = self::uniquePaths();
+    foreach ($paths as $path) {
+      $dir = \CRM_Utils_File::addTrailingSlash($path) . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . 'examples';
+      if (is_dir($dir)) {
+        foreach (scandir($dir) as $item) {
+          if ($item && strpos($item, '.') === FALSE && array_search($item, $examples) === FALSE) {
+            $examples[] = $item;
+          }
+        }
       }
     }
+    sort($examples);
     $this->assign('examples', $examples);
 
     return parent::run();
@@ -76,24 +108,33 @@ class CRM_Admin_Page_APIExplorer extends CRM_Core_Page {
    * AJAX callback to fetch examples.
    */
   public static function getExampleFile() {
-    global $civicrm_root;
-    $basePath = CRM_Utils_file::addTrailingSlash($civicrm_root, '/');
     if (!empty($_GET['entity']) && strpos($_GET['entity'], '.') === FALSE) {
       $examples = array();
-      foreach (scandir($basePath . 'api/v3/examples/' . $_GET['entity']) as $item) {
-        $item = str_replace('.php', '', $item);
-        if ($item && strpos($item, '.') === FALSE) {
-          $examples[] = array('key' => $item, 'value' => $item);
+      $paths = self::uniquePaths();
+      foreach ($paths as $path) {
+        $dir = \CRM_Utils_File::addTrailingSlash($path) . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . 'examples' . DIRECTORY_SEPARATOR . $_GET['entity'];
+        if (is_dir($dir)) {
+          foreach (scandir($dir) as $item) {
+            $item = str_replace('.php', '', $item);
+            if ($item && strpos($item, '.') === FALSE) {
+              $examples[] = array('key' => $item, 'value' => $item);
+            }
+          }
         }
       }
       CRM_Utils_JSON::output($examples);
     }
     if (!empty($_GET['file']) && strpos($_GET['file'], '.') === FALSE) {
-      $fileName = $basePath . 'api/v3/examples/' . $_GET['file'] . '.php';
-      if (file_exists($fileName)) {
-        echo file_get_contents($fileName);
+      $paths = self::uniquePaths();
+      $fileFound = FALSE;
+      foreach ($paths as $path) {
+        $fileName = \CRM_Utils_File::addTrailingSlash($path) . 'api' . DIRECTORY_SEPARATOR . 'v3' . DIRECTORY_SEPARATOR . 'examples' . DIRECTORY_SEPARATOR . $_GET['file'] . '.php';
+        if (!$fileFound && file_exists($fileName)) {
+          $fileFound = TRUE;
+          echo file_get_contents($fileName);
+        }
       }
-      else {
+      if (!$fileFound) {
         echo "Not found.";
       }
       CRM_Utils_System::civiExit();
@@ -186,7 +227,12 @@ class CRM_Admin_Page_APIExplorer extends CRM_Core_Page {
    * @param string $text
    * @return string
    */
-  private static function formatDocBlock($text) {
+  public static function formatDocBlock($text) {
+    // Normalize #leading spaces.
+    $lines = explode("\n", $text);
+    $lines = preg_replace('/^ +\*/', ' *', $lines);
+    $text = implode("\n", $lines);
+
     // Get rid of comment stars
     $text = str_replace(array("\n * ", "\n *\n", "\n */\n", "/**\n"), array("\n", "\n\n", '', ''), $text);
 

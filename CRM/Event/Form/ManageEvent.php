@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,21 +26,17 @@
  */
 
 /**
- *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * This class generates form components for processing Event
- *
+ * This class generates form components for processing Event.
  */
 class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
 
   /**
-   * The id of the event we are proceessing.
+   * The id of the event we are processing.
    *
    * @var int
    */
@@ -60,7 +56,7 @@ class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
    */
   protected $_single;
 
-  protected $_action;
+  public $_action;
 
   /**
    * Are we actually managing an event template?
@@ -103,8 +99,6 @@ class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
 
   /**
    * Set variables up before form is built.
-   *
-   * @return void
    */
   public function preProcess() {
     $config = CRM_Core_Config::singleton();
@@ -256,11 +250,9 @@ class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
   }
 
   /**
-   * Set default values for the form. For edit/view mode
-   * the default values are retrieved from the database
+   * Set default values for the form.
    *
-   *
-   * @return void
+   * For edit/view mode the default values are retrieved from the database.
    */
   public function setDefaultValues() {
     $defaults = array();
@@ -287,8 +279,6 @@ class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
 
   /**
    * Build the form object.
-   *
-   * @return void
    */
   public function buildQuickForm() {
     $session = CRM_Core_Session::singleton();
@@ -367,7 +357,7 @@ class CRM_Event_Form_ManageEvent extends CRM_Core_Form {
       switch ($className) {
         case 'Event':
           $attributes = $this->getVar('_attributes');
-          $subPage = strtolower(basename(CRM_Utils_Array::value('action', $attributes)));
+          $subPage = CRM_Utils_Request::retrieveComponent($attributes);
           break;
 
         case 'EventInfo':

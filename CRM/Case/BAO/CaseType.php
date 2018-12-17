@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -80,7 +80,9 @@ class CRM_Case_BAO_CaseType extends CRM_Case_DAO_CaseType {
     }
 
     $caseTypeDAO->copyValues($params);
-    return $caseTypeDAO->save();
+    $result = $caseTypeDAO->save();
+    CRM_Case_XMLRepository::singleton()->flush();
+    return $result;
   }
 
   /**
@@ -128,6 +130,14 @@ class CRM_Case_BAO_CaseType extends CRM_Case_DAO_CaseType {
         $xmlFile .= "</ActivityType>\n";
       }
       $xmlFile .= "</ActivityTypes>\n";
+    }
+
+    if (!empty($definition['statuses'])) {
+      $xmlFile .= "<Statuses>\n";
+      foreach ($definition['statuses'] as $value) {
+        $xmlFile .= "<Status>$value</Status>\n";
+      }
+      $xmlFile .= "</Statuses>\n";
     }
 
     if (isset($definition['activitySets'])) {
@@ -224,9 +234,16 @@ class CRM_Case_BAO_CaseType extends CRM_Case_DAO_CaseType {
       }
     }
 
+    // set statuses
+    if (isset($xml->Statuses)) {
+      $definition['statuses'] = (array) $xml->Statuses->Status;
+    }
+
     // set activity sets
     if (isset($xml->ActivitySets)) {
       $definition['activitySets'] = array();
+      $definition['timelineActivityTypes'] = array();
+
       foreach ($xml->ActivitySets->ActivitySet as $activitySetXML) {
         // parse basic properties
         $activitySet = array();
@@ -242,7 +259,11 @@ class CRM_Case_BAO_CaseType extends CRM_Case_DAO_CaseType {
         if (isset($activitySetXML->ActivityTypes)) {
           $activitySet['activityTypes'] = array();
           foreach ($activitySetXML->ActivityTypes->ActivityType as $activityTypeXML) {
-            $activitySet['activityTypes'][] = json_decode(json_encode($activityTypeXML), TRUE);
+            $activityType = json_decode(json_encode($activityTypeXML), TRUE);
+            $activitySet['activityTypes'][] = $activityType;
+            if ($activitySetXML->timeline) {
+              $definition['timelineActivityTypes'][] = $activityType;
+            }
           }
         }
         $definition['activitySets'][] = $activitySet;
@@ -316,6 +337,7 @@ class CRM_Case_BAO_CaseType extends CRM_Case_DAO_CaseType {
     }
     $transaction->commit();
     CRM_Case_XMLRepository::singleton(TRUE);
+    CRM_Core_OptionGroup::flushAll();
 
     return $caseType;
   }

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,11 +25,9 @@
  +--------------------------------------------------------------------+
  */
 
-
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class CRM_Core_PaymentTest
+ * @group headless
  */
 class CRM_Core_PaymentTest extends CiviUnitTestCase {
 
@@ -46,6 +44,50 @@ class CRM_Core_PaymentTest extends CiviUnitTestCase {
     }
     $log = $this->callAPISuccess('SystemLog', 'get', array());
     $this->assertEquals('payment_notification processor_name=Paypal', $log['values'][$log['id']]['message']);
+  }
+
+  /**
+   * Test that CVV is always required for front facing pages.
+   */
+  public function testCVVSettingForContributionPages() {
+    Civi::settings()->set('cvv_backoffice_required', 0);
+    $processor = NULL;
+    $dummyPayment = new CRM_Core_Payment_Dummy("test", $processor);
+    $dummyPayment->setBackOffice(TRUE);
+    $paymentMetaData = $dummyPayment->getPaymentFormFieldsMetadata();
+    $this->assertEquals(0, $paymentMetaData["cvv2"]["is_required"], "CVV should be non required for back office.");
+
+    $dummyPayment->setBackOffice(FALSE);
+    $paymentMetaData = $dummyPayment->getPaymentFormFieldsMetadata();
+    $this->assertEquals(1, $paymentMetaData["cvv2"]["is_required"], "CVV should always be required for front office.");
+
+    Civi::settings()->set('cvv_backoffice_required', 1);
+
+    $dummyPayment->setBackOffice(TRUE);
+    $paymentMetaData = $dummyPayment->getPaymentFormFieldsMetadata();
+    $this->assertEquals(1, $paymentMetaData["cvv2"]["is_required"], "CVV should be required for back office.");
+
+    $dummyPayment->setBackOffice(FALSE);
+    $paymentMetaData = $dummyPayment->getPaymentFormFieldsMetadata();
+    $this->assertEquals(1, $paymentMetaData["cvv2"]["is_required"], "CVV should always be required for front office.");
+  }
+
+  public function testSettingUrl() {
+    /** @var CRM_Core_Payment_Dummy $processor */
+    $processor = \Civi\Payment\System::singleton()->getById($this->processorCreate());
+    $success = 'http://success.com';
+    $cancel = 'http://cancel.com';
+    $processor->setCancelUrl($cancel);
+    $processor->setSuccessUrl($success);
+
+    // Using ReflectionUtils to access protected methods
+    $successGetter = new ReflectionMethod($processor, 'getReturnSuccessUrl');
+    $successGetter->setAccessible(TRUE);
+    $this->assertEquals($success, $successGetter->invoke($processor, NULL));
+
+    $cancelGetter = new ReflectionMethod($processor, 'getReturnFailUrl');
+    $cancelGetter->setAccessible(TRUE);
+    $this->assertEquals($cancel, $cancelGetter->invoke($processor, NULL));
   }
 
 }

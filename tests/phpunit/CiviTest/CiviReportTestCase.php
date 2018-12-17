@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -24,8 +24,6 @@
  | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
  +--------------------------------------------------------------------+
  */
-
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * Class CiviReportTestCase
@@ -54,6 +52,28 @@ class CiviReportTestCase extends CiviUnitTestCase {
    * @throws Exception
    */
   public function getReportOutputAsCsv($reportClass, $inputParams) {
+
+    $reportObj = $this->getReportObject($reportClass, $inputParams);
+    try {
+      $rows = $reportObj->getResultSet();
+      $tmpFile = $this->createTempDir() . CRM_Utils_File::makeFileName('CiviReport.csv');
+      $csvContent = CRM_Report_Utils_Report::makeCsv($reportObj, $rows);
+      file_put_contents($tmpFile, $csvContent);
+    }
+    catch (Exception $e) {
+      throw $e;
+    }
+    return $tmpFile;
+  }
+
+  /**
+   * @param $reportClass
+   * @param array $inputParams
+   *
+   * @return array
+   * @throws Exception
+   */
+  public function getReportObject($reportClass, $inputParams) {
     $config = CRM_Core_Config::singleton();
     $config->keyDisable = TRUE;
     $controller = new CRM_Core_Controller_Simple($reportClass, ts('some title'));
@@ -85,11 +105,6 @@ class CiviReportTestCase extends CiviUnitTestCase {
     try {
       $reportObj->storeResultSet();
       $reportObj->buildForm();
-      $rows = $reportObj->getResultSet();
-
-      $tmpFile = $this->createTempDir() . CRM_Utils_File::makeFileName('CiviReport.csv');
-      $csvContent = CRM_Report_Utils_Report::makeCsv($reportObj, $rows);
-      file_put_contents($tmpFile, $csvContent);
     }
     catch (Exception $e) {
       // print_r($e->getCause()->getUserInfo());
@@ -98,7 +113,7 @@ class CiviReportTestCase extends CiviUnitTestCase {
     }
     CRM_Utils_GlobalStack::singleton()->pop();
 
-    return $tmpFile;
+    return $reportObj;
   }
 
   /**

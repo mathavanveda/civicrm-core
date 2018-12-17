@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -98,6 +98,7 @@ class CRM_Contribute_Import_Form_Preview extends CRM_Import_Form_Preview {
       'downloadConflictRecordsUrl',
       'downloadMismatchRecordsUrl',
     );
+    $this->setStatusUrl();
 
     foreach ($properties as $property) {
       $this->assign($property, $this->get($property));
@@ -109,14 +110,12 @@ class CRM_Contribute_Import_Form_Preview extends CRM_Import_Form_Preview {
    */
   public function postProcess() {
     $fileName = $this->controller->exportValue('DataSource', 'uploadFile');
+    $seperator = $this->controller->exportValue('DataSource', 'fieldSeparator');
     $skipColumnHeader = $this->controller->exportValue('DataSource', 'skipColumnHeader');
     $invalidRowCount = $this->get('invalidRowCount');
     $conflictRowCount = $this->get('conflictRowCount');
     $onDuplicate = $this->get('onDuplicate');
     $mapperSoftCreditType = $this->get('mapperSoftCreditType');
-
-    $config = CRM_Core_Config::singleton();
-    $seperator = $config->fieldSeparator;
 
     $mapper = $this->controller->exportValue('MapField', 'mapper');
     $mapperKeys = array();
@@ -150,7 +149,9 @@ class CRM_Contribute_Import_Form_Preview extends CRM_Import_Form_Preview {
       $skipColumnHeader,
       CRM_Import_Parser::MODE_IMPORT,
       $this->get('contactType'),
-      $onDuplicate
+      $onDuplicate,
+      $this->get('statusID'),
+      $this->get('totalRowCount')
     );
 
     // Add all the necessary variables to the form.

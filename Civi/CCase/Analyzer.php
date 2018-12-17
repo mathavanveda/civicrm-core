@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -175,6 +175,7 @@ class Analyzer {
 
   /**
    * @return string
+   * @throws \CRM_Core_Exception
    */
   public function getCaseType() {
     if ($this->caseType === NULL) {
@@ -205,7 +206,7 @@ class Analyzer {
   }
 
   /**
-   * @return SimpleXMLElement|NULL
+   * @return \SimpleXMLElement|NULL
    */
   public function getXml() {
     if ($this->xml === NULL) {

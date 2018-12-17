@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -42,7 +42,6 @@ class WebTest_Event_AddRecurringEventTest extends CiviSeleniumTestCase {
   }
 
   public function testRecurringEvent() {
-    $this->markTestSkipped('Skipping for now as it works fine locally.');
     $this->webtestLogin();
 
     //Add repeat configuration for an event

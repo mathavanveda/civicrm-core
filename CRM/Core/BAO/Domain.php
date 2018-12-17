@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -65,53 +63,21 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
   /**
    * Get the domain BAO.
    *
-   * @param null $reset
+   * @param bool $reset
    *
-   * @return CRM_Core_BAO_Domain|null
+   * @return \CRM_Core_BAO_Domain
+   * @throws \CRM_Core_Exception
    */
-  public static function &getDomain($reset = NULL) {
+  public static function getDomain($reset = NULL) {
     static $domain = NULL;
     if (!$domain || $reset) {
       $domain = new CRM_Core_BAO_Domain();
       $domain->id = CRM_Core_Config::domainID();
       if (!$domain->find(TRUE)) {
-        CRM_Core_Error::fatal();
+        throw new CRM_Core_Exception('No domain in DB');
       }
     }
     return $domain;
-  }
-
-  /**
-   * Change active domain (ie. to perform a temporary action) such as changing
-   * config for all domains
-   *
-   * Switching around the global domain variable is very risky business. This
-   * is ONLY used as a hack to allow CRM_Core_BAO_Setting::setItems to manipulate
-   * the civicrm_domain.config_backend in multiple domains. When/if config_backend
-   * goes away, this hack should be removed.
-   *
-   * @param int $domainID
-   *   Id for domain you want to set as current.
-   * @deprecated
-   * @see http://issues.civicrm.org/jira/browse/CRM-11204
-   */
-  public static function setDomain($domainID) {
-    CRM_Core_Config::domainID($domainID);
-    self::getDomain($domainID);
-    CRM_Core_Config::singleton(TRUE, TRUE);
-  }
-
-  /**
-   * Reset domain to default (ie. as loaded from settings). This is the
-   * counterpart to CRM_Core_BAO_Domain::setDomain.
-   *
-   * @deprecated
-   * @see CRM_Core_BAO_Domain::setDomain
-   */
-  public static function resetDomain() {
-    CRM_Core_Config::domainID(NULL, TRUE);
-    self::getDomain(NULL, TRUE);
-    CRM_Core_Config::singleton(TRUE, TRUE);
   }
 
   /**
@@ -176,7 +142,7 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
    */
   public static function create($params) {
     $domain = new CRM_Core_DAO_Domain();
-    $domain->copyValues($params);
+    $domain->copyValues($params, TRUE);
     $domain->save();
     return $domain;
   }
@@ -203,9 +169,13 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
    *   name & email for domain
    * @throws Exception
    */
-  public static function getNameAndEmail($skipFatal = FALSE) {
+  public static function getNameAndEmail($skipFatal = FALSE, $returnString = FALSE) {
     $fromEmailAddress = CRM_Core_OptionGroup::values('from_email_address', NULL, NULL, NULL, ' AND is_default = 1');
     if (!empty($fromEmailAddress)) {
+      if ($returnString) {
+        // Return a string like: "Demonstrators Anonymous" <info@example.org>
+        return $fromEmailAddress;
+      }
       foreach ($fromEmailAddress as $key => $value) {
         $email = CRM_Utils_Mail::pluckEmailFromHeader($value);
         $fromArray = explode('"', $value);
@@ -214,12 +184,13 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
       }
       return array($fromName, $email);
     }
-    elseif ($skipFatal) {
-      return array('', '');
+
+    if ($skipFatal) {
+      return array(NULL, NULL);
     }
 
-    $url = CRM_Utils_System::url('civicrm/admin/domain',
-      'action=update&reset=1'
+    $url = CRM_Utils_System::url('civicrm/admin/options/from_email_address',
+      'reset=1'
     );
     $status = ts("There is no valid default from email address configured for the domain. You can configure here <a href='%1'>Configure From Email Address.</a>", array(1 => $url));
 
@@ -253,12 +224,8 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
       return $groupID;
     }
 
-    $domainGroupID = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MULTISITE_PREFERENCES_NAME,
-      'domain_group_id'
-    );
-    $multisite = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::MULTISITE_PREFERENCES_NAME,
-      'is_enabled'
-    );
+    $domainGroupID = Civi::settings()->get('domain_group_id');
+    $multisite = Civi::settings()->get('is_enabled');
 
     if ($domainGroupID) {
       $groupID = $domainGroupID;
@@ -321,6 +288,43 @@ class CRM_Core_BAO_Domain extends CRM_Core_DAO_Domain {
       }
     }
     return $siteContacts;
+  }
+
+  /**
+   * CRM-20308 & CRM-19657
+   * Return domain information / user information for the usage in receipts
+   * Try default from address then fall back to using logged in user details
+   */
+  public static function getDefaultReceiptFrom() {
+    $domain = civicrm_api3('domain', 'getsingle', array('id' => CRM_Core_Config::domainID()));
+    if (!empty($domain['from_email'])) {
+      return array($domain['from_name'], $domain['from_email']);
+    }
+    if (!empty($domain['domain_email'])) {
+      return array($domain['name'], $domain['domain_email']);
+    }
+    $userName = '';
+    $userEmail = '';
+
+    if (!Civi::settings()->get('allow_mail_from_logged_in_contact')) {
+      return array($userName, $userEmail);
+    }
+
+    $userID = CRM_Core_Session::singleton()->getLoggedInContactID();
+    if (!empty($userID)) {
+      list($userName, $userEmail) = CRM_Contact_BAO_Contact_Location::getEmailDetails($userID);
+    }
+    // If still empty fall back to the logged in user details.
+    // return empty values no matter what.
+    return array($userName, $userEmail);
+  }
+
+  /**
+   * Get address to be used for system from addresses when a reply is not expected.
+   */
+  public static function getNoReplyEmailAddress() {
+    $emailDomain = CRM_Core_BAO_MailSettings::defaultDomain();
+    return "do-not-reply@$emailDomain";
   }
 
 }

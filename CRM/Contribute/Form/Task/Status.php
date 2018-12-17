@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -196,7 +196,7 @@ AND    co.id IN ( $contribIDs )";
       if ((strpos($name, 'check_number_') !== FALSE) && $value) {
         $contribID = substr($name, 13);
 
-        if ($fields["payment_instrument_id_{$contribID}"] != CRM_Core_OptionGroup::getValue('payment_instrument', 'Check', 'name')) {
+        if ($fields["payment_instrument_id_{$contribID}"] != CRM_Core_PseudoConstant::getKey('CRM_Contribute_BAO_Contribution', 'payment_instrument_id', 'Check')) {
           $errors["payment_instrument_id_{$contribID}"] = ts("Payment Method should be Check when a check number is entered for a contribution.");
         }
       }
@@ -209,19 +209,36 @@ AND    co.id IN ( $contribIDs )";
    */
   public function postProcess() {
     $params = $this->controller->exportValues($this->_name);
-    $statusID = CRM_Utils_Array::value('contribution_status_id', $params);
 
+    // submit the form with values.
+    self::processForm($this, $params);
+
+    CRM_Core_Session::setStatus(ts('Contribution status has been updated for selected record(s).'), ts('Status Updated'), 'success');
+  }
+
+  /**
+   * Process the form with submitted params.
+   *
+   * Also supports unit test.
+   *
+   * @param CRM_Core_Form $form
+   * @param array $params
+   *
+   * @throws \Exception
+   */
+  public static function processForm($form, $params) {
+    $statusID = CRM_Utils_Array::value('contribution_status_id', $params);
     $baseIPN = new CRM_Core_Payment_BaseIPN();
 
     $transaction = new CRM_Core_Transaction();
 
     // get the missing pieces for each contribution
-    $contribIDs = implode(',', $this->_contributionIds);
+    $contribIDs = implode(',', $form->_contributionIds);
     $details = self::getDetails($contribIDs);
     $template = CRM_Core_Smarty::singleton();
 
     // for each contribution id, we just call the baseIPN stuff
-    foreach ($this->_rows as $row) {
+    foreach ($form->_rows as $row) {
       $input = $ids = $objects = array();
       $input['component'] = $details[$row['contribution_id']]['component'];
 
@@ -277,7 +294,7 @@ AND    co.id IN ( $contribIDs )";
       else {
         $input['trxn_id'] = $contribution->invoice_id;
       }
-      $input['trxn_date'] = CRM_Utils_Date::processDate($params["trxn_date_{$row['contribution_id']}"]);
+      $input['trxn_date'] = CRM_Utils_Date::processDate($params["trxn_date_{$row['contribution_id']}"], date('H:i:s'));
 
       // @todo calling baseIPN like this is a pattern in it's last gasps. Call contribute.completetransaction api.
       $baseIPN->completeTransaction($input, $ids, $objects, $transaction, FALSE);
@@ -285,16 +302,17 @@ AND    co.id IN ( $contribIDs )";
       // reset template values before processing next transactions
       $template->clearTemplateVars();
     }
-
-    CRM_Core_Session::setStatus(ts('Contribution status has been updated for selected record(s).'), ts('Status Updated'), 'success');
   }
 
   /**
-   * @param $contributionIDs
+   * @param string $contributionIDs
    *
    * @return array
    */
   public static function &getDetails($contributionIDs) {
+    if (empty($contributionIDs)) {
+      return [];
+    }
     $query = "
 SELECT    c.id              as contribution_id,
           c.contact_id      as contact_id     ,
@@ -311,7 +329,6 @@ WHERE     c.id IN ( $contributionIDs )";
     $dao = CRM_Core_DAO::executeQuery($query,
       CRM_Core_DAO::$_nullArray
     );
-    $rows = array();
 
     while ($dao->fetch()) {
       $rows[$dao->contribution_id]['component'] = $dao->participant_id ? 'event' : 'contribute';

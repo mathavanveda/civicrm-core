@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,11 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * This class provides the functionality for batch profile update for events
+ * This class provides the functionality for batch profile update for events.
  */
 class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
 
@@ -95,20 +93,23 @@ class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
    */
   public function buildQuickForm() {
     $ufGroupId = $this->get('ufGroupId');
-
     if (!$ufGroupId) {
       CRM_Core_Error::fatal('ufGroupId is missing');
     }
 
-    $this->_title = ts('Batch Update for Events') . ' - ' . CRM_Core_BAO_UFGroup::getTitle($ufGroupId);
+    $this->_title = ts('Update multiple participants') . ' - ' . CRM_Core_BAO_UFGroup::getTitle($ufGroupId);
     CRM_Utils_System::setTitle($this->_title);
     $this->addDefaultButtons(ts('Save'));
     $this->_fields = array();
     $this->_fields = CRM_Core_BAO_UFGroup::getFields($ufGroupId, FALSE, CRM_Core_Action::VIEW);
+    if (array_key_exists('participant_status', $this->_fields)) {
+      $this->assign('statusProfile', 1);
+      $this->assignToTemplate();
+    }
 
     // remove file type field and then limit fields
     $suppressFields = FALSE;
-    $removehtmlTypes = array('File', 'Autocomplete-Select');
+    $removehtmlTypes = array('File');
     foreach ($this->_fields as $name => $field) {
       if ($cfID = CRM_Core_BAO_CustomField::getKeyID($name) &&
         in_array($this->_fields[$name]['html_type'], $removehtmlTypes)
@@ -155,9 +156,10 @@ class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
 
     //fix for CRM-2752
     // get the option value for custom data type
-    $this->_roleCustomDataTypeID = CRM_Core_OptionGroup::getValue('custom_data_type', 'ParticipantRole', 'name');
-    $this->_eventNameCustomDataTypeID = CRM_Core_OptionGroup::getValue('custom_data_type', 'ParticipantEventName', 'name');
-    $this->_eventTypeCustomDataTypeID = CRM_Core_OptionGroup::getValue('custom_data_type', 'ParticipantEventType', 'name');
+    $customDataType = CRM_Core_OptionGroup::values('custom_data_type', FALSE, FALSE, FALSE, NULL, 'name');
+    $this->_roleCustomDataTypeID = array_search('ParticipantRole', $customDataType);
+    $this->_eventNameCustomDataTypeID = array_search('ParticipantEventName', $customDataType);
+    $this->_eventTypeCustomDataTypeID = array_search('ParticipantEventType', $customDataType);
 
     // build custom data getFields array
     $customFieldsRole = CRM_Core_BAO_CustomField::getFields('Participant', FALSE, FALSE, NULL, $this->_roleCustomDataTypeID);
@@ -221,7 +223,7 @@ class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
     $buttonName = $this->controller->getButtonName('submit');
 
     if ($suppressFields && $buttonName != '_qf_Batch_next') {
-      CRM_Core_Session::setStatus(ts("File or Autocomplete-Select type field(s) in the selected profile are not supported for Batch Update."), ts('Unsupported Field Type'), 'info');
+      CRM_Core_Session::setStatus(ts("File type field(s) in the selected profile are not supported for Update multiple participants."), ts('Unsupported Field Type'), 'info');
     }
 
     $this->addDefaultButtons(ts('Update Participant(s)'));
@@ -266,78 +268,10 @@ class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
 
   /**
    * Process the form after the input has been submitted and validated.
-   *
-   *
-   * @return void
    */
   public function postProcess() {
     $params = $this->exportValues();
-    $statusClasses = CRM_Event_PseudoConstant::participantStatusClass();
-    if (isset($params['field'])) {
-      foreach ($params['field'] as $key => $value) {
-
-        //check for custom data
-        $value['custom'] = CRM_Core_BAO_CustomField::postProcess($value,
-          $key,
-          'Participant'
-        );
-
-        $value['id'] = $key;
-        if (!empty($value['participant_register_date'])) {
-          $value['register_date'] = CRM_Utils_Date::processDate($value['participant_register_date'], $value['participant_register_date_time']);
-        }
-
-        if (!empty($value['participant_role'])) {
-          $participantRoles = CRM_Event_PseudoConstant::participantRole();
-          if (is_array($value['participant_role'])) {
-            $value['role_id'] = implode(CRM_Core_DAO::VALUE_SEPARATOR, array_keys($value['participant_role']));
-          }
-          else {
-            $value['role_id'] = $value['participant_role'];
-          }
-        }
-
-        //need to send mail when status change
-        $statusChange = FALSE;
-        $relatedStatusChange = FALSE;
-        if (!empty($value['participant_status'])) {
-          $value['status_id'] = $value['participant_status'];
-          $fromStatusId = CRM_Utils_Array::value($key, $this->_fromStatusIds);
-          if (!$fromStatusId) {
-            $fromStatusId = CRM_Core_DAO::getFieldValue('CRM_Event_DAO_Participant', $key, 'status_id');
-          }
-
-          if ($fromStatusId != $value['status_id']) {
-            $relatedStatusChange = TRUE;
-          }
-          if ($statusClasses[$fromStatusId] != $statusClasses[$value['status_id']]) {
-            $statusChange = TRUE;
-          }
-        }
-
-        if (!empty($value['participant_source'])) {
-          $value['source'] = $value['participant_source'];
-        }
-        unset($value['participant_register_date']);
-        unset($value['participant_status']);
-        unset($value['participant_source']);
-
-        CRM_Event_BAO_Participant::create($value);
-
-        //need to trigger mails when we change status
-        if ($statusChange) {
-          CRM_Event_BAO_Participant::transitionParticipants(array($key), $value['status_id'], $fromStatusId);
-        }
-        if ($relatedStatusChange) {
-          //update related contribution status, CRM-4395
-          self::updatePendingOnlineContribution($key, $value['status_id']);
-        }
-      }
-      CRM_Core_Session::setStatus(ts('The updates have been saved.'), ts('Saved'), 'success');
-    }
-    else {
-      CRM_Core_Session::setStatus(ts('No updates have been saved.'), ts('Not Saved'), 'alert');
-    }
+    $this->submit($params);
   }
 
   /**
@@ -504,12 +438,100 @@ class CRM_Event_Form_Task_Batch extends CRM_Event_Form_Task {
     }
 
     //complete the contribution.
+    // @todo use the api - ie civicrm_api3('Contribution', 'completetransaction', $input);
+    // as this method is not preferred / supported.
     $baseIPN->completeTransaction($input, $ids, $objects, $transaction, FALSE);
 
     // reset template values before processing next transactions
     $template->clearTemplateVars();
 
     return $statusId;
+  }
+
+  /**
+   * Assign the minimal set of variables to the template.
+   */
+  public function assignToTemplate() {
+    $notifyingStatuses = array('Pending from waitlist', 'Pending from approval', 'Expired', 'Cancelled');
+    $notifyingStatuses = array_intersect($notifyingStatuses, CRM_Event_PseudoConstant::participantStatus());
+    $this->assign('status', TRUE);
+    if (!empty($notifyingStatuses)) {
+      $s = '<em>' . implode('</em>, <em>', $notifyingStatuses) . '</em>';
+      $this->assign('notifyingStatuses', $s);
+    }
+  }
+
+  /**
+   * @param $params
+   */
+  public function submit($params) {
+    $statusClasses = CRM_Event_PseudoConstant::participantStatusClass();
+    if (isset($params['field'])) {
+      foreach ($params['field'] as $key => $value) {
+
+        //check for custom data
+        $value['custom'] = CRM_Core_BAO_CustomField::postProcess($value,
+          $key,
+          'Participant'
+        );
+        foreach (array_keys($value) as $fieldName) {
+          // Unset the original custom field now that it has been formatting to the 'custom'
+          // array as it may not be in the right format for the api as is (notably for
+          // multiple checkbox values).
+          // @todo extract submit functions on other Batch update classes &
+          // extend CRM_Event_Form_Task_BatchTest::testSubmit with a data provider to test them.
+          if (substr($fieldName, 0, 7) === 'custom_') {
+            unset($value[$fieldName]);
+          }
+        }
+
+        $value['id'] = $key;
+
+        if (!empty($value['participant_role'])) {
+          if (is_array($value['participant_role'])) {
+            $value['role_id'] = implode(CRM_Core_DAO::VALUE_SEPARATOR, array_keys($value['participant_role']));
+          }
+          else {
+            $value['role_id'] = $value['participant_role'];
+          }
+        }
+
+        //need to send mail when status change
+        $statusChange = FALSE;
+        $relatedStatusChange = FALSE;
+        if (!empty($value['participant_status'])) {
+          $value['status_id'] = $value['participant_status'];
+          $fromStatusId = CRM_Utils_Array::value($key, $this->_fromStatusIds);
+          if (!$fromStatusId) {
+            $fromStatusId = CRM_Core_DAO::getFieldValue('CRM_Event_DAO_Participant', $key, 'status_id');
+          }
+
+          if ($fromStatusId != $value['status_id']) {
+            $relatedStatusChange = TRUE;
+          }
+          if ($statusClasses[$fromStatusId] != $statusClasses[$value['status_id']]) {
+            $statusChange = TRUE;
+          }
+        }
+
+        unset($value['participant_status']);
+
+        civicrm_api3('Participant', 'create', $value);
+
+        //need to trigger mails when we change status
+        if ($statusChange) {
+          CRM_Event_BAO_Participant::transitionParticipants(array($key), $value['status_id'], $fromStatusId);
+        }
+        if ($relatedStatusChange) {
+          //update related contribution status, CRM-4395
+          self::updatePendingOnlineContribution($key, $value['status_id']);
+        }
+      }
+      CRM_Core_Session::setStatus(ts('The updates have been saved.'), ts('Saved'), 'success');
+    }
+    else {
+      CRM_Core_Session::setStatus(ts('No updates have been saved.'), ts('Not Saved'), 'alert');
+    }
   }
 
 }

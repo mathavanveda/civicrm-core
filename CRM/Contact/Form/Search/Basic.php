@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -47,21 +47,14 @@ class CRM_Contact_Form_Search_Basic extends CRM_Contact_Form_Search {
    * Build the form object.
    */
   public function buildQuickForm() {
-    // text for sort_name or email criteria
-    $config = CRM_Core_Config::singleton();
-    $label = empty($config->includeEmailInName) ? ts('Name') : ts('Name or Email');
-    $this->add('text', 'sort_name', $label);
+    $this->addSortNameField();
 
     $searchOptions = CRM_Core_BAO_Setting::valueOptions(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
       'advanced_search_options'
     );
 
-    $shortCuts = array();
-    //@todo FIXME - using the CRM_Core_DAO::VALUE_SEPARATOR creates invalid html - if you can find the form
-    // this is loaded onto then replace with something like '__' & test
-    $separator = CRM_Core_DAO::VALUE_SEPARATOR;
     if (!empty($searchOptions['contactType'])) {
-      $contactTypes = array('' => ts('- any contact type -')) + CRM_Contact_BAO_ContactType::getSelectElements(FALSE, TRUE, $separator);
+      $contactTypes = array('' => ts('- any contact type -')) + CRM_Contact_BAO_ContactType::getSelectElements();
       $this->add('select', 'contact_type',
         ts('is...'),
         $contactTypes,
@@ -71,22 +64,23 @@ class CRM_Contact_Form_Search_Basic extends CRM_Contact_Form_Search {
     }
 
     // add select for groups
+    // Get hierarchical listing of groups, respecting ACLs for CRM-16836.
+    $groupHierarchy = CRM_Contact_BAO_Group::getGroupsHierarchy($this->_group, NULL, '&nbsp;&nbsp;', TRUE);
     if (!empty($searchOptions['groups'])) {
-      $this->addSelect('group', array(
+      $this->addField('group', array(
           'entity' => 'group_contact',
           'label' => ts('in'),
-          'context' => 'search',
           'placeholder' => ts('- any group -'),
+          'options' => $groupHierarchy,
         ));
     }
 
     if (!empty($searchOptions['tags'])) {
       // tag criteria
       if (!empty($this->_tag)) {
-        $this->addSelect('tag', array(
+        $this->addField('tag', array(
             'entity' => 'entity_tag',
             'label' => ts('with'),
-            'context' => 'search',
             'placeholder' => ts('- any tag -'),
           ));
       }
@@ -117,7 +111,7 @@ class CRM_Contact_Form_Search_Basic extends CRM_Contact_Form_Search {
     }
 
     if ($this->_context === 'amtg') {
-      $defaults['task'] = CRM_Contact_Task::GROUP_CONTACTS;
+      $defaults['task'] = CRM_Contact_Task::GROUP_ADD;
     }
 
     if ($this->_context === 'smog') {
@@ -161,7 +155,6 @@ class CRM_Contact_Form_Search_Basic extends CRM_Contact_Form_Search {
     // get it from controller only if form has been submitted, else preProcess has set this
     if (!empty($_POST)) {
       $this->_formValues = $this->controller->exportValues($this->_name);
-      $this->normalizeFormValues();
     }
 
     if (isset($this->_groupID) && empty($this->_formValues['group'])) {
@@ -199,24 +192,13 @@ class CRM_Contact_Form_Search_Basic extends CRM_Contact_Form_Search {
   }
 
   /**
-   * Normalize the form values to make it look similar to the advanced form values.
+   * Add a form rule for this form.
    *
-   * This prevents a ton of work downstream and allows us to use the same code for
-   * multiple purposes (queries, save/edit etc)
-   */
-  public function normalizeFormValues() {
-    $contactType = CRM_Utils_Array::value('contact_type', $this->_formValues);
-    if ($contactType && !is_array($contactType)) {
-      unset($this->_formValues['contact_type']);
-      $this->_formValues['contact_type'][$contactType] = 1;
-    }
-
-    return NULL;
-  }
-
-  /**
-   * Add a form rule for this form. If Go is pressed then we must select some checkboxes
-   * and an action
+   * If Go is pressed then we must select some checkboxes and an action.
+   *
+   * @param array $fields
+   *
+   * @return array|bool
    */
   public static function formRule($fields) {
     // check actionName and if next, then do not repeat a search, since we are going to the next page

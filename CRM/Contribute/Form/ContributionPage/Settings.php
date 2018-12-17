@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_ContributionPage {
 
@@ -44,6 +44,11 @@ class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_
    */
   public function setDefaultValues() {
     $defaults = parent::setDefaultValues();
+    // @todo handle properly on parent.
+    if (!$this->_id) {
+      $defaults['start_date'] = date('Y-m-d H:i:s');
+      unset($defaults['start_time']);
+    }
     $soft_credit_types = CRM_Core_OptionGroup::values('soft_credit_type', TRUE, FALSE, FALSE, NULL, 'name');
 
     if ($this->_id) {
@@ -57,6 +62,7 @@ class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_
         $ufJoinDAO = new CRM_Core_DAO_UFJoin();
         $ufJoinDAO->module = $module;
         $ufJoinDAO->entity_id = $this->_id;
+        $ufJoinDAO->entity_table = 'civicrm_contribution_page';
         if ($ufJoinDAO->find(TRUE)) {
           $jsonData = CRM_Contribute_BAO_ContributionPage::formatModuleData($ufJoinDAO->module_data, TRUE, $module);
           if ($module == 'soft_credit') {
@@ -118,7 +124,14 @@ class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_
     $attributes = CRM_Core_DAO::getAttribute('CRM_Contribute_DAO_ContributionPage');
 
     // financial Type
-    $this->addSelect('financial_type_id', array(), TRUE);
+    CRM_Financial_BAO_FinancialType::getAvailableFinancialTypes($financialTypes, CRM_Core_Action::ADD);
+    $financialOptions = array(
+      'options' => $financialTypes,
+    );
+    if (!CRM_Core_Permission::check('administer CiviCRM Financial Types')) {
+      $financialOptions['context'] = 'search';
+    }
+    $this->addSelect('financial_type_id', $financialOptions, TRUE);
 
     // name
     $this->add('text', 'title', ts('Title'), $attributes['title'], TRUE);
@@ -215,8 +228,8 @@ class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_
     }
 
     // add optional start and end dates
-    $this->addDateTime('start_date', ts('Start Date'));
-    $this->addDateTime('end_date', ts('End Date'));
+    $this->add('datepicker', 'start_date', ts('Start Date'));
+    $this->add('datepicker', 'end_date', ts('End Date'));
 
     $this->addFormRule(array('CRM_Contribute_Form_ContributionPage_Settings', 'formRule'), $this);
 
@@ -326,10 +339,6 @@ class CRM_Contribute_Form_ContributionPage_Settings extends CRM_Contribute_Form_
     $params['is_credit_card_only'] = CRM_Utils_Array::value('is_credit_card_only', $params, FALSE);
     $params['honor_block_is_active'] = CRM_Utils_Array::value('honor_block_is_active', $params, FALSE);
     $params['is_for_organization'] = !empty($params['is_organization']) ? CRM_Utils_Array::value('is_for_organization', $params, FALSE) : 0;
-
-    $params['start_date'] = CRM_Utils_Date::processDate($params['start_date'], $params['start_date_time'], TRUE);
-    $params['end_date'] = CRM_Utils_Date::processDate($params['end_date'], $params['end_date_time'], TRUE);
-
     $params['goal_amount'] = CRM_Utils_Rule::cleanMoney($params['goal_amount']);
 
     if (!$params['honor_block_is_active']) {

@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,12 +27,12 @@
    {include file="CRM/Admin/Form/MailSettings.tpl"}
 {else}
 
+<div class="crm-block crm-content-block">
 {if $rows}
 <div id="mSettings">
-  <p></p>
   <div class="form-item">
     {strip}
-      <table cellpadding="0" cellspacing="0" border="0">
+      <table cellpadding="0" cellspacing="0" border="0" class="row-highlight">
         <thead class="sticky">
             <th>{ts}Name{/ts}</th>
             <th>{ts}Server{/ts}</th>
@@ -75,7 +75,8 @@
     </div>
 {/if}
   <div class="action-link">
-    {crmButton q="action=add&reset=1" id="newMailSettings"  icon="circle-plus"}{ts}Add Mail Account{/ts}{/crmButton}
-    {crmButton p="civicrm/admin" q="reset=1" class="cancel" icon="close"}{ts}Done{/ts}{/crmButton}
+    {crmButton q="action=add&reset=1" id="newMailSettings"  icon="plus-circle"}{ts}Add Mail Account{/ts}{/crmButton}
+    {crmButton p="civicrm/admin" q="reset=1" class="cancel" icon="times"}{ts}Done{/ts}{/crmButton}
   </div>
 {/if}
+</div>

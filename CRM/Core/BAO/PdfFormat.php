@@ -1,7 +1,7 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
  | Copyright (C) 2011 Marty Wright                                    |
  | Licensed to CiviCRM under the Academic Free License version 3.0.   |
@@ -29,7 +29,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -331,7 +331,7 @@ class CRM_Core_BAO_PdfFormat extends CRM_Core_DAO_OptionValue {
     // clear other default if this is the new default PDF Page Format
     if ($values['is_default']) {
       $query = "UPDATE civicrm_option_value SET is_default = 0 WHERE option_group_id = $group_id";
-      CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+      CRM_Core_DAO::executeQuery($query);
     }
     if ($id) {
       // fetch existing record

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -74,8 +74,8 @@ class CRM_Member_BAO_MembershipStatus extends CRM_Member_DAO_MembershipStatus {
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     return CRM_Core_DAO::setFieldValue('CRM_Member_DAO_MembershipStatus', $id, 'is_active', $is_active);
@@ -148,6 +148,7 @@ class CRM_Member_BAO_MembershipStatus extends CRM_Member_DAO_MembershipStatus {
     $membershipStatus->id = $id;
 
     $membershipStatus->save();
+    CRM_Member_PseudoConstant::flush('membershipStatus');
     return $membershipStatus;
   }
 
@@ -206,7 +207,11 @@ class CRM_Member_BAO_MembershipStatus extends CRM_Member_DAO_MembershipStatus {
     //delete from membership Type table
     $membershipStatus = new CRM_Member_DAO_MembershipStatus();
     $membershipStatus->id = $membershipStatusId;
+    if (!$membershipStatus->find()) {
+      throw new CRM_Core_Exception(ts('Cannot delete membership status ' . $membershipStatusId));
+    }
     $membershipStatus->delete();
+    CRM_Member_PseudoConstant::flush('membershipStatus');
     $membershipStatus->free();
   }
 
@@ -281,7 +286,7 @@ class CRM_Member_BAO_MembershipStatus extends CRM_Member_DAO_MembershipStatus {
  WHERE    {$where}
  ORDER BY weight ASC";
 
-    $membershipStatus = CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+    $membershipStatus = CRM_Core_DAO::executeQuery($query);
     $hour = $minute = $second = 0;
 
     while ($membershipStatus->fetch()) {

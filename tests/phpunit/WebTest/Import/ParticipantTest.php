@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -295,9 +295,8 @@ class WebTest_Import_ParticipantTest extends ImportCiviSeleniumTestCase {
     $this->click("CIVICRM_QFID_1_is_monetary");
 
     // select newly created processor
-    $xpath = "xpath=//label[text() = '{$processorName}']/preceding-sibling::input[1]";
+    $this->select2('payment_processor', $processorName, TRUE);
     $this->assertElementContainsText('paymentProcessor', $processorName);
-    $this->check($xpath);
     $this->select("financial_type_id", "value=4");
 
     $counter = 1;

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,12 +25,11 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Test class for Batch API - civicrm_batch_*
  *
  * @package CiviCRM_APIv3
+ * @group headless
  */
 class api_v3_BatchTest extends CiviUnitTestCase {
 
@@ -45,17 +44,6 @@ class api_v3_BatchTest extends CiviUnitTestCase {
   protected function setUp() {
     parent::setUp();
     $this->useTransaction(TRUE);
-  }
-
-  /**
-   * Create a sample batch.
-   */
-  public function batchCreate() {
-    $params = $this->_params;
-    $params['name'] = $params['title'] = 'Batch_433397';
-    $params['status_id'] = 1;
-    $result = $this->callAPISuccess('batch', 'create', $params);
-    return $result['id'];
   }
 
   /**

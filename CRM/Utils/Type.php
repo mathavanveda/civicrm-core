@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id: $
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_Type {
   const
@@ -51,7 +49,10 @@ class CRM_Utils_Type {
     T_CCNUM = 8192,
     T_MEDIUMBLOB = 16384;
 
-  // @todo What's the point of these constants? Backwards compatibility?
+  // @TODO What's the point of these constants? Backwards compatibility?
+  //
+  // These are used for field size (<input type=text size=2>), but redundant TWO=2
+  // usages are rare and should be eliminated. See CRM-18810.
   const
     TWO = 2,
     FOUR = 4,
@@ -140,6 +141,74 @@ class CRM_Utils_Type {
     }
 
     return (isset($string)) ? $string : "";
+  }
+
+  /**
+   * @return array
+   *   An array of type in the form 'type name' => 'int representing type'
+   */
+  public static function getValidTypes() {
+    return array(
+      'Int' => self::T_INT,
+      'String' => self::T_STRING,
+      'Enum' => self::T_ENUM,
+      'Date' => self::T_DATE,
+      'Time' => self::T_TIME,
+      'Boolean' => self::T_BOOLEAN,
+      'Text' => self::T_TEXT,
+      'Blob' => self::T_BLOB,
+      'Timestamp' => self::T_TIMESTAMP,
+      'Float' => self::T_FLOAT,
+      'Money' => self::T_MONEY,
+      'Email' => self::T_EMAIL,
+      'Mediumblob' => self::T_MEDIUMBLOB,
+    );
+  }
+
+  /**
+   * Get the data_type for the field.
+   *
+   * @param array $fieldMetadata
+   *   Metadata about the field.
+   *
+   * @return string
+   */
+  public static function getDataTypeFromFieldMetadata($fieldMetadata) {
+    if (isset($fieldMetadata['data_type'])) {
+      return $fieldMetadata['data_type'];
+    }
+    if (empty($fieldMetadata['type'])) {
+      // I would prefer to throw an e-notice but there is some,
+      // probably unnecessary logic, that only retrieves activity fields
+      // if they are 'in the profile' and probably they are not 'in'
+      // until they are added - which might lead to ? who knows!
+      return '';
+    }
+    return self::typeToString($fieldMetadata['type']);
+  }
+
+  /**
+   * Helper function to call escape on arrays.
+   *
+   * @see escape
+   */
+  public static function escapeAll($data, $type, $abort = TRUE) {
+    foreach ($data as $key => $value) {
+      $data[$key] = CRM_Utils_Type::escape($value, $type, $abort);
+    }
+    return $data;
+  }
+
+  /**
+   * Helper function to call validate on arrays
+   *
+   * @see validate
+   */
+  public static function validateAll($data, $type, $abort = TRUE) {
+    foreach ($data as $key => $value) {
+      $data[$key] = CRM_Utils_Type::validate($value, $type, $abort);
+    }
+    return $data;
   }
 
   /**
@@ -246,6 +315,58 @@ class CRM_Utils_Type {
         }
         break;
 
+      case 'MysqlColumnNameOrAlias':
+        if (CRM_Utils_Rule::mysqlColumnNameOrAlias($data)) {
+          $data = str_replace('`', '', $data);
+          $parts = explode('.', $data);
+          $data = '`' . implode('`.`', $parts) . '`';
+
+          return $data;
+        }
+        break;
+
+      case 'MysqlOrderByDirection':
+        if (CRM_Utils_Rule::mysqlOrderByDirection($data)) {
+          return strtolower($data);
+        }
+        break;
+
+      case 'MysqlOrderBy':
+        if (CRM_Utils_Rule::mysqlOrderBy($data)) {
+          $parts = explode(',', $data);
+
+          // The field() syntax is tricky here because it uses commas & when
+          // we separate by them we break it up. But we want to keep the clauses in order.
+          // so we just clumsily re-assemble it. Test cover exists.
+          $fieldClauseStart = NULL;
+          foreach ($parts as $index => &$part) {
+            if (substr($part, 0, 6) === 'field(') {
+              // Looking to escape a string like 'field(contribution_status_id,3,4,5) asc'
+              // to 'field(`contribution_status_id`,3,4,5) asc'
+              $fieldClauseStart = $index;
+              continue;
+            }
+            if ($fieldClauseStart !== NULL) {
+              // this is part of the list of field options. Concatenate it back on.
+              $parts[$fieldClauseStart] .= ',' . $part;
+              unset($parts[$index]);
+              if (!strstr($parts[$fieldClauseStart], ')')) {
+                // we have not reached the end of the list.
+                continue;
+              }
+              // We have the last piece of the field() clause, time to escape it.
+              $parts[$fieldClauseStart] = self::mysqlOrderByFieldFunctionCallback($parts[$fieldClauseStart]);
+              $fieldClauseStart = NULL;
+              continue;
+
+            }
+            // Normal clause.
+            $part = preg_replace_callback('/^(?:(?:((?:`[\w-]{1,64}`|[\w-]{1,64}))(?:\.))?(`[\w-]{1,64}`|[\w-]{1,64})(?: (asc|desc))?)$/i', array('CRM_Utils_Type', 'mysqlOrderByCallback'), trim($part));
+          }
+          return implode(', ', $parts);
+        }
+        break;
+
       default:
         CRM_Core_Error::fatal(
           $type . " is not a recognised (camel cased) data type."
@@ -270,13 +391,46 @@ class CRM_Utils_Type {
    *   The type to validate against.
    * @param bool $abort
    *   If TRUE, the operation will CRM_Core_Error::fatal() on invalid data.
-   * @name string $name
+   * @param string $name
    *   The name of the attribute
+   * @param bool $isThrowException
+   *   Should an exception be thrown rather than a using a deprecated fatal error.
    *
    * @return mixed
    *   The data, escaped if necessary
+   *
+   * @throws \CRM_Core_Exception
    */
-  public static function validate($data, $type, $abort = TRUE, $name = 'One of parameters ') {
+  public static function validate($data, $type, $abort = TRUE, $name = 'One of parameters ', $isThrowException = FALSE) {
+
+    $possibleTypes = array(
+      'Integer',
+      'Int',
+      'Positive',
+      'CommaSeparatedIntegers',
+      'Boolean',
+      'Float',
+      'Money',
+      'Text',
+      'String',
+      'Link',
+      'Memo',
+      'Date',
+      'Timestamp',
+      'ContactReference',
+      'MysqlColumnNameOrAlias',
+      'MysqlOrderByDirection',
+      'MysqlOrderBy',
+      'ExtensionKey',
+      'Json',
+      'Alphanumeric',
+    );
+    if (!in_array($type, $possibleTypes)) {
+      if ($isThrowException) {
+        throw new CRM_Core_Exception(ts('Invalid type, must be one of : ' . implode($possibleTypes)));
+      }
+      CRM_Core_Error::fatal(ts('Invalid type, must be one of : ' . implode($possibleTypes)));
+    }
     switch ($type) {
       case 'Integer':
       case 'Int':
@@ -288,6 +442,12 @@ class CRM_Utils_Type {
       case 'Positive':
         if (CRM_Utils_Rule::positiveInteger($data)) {
           return (int) $data;
+        }
+        break;
+
+      case 'CommaSeparatedIntegers':
+        if (CRM_Utils_Rule::commaSeparatedIntegers($data)) {
+          return $data;
         }
         break;
 
@@ -349,17 +509,108 @@ class CRM_Utils_Type {
         }
         break;
 
-      default:
-        CRM_Core_Error::fatal("Cannot recognize $type for $data");
+      case 'MysqlColumnNameOrAlias':
+        if (CRM_Utils_Rule::mysqlColumnNameOrAlias($data)) {
+          return $data;
+        }
+        break;
+
+      case 'MysqlOrderByDirection':
+        if (CRM_Utils_Rule::mysqlOrderByDirection($data)) {
+          return strtolower($data);
+        }
+        break;
+
+      case 'MysqlOrderBy':
+        if (CRM_Utils_Rule::mysqlOrderBy($data)) {
+          return $data;
+        }
+        break;
+
+      case 'ExtensionKey':
+        if (CRM_Utils_Rule::checkExtensionKeyIsValid($data)) {
+          return $data;
+        }
+        break;
+
+      case 'Json':
+        if (CRM_Utils_Rule::json($data)) {
+          return $data;
+        }
+        break;
+
+      case 'Alphanumeric':
+        if (CRM_Utils_Rule::alphanumeric($data)) {
+          return $data;
+        }
         break;
     }
 
     if ($abort) {
       $data = htmlentities($data);
+      if ($isThrowException) {
+        throw new CRM_Core_Exception("$name (value: $data) is not of the type $type");
+      }
       CRM_Core_Error::fatal("$name (value: $data) is not of the type $type");
     }
 
     return NULL;
+  }
+
+  /**
+   * Preg_replace_callback for mysqlOrderByFieldFunction escape.
+   *
+   * Add backticks around the field name.
+   *
+   * @param string $clause
+   *
+   * @return string
+   */
+  public static function mysqlOrderByFieldFunctionCallback($clause) {
+    return preg_replace('/field\((\w*)/', 'field(`${1}`', $clause);
+  }
+
+  /**
+   * preg_replace_callback for MysqlOrderBy escape.
+   */
+  public static function mysqlOrderByCallback($matches) {
+    $output = '';
+    $matches = str_replace('`', '', $matches);
+
+    // Table name.
+    if (isset($matches[1]) && $matches[1]) {
+      $output .= '`' . $matches[1] . '`.';
+    }
+
+    // Column name.
+    if (isset($matches[2]) && $matches[2]) {
+      $output .= '`' . $matches[2] . '`';
+    }
+
+    // Sort order.
+    if (isset($matches[3]) && $matches[3]) {
+      $output .= ' ' . $matches[3];
+    }
+
+    return $output;
+  }
+
+  /**
+   * Get list of avaliable Data Types for Option Groups
+   *
+   * @return array
+   */
+  public static function dataTypes() {
+    $types = array(
+      'Integer',
+      'String',
+      'Date',
+      'Time',
+      'Timestamp',
+      'Money',
+      'Email',
+    );
+    return array_combine($types, $types);
   }
 
 }

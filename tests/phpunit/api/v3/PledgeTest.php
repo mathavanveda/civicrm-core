@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,12 +25,11 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Test class for Pledge API - civicrm_pledge_*
  *
  * @package CiviCRM_APIv3
+ * @group headless
  */
 class api_v3_PledgeTest extends CiviUnitTestCase {
 
@@ -200,10 +199,8 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
       'start_date' => 'first saturday of march last year',
     );
     $this->_pledge = $this->callAPISuccess('pledge', 'create', array_merge($this->_params, $overdueParams));
-    $params = array(
-      'pledge_status_id' => '6',
-    );
-    $result = $this->callAPISuccess('pledge', 'get', $params);
+
+    $result = $this->callAPISuccess('pledge', 'get', array('status_id' => 'Overdue'));
     $emptyResult = $this->callAPISuccess('pledge', 'get', array(
       'pledge_status_id' => '1',
     ));
@@ -213,6 +210,24 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
     $this->assertEquals(0, $emptyResult['count']);
   }
 
+  /**
+   * Test pledge_status option group
+   */
+  public function testOptionGroupForPledgeStatus() {
+    $pledgeOg = $this->callAPISuccess('OptionGroup', 'get', array(
+      'name' => "pledge_status",
+    ));
+    $this->assertEquals(1, $pledgeOg['count']);
+
+    $pledgeOv = $this->callAPISuccess('OptionValue', 'get', array(
+      'sequential' => 1,
+      'option_group_id' => "pledge_status",
+    ));
+    $this->assertEquals(5, $pledgeOv['count']);
+    $pledgeStatus = CRM_Utils_Array::collect('name', $pledgeOv['values']);
+    $expected = array('Completed', 'Pending', 'Cancelled', 'In Progress', 'Overdue');
+    $this->assertEquals($expected, $pledgeStatus);
+  }
 
   /**
    * Create 2 pledges - see if we can get by status id.
@@ -397,7 +412,7 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
    */
   public function testCreateUpdatePledge() {
     // we test 'sequential' param here too
-    $pledgeID = $this->pledgeCreate($this->_individualId);
+    $pledgeID = $this->pledgeCreate(array('contact_id' => $this->_individualId));
     $old_params = array(
       'id' => $pledgeID,
       'sequential' => 1,
@@ -444,7 +459,7 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
    * We test 'sequential' param here too.
    */
   public function testCreateUpdatePledgeLegacy() {
-    $pledgeID = $this->pledgeCreate($this->_individualId);
+    $pledgeID = $this->pledgeCreate(array('contact_id' => $this->_individualId));
     $old_params = array(
       'id' => $pledgeID,
       'sequential' => 1,
@@ -506,11 +521,11 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
    */
   public function testDeletePledge() {
 
-    $pledgeID = $this->pledgeCreate($this->_individualId);
+    $pledgeID = $this->pledgeCreate(array('contact_id' => $this->_individualId));
     $params = array(
       'pledge_id' => $pledgeID,
     );
-    $result = $this->callAPIAndDocument('pledge', 'delete', $params, __FUNCTION__, __FILE__);
+    $this->callAPIAndDocument('pledge', 'delete', $params, __FUNCTION__, __FILE__);
   }
 
   /**
@@ -518,7 +533,7 @@ class api_v3_PledgeTest extends CiviUnitTestCase {
    */
   public function testDeletePledgeUseID() {
 
-    $pledgeID = $this->pledgeCreate($this->_individualId);
+    $pledgeID = $this->pledgeCreate(array('contact_id' => $this->_individualId));
     $params = array(
       'id' => $pledgeID,
     );

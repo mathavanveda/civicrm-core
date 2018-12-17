@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,24 +28,35 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
 
-  protected $_addressField = FALSE;
-
-  protected $_emailField = FALSE;
-
-  protected $_phoneField = FALSE;
-
-  protected $_contribField = FALSE;
-
   protected $_summary = NULL;
 
-  protected $_customGroupExtends = array('Membership', 'Contribution');
+  protected $_customGroupExtends = array(
+    'Membership',
+    'Contribution',
+    'Contact',
+    'Individual',
+    'Household',
+    'Organization',
+  );
+
   protected $_customGroupGroupBy = FALSE;
+
+  /**
+   * This report has not been optimised for group filtering.
+   *
+   * The functionality for group filtering has been improved but not
+   * all reports have been adjusted to take care of it. This report has not
+   * and will run an inefficient query until fixed.
+   *
+   * CRM-19170
+   *
+   * @var bool
+   */
+  protected $groupFilterNotOptimised = FALSE;
 
   /**
    * Class constructor.
@@ -70,6 +81,11 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
             'title' => ts('Contact Name'),
             'operator' => 'like',
           ),
+          'is_deleted' => array(
+            'title' => ts('Is Deleted'),
+            'default' => 0,
+            'type' => CRM_Utils_Type::T_BOOLEAN,
+          ),
           'id' => array('no_display' => TRUE),
         ),
         'order_bys' => array(
@@ -86,7 +102,7 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
         'dao' => 'CRM_Member_DAO_Membership',
         'fields' => array(
           'membership_type_id' => array(
-            'title' => 'Membership Type',
+            'title' => ts('Membership Type'),
             'required' => TRUE,
             'no_repeat' => TRUE,
           ),
@@ -102,7 +118,7 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
             'title' => ts('Join Date'),
             'default' => TRUE,
           ),
-          'source' => array('title' => 'Source'),
+          'source' => array('title' => ts('Source')),
         ),
         'filters' => array(
           'join_date' => array('operatorType' => CRM_Report_Form::OP_DATE),
@@ -206,7 +222,7 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
             'type' => CRM_Utils_Type::T_INT,
           ),
           'currency' => array(
-            'title' => 'Currency',
+            'title' => ts('Currency'),
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_OptionGroup::values('currencies_enabled'),
             'default' => NULL,
@@ -247,6 +263,7 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
         'title' => ts('Campaign'),
         'operatorType' => CRM_Report_Form::OP_MULTISELECT,
         'options' => $this->activeCampaigns,
+        'type' => CRM_Utils_Type::T_INT,
       );
       $this->_columns['civicrm_membership']['order_bys']['campaign_id'] = array('title' => ts('Campaign'));
 
@@ -261,38 +278,10 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
     parent::preProcess();
   }
 
-  public function select() {
-    $select = $this->_columnHeaders = array();
-
-    foreach ($this->_columns as $tableName => $table) {
-      if (array_key_exists('fields', $table)) {
-        foreach ($table['fields'] as $fieldName => $field) {
-          if (!empty($field['required']) || !empty($this->_params['fields'][$fieldName])) {
-            if ($tableName == 'civicrm_email') {
-              $this->_emailField = TRUE;
-            }
-            elseif ($tableName == 'civicrm_phone') {
-              $this->_phoneField = TRUE;
-            }
-            elseif ($tableName == 'civicrm_contribution') {
-              $this->_contribField = TRUE;
-            }
-            $select[] = "{$field['dbAlias']} as {$tableName}_{$fieldName}";
-            if (array_key_exists('title', $field)) {
-              $this->_columnHeaders["{$tableName}_{$fieldName}"]['title'] = $field['title'];
-            }
-            $this->_columnHeaders["{$tableName}_{$fieldName}"]['type'] = CRM_Utils_Array::value('type', $field);
-          }
-        }
-      }
-    }
-
-    $this->_select = "SELECT " . implode(', ', $select) . " ";
-  }
-
   public function from() {
-    $this->_from = "
-         FROM  civicrm_contact {$this->_aliases['civicrm_contact']} {$this->_aclFrom}
+    $this->setFromBase('civicrm_contact');
+    $this->_from .= "
+         {$this->_aclFrom}
                INNER JOIN civicrm_membership {$this->_aliases['civicrm_membership']}
                           ON {$this->_aliases['civicrm_contact']}.id =
                              {$this->_aliases['civicrm_membership']}.contact_id AND {$this->_aliases['civicrm_membership']}.is_test = 0
@@ -300,54 +289,18 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
                           ON {$this->_aliases['civicrm_membership_status']}.id =
                              {$this->_aliases['civicrm_membership']}.status_id ";
 
-    if ($this->isTableSelected('civicrm_address')) {
-      $this->_from .= "
-             LEFT JOIN civicrm_address {$this->_aliases['civicrm_address']}
-                       ON {$this->_aliases['civicrm_contact']}.id =
-                          {$this->_aliases['civicrm_address']}.contact_id AND
-                          {$this->_aliases['civicrm_address']}.is_primary = 1\n";
-    }
+    $this->joinAddressFromContact();
+    $this->joinPhoneFromContact();
+    $this->joinEmailFromContact();
 
-    //used when email field is selected
-    if ($this->_emailField) {
-      $this->_from .= "
-              LEFT JOIN civicrm_email {$this->_aliases['civicrm_email']}
-                        ON {$this->_aliases['civicrm_contact']}.id =
-                           {$this->_aliases['civicrm_email']}.contact_id AND
-                           {$this->_aliases['civicrm_email']}.is_primary = 1\n";
-    }
-    //used when phone field is selected
-    if ($this->_phoneField) {
-      $this->_from .= "
-              LEFT JOIN civicrm_phone {$this->_aliases['civicrm_phone']}
-                        ON {$this->_aliases['civicrm_contact']}.id =
-                           {$this->_aliases['civicrm_phone']}.contact_id AND
-                           {$this->_aliases['civicrm_phone']}.is_primary = 1\n";
-    }
-    //used when contribution field is selected
-    if ($this->_contribField) {
+    //used when contribution field is selected.
+    if ($this->isTableSelected('civicrm_contribution')) {
       $this->_from .= "
              LEFT JOIN civicrm_membership_payment cmp
                  ON {$this->_aliases['civicrm_membership']}.id = cmp.membership_id
              LEFT JOIN civicrm_contribution {$this->_aliases['civicrm_contribution']}
                  ON cmp.contribution_id={$this->_aliases['civicrm_contribution']}.id\n";
     }
-  }
-
-  public function postProcess() {
-
-    $this->beginPostProcess();
-
-    // get the acl clauses built before we assemble the query
-    $this->buildACLClause($this->_aliases['civicrm_contact']);
-    $sql = $this->buildQuery(TRUE);
-
-    $rows = array();
-    $this->buildRows($sql, $rows);
-
-    $this->formatDisplay($rows);
-    $this->doTemplateAssignment($rows);
-    $this->endPostProcess($rows);
   }
 
   /**
@@ -403,20 +356,6 @@ class CRM_Report_Form_Member_Detail extends CRM_Report_Form {
       if (array_key_exists('civicrm_membership_membership_type_id', $row)) {
         if ($value = $row['civicrm_membership_membership_type_id']) {
           $rows[$rowNum]['civicrm_membership_membership_type_id'] = CRM_Member_PseudoConstant::membershipType($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-
-      if (array_key_exists('civicrm_address_state_province_id', $row)) {
-        if ($value = $row['civicrm_address_state_province_id']) {
-          $rows[$rowNum]['civicrm_address_state_province_id'] = CRM_Core_PseudoConstant::stateProvince($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-
-      if (array_key_exists('civicrm_address_country_id', $row)) {
-        if ($value = $row['civicrm_address_country_id']) {
-          $rows[$rowNum]['civicrm_address_country_id'] = CRM_Core_PseudoConstant::country($value, FALSE);
         }
         $entryFound = TRUE;
       }

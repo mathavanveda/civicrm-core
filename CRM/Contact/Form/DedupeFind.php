@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,18 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * This class generates form components for DedupeRules.
  */
 class CRM_Contact_Form_DedupeFind extends CRM_Admin_Form {
+
+  /**
+   *  Indicate if this form should warn users of unsaved changes
+   */
+  protected $unsavedChangesWarn = FALSE;
 
   /**
    * Pre processing.
@@ -51,6 +56,9 @@ class CRM_Contact_Form_DedupeFind extends CRM_Admin_Form {
     $groupList = array('' => ts('- All Contacts -')) + CRM_Core_PseudoConstant::nestedGroup();
 
     $this->add('select', 'group_id', ts('Select Group'), $groupList, FALSE, array('class' => 'crm-select2 huge'));
+    if (Civi::settings()->get('dedupe_default_limit')) {
+      $this->add('text', 'limit', ts('No of contacts to find matches for '));
+    }
     $this->addButtons(array(
         array(
           'type' => 'next',
@@ -61,14 +69,20 @@ class CRM_Contact_Form_DedupeFind extends CRM_Admin_Form {
         array(
           'type' => 'submit',
           'class' => 'cancel',
-          'icon' => 'close',
+          'icon' => 'fa-times',
           'name' => ts('Cancel'),
         ),
       )
     );
   }
 
+  /**
+   * Set the default values for the form.
+   *
+   * @return array
+   */
   public function setDefaultValues() {
+    $this->_defaults['limit'] = Civi::settings()->get('dedupe_default_limit');
     return $this->_defaults;
   }
 
@@ -82,11 +96,13 @@ class CRM_Contact_Form_DedupeFind extends CRM_Admin_Form {
       CRM_Utils_System::redirect(CRM_Utils_System::url('civicrm/contact/deduperules', 'reset=1'));
       return;
     }
+    $url = CRM_Utils_System::url('civicrm/contact/dedupefind', "reset=1&action=update&rgid={$this->rgid}");
     if ($values['group_id']) {
-      $url = CRM_Utils_System::url('civicrm/contact/dedupefind', "reset=1&action=update&rgid={$this->rgid}&gid={$values['group_id']}");
+      $url .= "&gid={$values['group_id']}";
     }
-    else {
-      $url = CRM_Utils_System::url('civicrm/contact/dedupefind', "reset=1&action=update&rgid={$this->rgid}");
+
+    if (!empty($values['limit'])) {
+      $url .= '&limit=' . $values['limit'];
     }
 
     CRM_Utils_System::redirect($url);

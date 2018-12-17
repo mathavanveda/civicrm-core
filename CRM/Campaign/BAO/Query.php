@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Campaign_BAO_Query {
   //since normal activity clause clause get collides.
@@ -221,7 +221,7 @@ class CRM_Campaign_BAO_Query {
       return $from;
     }
 
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
     $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
     $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
@@ -406,7 +406,7 @@ INNER JOIN  civicrm_custom_group grp on fld.custom_group_id = grp.id
           $fieldId = $dao->id;
           $fieldName = 'custom_' . $dao->id;
           $customSearchFields[$name] = $fieldName;
-          CRM_Core_BAO_CustomField::addQuickFormElement($form, $fieldName, $fieldId, FALSE, FALSE);
+          CRM_Core_BAO_CustomField::addQuickFormElement($form, $fieldName, $fieldId, FALSE);
           break;
         }
       }

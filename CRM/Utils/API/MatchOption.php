@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -49,8 +49,7 @@
  * @endcode
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 require_once 'api/Wrapper.php';
@@ -66,6 +65,8 @@ class CRM_Utils_API_MatchOption implements API_Wrapper {
   private static $_singleton = NULL;
 
   /**
+   * Singleton function.
+   *
    * @return CRM_Utils_API_MatchOption
    */
   public static function singleton() {
@@ -81,7 +82,7 @@ class CRM_Utils_API_MatchOption implements API_Wrapper {
   public function fromApiInput($apiRequest) {
 
     // Parse options.match or options.match-mandatory
-    $keys = NULL; // array of fields to match against
+    $keys = NULL;
     if (isset($apiRequest['params'], $apiRequest['params']['options']) && is_array($apiRequest['params']['options'])) {
       if (isset($apiRequest['params']['options']['match-mandatory'])) {
         $isMandatory = TRUE;
@@ -126,7 +127,7 @@ class CRM_Utils_API_MatchOption implements API_Wrapper {
           break;
 
         default:
-          // be forgiveful of sloppily api calls
+          // be forgiving of sloppy api calls
       }
     }
 
@@ -140,6 +141,7 @@ class CRM_Utils_API_MatchOption implements API_Wrapper {
    * @param array $createParams
    * @param array $keys
    * @param bool $isMandatory
+   *
    * @return array
    *   revised $createParams, including 'id' if known
    * @throws API_Exception

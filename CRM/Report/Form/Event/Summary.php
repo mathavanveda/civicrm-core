@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
 
@@ -50,8 +48,7 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
   public $_drilldownReport = array('event/income' => 'Link to Detail Report');
 
   /**
-   */
-  /**
+   * Class constructor.
    */
   public function __construct() {
 
@@ -91,15 +88,16 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
           'event_type_id' => array(
             'name' => 'event_type_id',
             'title' => ts('Event Type'),
+            'type' => CRM_Utils_Type::T_INT,
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_OptionGroup::values('event_type'),
           ),
           'event_start_date' => array(
-            'title' => 'Event Start Date',
+            'title' => ts('Event Start Date'),
             'operatorType' => CRM_Report_Form::OP_DATE,
           ),
           'event_end_date' => array(
-            'title' => 'Event End Date',
+            'title' => ts('Event End Date'),
             'operatorType' => CRM_Report_Form::OP_DATE,
           ),
         ),
@@ -127,6 +125,7 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
       }
     }
 
+    $this->_selectClauses = $select;
     $this->_select = 'SELECT ' . implode(', ', $select);
   }
 
@@ -178,7 +177,7 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
 
   public function groupBy() {
     $this->assign('chartSupported', TRUE);
-    $this->_groupBy = " GROUP BY {$this->_aliases['civicrm_event']}.id";
+    $this->_groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($this->_selectClauses, "{$this->_aliases['civicrm_event']}.id");
   }
 
   /**
@@ -203,7 +202,8 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
                   $this->_participantWhere
 
         GROUP BY civicrm_participant.event_id,
-                 civicrm_participant.status_id";
+                 civicrm_participant.status_id,
+                 civicrm_participant.fee_currency";
 
     $info = CRM_Core_DAO::executeQuery($sql);
     $participant_data = $participant_info = $currency = array();
@@ -262,8 +262,8 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
       }
     }
 
-    $statusType1 = CRM_Event_PseudoConstant::participantStatus(NULL, 'is_counted = 1');
-    $statusType2 = CRM_Event_PseudoConstant::participantStatus(NULL, 'is_counted = 0');
+    $statusType1 = CRM_Event_PseudoConstant::participantStatus(NULL, 'is_counted = 1', 'label');
+    $statusType2 = CRM_Event_PseudoConstant::participantStatus(NULL, 'is_counted = 0', 'label');
 
     //make column header for participant status  Registered/Attended
     $type1_header = implode('/', $statusType1);
@@ -280,7 +280,7 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
       'type' => CRM_Utils_Type::T_INT,
     );
     $this->_columnHeaders['totalAmount'] = array(
-      'title' => 'Total Income',
+      'title' => ts('Total Income'),
       'type' => CRM_Utils_Type::T_STRING,
     );
   }
@@ -356,9 +356,9 @@ class CRM_Report_Form_Event_Summary extends CRM_Report_Form_Event {
       if ((!empty($rows)) && $countEvent != 1) {
         $config = CRM_Core_Config::Singleton();
         $chartInfo = array(
-          'legend' => 'Event Summary',
-          'xname' => 'Event',
-          'yname' => "Total Amount ({$config->defaultCurrency})",
+          'legend' => ts('Event Summary'),
+          'xname' => ts('Event'),
+          'yname' => ts('Total Amount (%1)', array(1 => $config->defaultCurrency)),
         );
         if (!empty($graphRows)) {
           foreach ($graphRows[$this->_interval] as $key => $val) {

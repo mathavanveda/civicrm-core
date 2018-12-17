@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,16 +31,15 @@
  * @package CiviCRM_APIv3
  * @subpackage API_Job
  *
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * @version $Id: Job.php 30879 2010-11-22 15:45:55Z shot $
  *
  */
-require_once 'CiviTest/CiviUnitTestCase.php';
-//@todo - why doesn't class loader find these (I tried renaming)
-require_once 'CiviTest/CiviMailUtils.php';
 
 /**
  * Class api_v3_JobTest
+ * @group headless
+ * @group civimail
  */
 class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
   protected $_apiversion = 3;
@@ -73,6 +72,7 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
       'scheduled_date' => 'now',
     );
     $this->defaultSettings = array(
+      'mailings' => 1, // int, #mailings to send
       'recipients' => 20, // int, #contacts to receive mailing
       'workers' => 1, // int, #concurrent cron jobs
       'iterations' => 1, // int, #times to spawn all the workers
@@ -104,6 +104,92 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
     ));
     $this->callAPISuccess('mailing', 'create', $this->_params);
     $this->_mut->assertRecipients(array());
+    $this->callAPISuccess('job', 'process_mailing', array());
+    $this->_mut->assertRecipients($this->getRecipients(1, 2));
+  }
+
+  /**
+   * Test pause and resume on Mailing.
+   */
+  public function testPauseAndResumeMailing() {
+    $this->createContactsInGroup(10, $this->_groupID);
+    Civi::settings()->add(array(
+      'mailerBatchLimit' => 2,
+    ));
+    $this->_mut->clearMessages();
+    //Create a test mailing and check if the status is set to Scheduled.
+    $result = $this->callAPISuccess('mailing', 'create', $this->_params);
+    $jobs = $this->callAPISuccess('mailing_job', 'get', array('mailing_id' => $result['id']));
+    $this->assertEquals('Scheduled', $jobs['values'][$jobs['id']]['status']);
+
+    //Pause the mailing.
+    CRM_Mailing_BAO_MailingJob::pause($result['id']);
+    $jobs = $this->callAPISuccess('mailing_job', 'get', array('mailing_id' => $result['id']));
+    $this->assertEquals('Paused', $jobs['values'][$jobs['id']]['status']);
+
+    //Verify if Paused mailing isn't considered in process_mailing job.
+    $this->callAPISuccess('job', 'process_mailing', array());
+    //Check if mail log is empty.
+    $this->_mut->assertMailLogEmpty();
+    $jobs = $this->callAPISuccess('mailing_job', 'get', array('mailing_id' => $result['id']));
+    $this->assertEquals('Paused', $jobs['values'][$jobs['id']]['status']);
+
+    //Resume should set the status back to Scheduled.
+    CRM_Mailing_BAO_MailingJob::resume($result['id']);
+    $jobs = $this->callAPISuccess('mailing_job', 'get', array('mailing_id' => $result['id']));
+    $this->assertEquals('Scheduled', $jobs['values'][$jobs['id']]['status']);
+
+    //Execute the job and it should send the mailing to the recipients now.
+    $this->callAPISuccess('job', 'process_mailing', array());
+    $this->_mut->assertRecipients($this->getRecipients(1, 2));
+  }
+
+  /**
+   * Test mail when in non-production environment.
+   *
+   */
+  public function testMailNonProductionRun() {
+    // Test in non-production mode.
+    $params = array(
+      'environment' => 'Staging',
+    );
+    $this->callAPISuccess('Setting', 'create', $params);
+    //Assert if outbound mail is disabled.
+    $mailingBackend = Civi::settings()->get('mailing_backend');
+    $this->assertEquals($mailingBackend['outBound_option'], CRM_Mailing_Config::OUTBOUND_OPTION_DISABLED);
+
+    $this->createContactsInGroup(10, $this->_groupID);
+    Civi::settings()->add(array(
+      'mailerBatchLimit' => 2,
+    ));
+    $this->callAPISuccess('mailing', 'create', $this->_params);
+    $this->_mut->assertRecipients(array());
+    $this->callAPIFailure('job', 'process_mailing', "Failure in api call for job process_mailing:  Job has not been executed as it is a non-production environment.");
+
+    // Test with runInNonProductionEnvironment param.
+    $this->callAPISuccess('job', 'process_mailing', array('runInNonProductionEnvironment' => TRUE));
+    $this->_mut->assertRecipients($this->getRecipients(1, 2));
+
+    $jobId = $this->callAPISuccessGetValue('Job', array(
+      'return' => "id",
+      'api_action' => "group_rebuild",
+    ));
+    $this->callAPISuccess('Job', 'create', array(
+      'id' => $jobId,
+      'parameters' => "runInNonProductionEnvironment=TRUE",
+    ));
+    $jobManager = new CRM_Core_JobManager();
+    $jobManager->executeJobById($jobId);
+
+    //Assert if outbound mail is still disabled.
+    $mailingBackend = Civi::settings()->get('mailing_backend');
+    $this->assertEquals($mailingBackend['outBound_option'], CRM_Mailing_Config::OUTBOUND_OPTION_DISABLED);
+
+    // Test in production mode.
+    $params = array(
+      'environment' => 'Production',
+    );
+    $this->callAPISuccess('Setting', 'create', $params);
     $this->callAPISuccess('job', 'process_mailing', array());
     $this->_mut->assertRecipients($this->getRecipients(1, 2));
   }
@@ -212,6 +298,24 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
       10, // Total sent.
     );
 
+    // For two mailings, launch 1 worker, 5 times in a row. Deliver everything.
+    $es[6] = array(
+      array(// Settings.
+        'mailings' => 2,
+        'recipients' => 10,
+        'workers' => 1,
+        'iterations' => 5,
+        'mailerBatchLimit' => 6,
+      ),
+      array(// Tallies.
+        // x6 => x4+x2 => x6 => x2 => x0
+        6 => 3, // 3 jobs which produce 6 messages
+        2 => 1, // 1 job which produces 2 messages
+        0 => 1, // 1 job which produces 0 messages
+      ),
+      20, // Total sent.
+    );
+
     return $es;
   }
 
@@ -233,6 +337,7 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
    *    The total number of contacts for whom messages should have
    *    been sent.
    * @dataProvider concurrencyExamples
+   * @group ornery
    */
   public function testConcurrency($settings, $expectedTallies, $expectedTotal) {
     $settings = array_merge($this->defaultSettings, $settings);
@@ -244,7 +349,9 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
       'mailThrottleTime',
     )));
 
-    $this->callAPISuccess('mailing', 'create', $this->_params);
+    for ($i = 0; $i < $settings['mailings']; $i++) {
+      $this->callAPISuccess('mailing', 'create', $this->_params);
+    }
 
     $this->_mut->assertRecipients(array());
 
@@ -268,13 +375,16 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
         'actualTallies' => $actualTallies,
         'apiResults' => $allApiResults,
       ), TRUE));
-    $this->_mut->assertRecipients($this->getRecipients(1, $expectedTotal));
+    $this->_mut->assertRecipients($this->getRecipients(1, $expectedTotal / $settings['mailings'], 'nul.example.com', $settings['mailings']));
     $this->assertEquals(0, $apiCalls->getRunningCount());
   }
 
   /**
+   * Create contacts in group.
+   *
    * @param int $count
    * @param int $groupID
+   * @param string $domain
    */
   public function createContactsInGroup($count, $groupID, $domain = 'nul.example.com') {
     for ($i = 1; $i <= $count; $i++) {
@@ -292,13 +402,17 @@ class api_v3_JobProcessMailingTest extends CiviUnitTestCase {
    *
    * @param int $start
    * @param int $count
+   * @param string $domain
+   * @param int $mailings
    *
    * @return array
    */
-  public function getRecipients($start, $count, $domain = 'nul.example.com') {
+  public function getRecipients($start, $count, $domain = 'nul.example.com', $mailings = 1) {
     $recipients = array();
-    for ($i = $start; $i < ($start + $count); $i++) {
-      $recipients[][0] = 'mail' . $i . '@' . $domain;
+    for ($m = 0; $m < $mailings; $m++) {
+      for ($i = $start; $i < ($start + $count); $i++) {
+        $recipients[][0] = 'mail' . $i . '@' . $domain;
+      }
     }
     return $recipients;
   }

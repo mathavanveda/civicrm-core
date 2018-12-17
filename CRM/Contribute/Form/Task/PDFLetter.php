@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -54,17 +54,20 @@ class CRM_Contribute_Form_Task_PDFLetter extends CRM_Contribute_Form_Task {
     $this->skipOnHold = $this->skipDeceased = FALSE;
     CRM_Contact_Form_Task_PDFLetterCommon::preProcess($this);
     // store case id if present
-    $this->_caseId = CRM_Utils_Request::retrieve('caseid', 'Positive', $this, FALSE);
+    $this->_caseId = CRM_Utils_Request::retrieve('caseid', 'CommaSeparatedIntegers', $this, FALSE);
+    if (!empty($this->_caseId) && strpos($this->_caseId, ',')) {
+      $this->_caseIds = explode(',', $this->_caseId);
+      unset($this->_caseId);
+    }
 
     // retrieve contact ID if this is 'single' mode
-    $cid = CRM_Utils_Request::retrieve('cid', 'Positive', $this, FALSE);
+    $cid = CRM_Utils_Request::retrieve('cid', 'CommaSeparatedIntegers', $this, FALSE);
 
     $this->_activityId = CRM_Utils_Request::retrieve('id', 'Positive', $this, FALSE);
 
     if ($cid) {
       CRM_Contact_Form_Task_PDFLetterCommon::preProcessSingle($this, $cid);
       $this->_single = TRUE;
-      $this->_cid = $cid;
     }
     else {
       parent::preProcess();
@@ -105,8 +108,8 @@ class CRM_Contribute_Form_Task_PDFLetter extends CRM_Contribute_Form_Task {
     //enable form element
     $this->assign('suppressForm', FALSE);
 
-    // use contact form as a base
-    CRM_Contact_Form_Task_PDFLetterCommon::buildQuickForm($this);
+    // Build common form elements
+    CRM_Contribute_Form_Task_PDFLetterCommon::buildQuickForm($this);
 
     // specific need for contributions
     $this->add('static', 'more_options_header', NULL, ts('Thank-you Letter Options'));
@@ -124,7 +127,8 @@ class CRM_Contribute_Form_Task_PDFLetter extends CRM_Contribute_Form_Task {
     );
     $this->addElement('select', 'group_by', ts('Group contributions by'), $options, array(), "<br/>", FALSE);
     // this was going to be free-text but I opted for radio options in case there was a script injection risk
-    $separatorOptions = array('comma' => 'Comma', 'td' => 'Table Cell');
+    $separatorOptions = array('comma' => 'Comma', 'td' => 'Horizontal Table Cell', 'tr' => 'Vertical Table Cell', 'br' => 'Line Break');
+
     $this->addElement('select', 'group_by_separator', ts('Separator (grouped contributions)'), $separatorOptions);
     $emailOptions = array(
       '' => ts('Generate PDFs for printing (only)'),
@@ -139,7 +143,7 @@ class CRM_Contribute_Form_Task_PDFLetter extends CRM_Contribute_Form_Task {
 
     $this->addButtons(array(
         array(
-          'type' => 'submit',
+          'type' => 'upload',
           'name' => ts('Make Thank-you Letters'),
           'isDefault' => TRUE,
         ),
@@ -166,6 +170,7 @@ class CRM_Contribute_Form_Task_PDFLetter extends CRM_Contribute_Form_Task {
    */
   public function listTokens() {
     $tokens = CRM_Core_SelectValues::contactTokens();
+    $tokens = array_merge(CRM_Core_SelectValues::contributionTokens(), $tokens);
     return $tokens;
   }
 

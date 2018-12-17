@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,10 +25,10 @@
 *}
 {* Contribution Import Wizard - Step 1 (upload data file) *}
 {* @var $form Contains the array for the form elements and other form associated information assigned to the template by the controller *}
- <div class="crm-block crm-form-block  crm-contribution-import-uploadfile-form-block id="upload-file">
+ <div class="crm-block crm-form-block  crm-contribution-import-uploadfile-form-block" id="upload-file">
  {* WizardHeader.tpl provides visual display of steps thru the wizard as well as title for current step *}
 {include file="CRM/common/WizardHeader.tpl"}
-<div id="help">
+<div class="help">
     {ts}The Contribution Import Wizard allows you to easily upload contributions from other applications into CiviCRM.{/ts}
     {ts}Files to be imported must be in the 'comma-separated-values' format (CSV) and must contain data needed to match the contribution to an existing contact in your CiviCRM database.{/ts} {help id='upload'}
  </div>

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_Form_Location {
 
@@ -38,8 +38,8 @@ class CRM_Contact_Form_Location {
    * @param CRM_Core_Form $form
    */
   public static function preProcess(&$form) {
-    $form->_addBlockName = CRM_Utils_Request::retrieve('block', 'String', CRM_Core_DAO::$_nullObject);
-    $additionalblockCount = CRM_Utils_Request::retrieve('count', 'Positive', CRM_Core_DAO::$_nullObject);
+    $form->_addBlockName = CRM_Utils_Request::retrieve('block', 'String');
+    $additionalblockCount = CRM_Utils_Request::retrieve('count', 'Positive');
 
     $form->assign('addBlock', FALSE);
     if ($form->_addBlockName && $additionalblockCount) {
@@ -81,7 +81,6 @@ class CRM_Contact_Form_Location {
 
     //build 1 instance of all blocks, without using ajax ...
     foreach ($form->_blocks as $blockName => $label) {
-      require_once str_replace('_', DIRECTORY_SEPARATOR, 'CRM_Contact_Form_Edit_' . $blockName) . '.php';
       $name = strtolower($blockName);
 
       $instances = array(1);

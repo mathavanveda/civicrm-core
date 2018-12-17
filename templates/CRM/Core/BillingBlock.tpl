@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -39,8 +39,11 @@
             <div class="label">{$form.$paymentField.label}
               {if $requiredPaymentFields.$name}<span class="crm-marker" title="{ts}This field is required.{/ts}">*</span>{/if}
             </div>
-            <div class="content">{$form.$paymentField.html}
-              {if $paymentField == 'cvv2'}{* @todo move to form assignment*}
+            <div class="content">
+                {$form.$paymentField.html}
+              {if $paymentFieldsMetadata.$name.description}
+                <div class="description">{$paymentFieldsMetadata.$name.description}</div>
+              {elseif $paymentField == 'cvv2'}{* @todo move to form assignment*}
                 <span class="cvv2-icon" title="{ts}Usually the last 3-4 digits in the signature area on the back of the card.{/ts}"> </span>
               {/if}
               {if $paymentField == 'credit_card_type'}
@@ -54,7 +57,7 @@
     </fieldset>
   {/if}
   {if $billingDetailsFields|@count && $paymentProcessor.payment_processor_type neq 'PayPal_Express'}
-    {if $profileAddressFields}
+    {if $profileAddressFields && !$ccid}
       <input type="checkbox" id="billingcheckbox" value="0">
       <label for="billingcheckbox">{ts}My billing address is the same as above{/ts}</label>
     {/if}
@@ -204,33 +207,20 @@
       });
     });
 
-    $('input[name="payment_processor_id"]').change( function() {
-      function toggleConfirmButton() {
-        var suppressSubmitButton = {/literal}"{$suppressSubmitButton}"{literal};
-        var elementObj = $('input[name="payment_processor"]');
-        if ( elementObj.attr('type') == 'hidden' ) {
-          var processorTypeId = elementObj.val( );
-        }
-        else {
-          var processorTypeId = elementObj.filter(':checked').val();
-        }
-
-        if (suppressSubmitButton) {
-          $("#crm-submit-buttons").hide();
-        }
-        else {
-          $("#crm-submit-buttons").show();
-        }
-      }
-      toggleConfirmButton();
-    });
-
   </script>
   {/literal}
+{/if}
+{if $suppressSubmitButton}
+{literal}
+  <script type="text/javascript">
+    CRM.$(function($) {
+      $('.crm-submit-buttons', $('#billing-payment-block').closest('form')).hide();
+    });
+  </script>
+{/literal}
 {/if}
 {/crmRegion}
 {crmRegion name="billing-block-post"}
   {* Payment processors sometimes need to append something to the end of the billing block. We create a region for
      clarity  - the plan is to move to assigning this through the payment processor to this region *}
 {/crmRegion}
-

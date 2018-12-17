@@ -2,9 +2,9 @@
 
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -57,6 +57,11 @@ class CRM_Contribute_Tokens extends \Civi\Token\AbstractTokenSubscriber {
     );
   }
 
+  /**
+   * Get alias tokens.
+   *
+   * @return array
+   */
   protected function getAliasTokens() {
     return array(
       'id' => 'contribution_id',
@@ -67,6 +72,9 @@ class CRM_Contribute_Tokens extends \Civi\Token\AbstractTokenSubscriber {
     );
   }
 
+  /**
+   * Class constructor.
+   */
   public function __construct() {
     $tokens = CRM_Utils_Array::subset(
       CRM_Utils_Array::collect('title', CRM_Contribute_DAO_Contribution::fields()),
@@ -77,15 +85,28 @@ class CRM_Contribute_Tokens extends \Civi\Token\AbstractTokenSubscriber {
     $tokens['source'] = ts('Contribution Source');
     $tokens['status'] = ts('Contribution Status');
     $tokens['type'] = ts('Financial Type');
+    $tokens = array_merge($tokens, CRM_Utils_Token::getCustomFieldTokens('Contribution'));
     parent::__construct('contribution', $tokens);
   }
 
+  /**
+   * Check if the token processor is active.
+   *
+   * @param \Civi\Token\TokenProcessor $processor
+   *
+   * @return bool
+   */
   public function checkActive(\Civi\Token\TokenProcessor $processor) {
     return
       !empty($processor->context['actionMapping'])
       && $processor->context['actionMapping']->getEntity() === 'civicrm_contribution';
   }
 
+  /**
+   * Alter action schedule query.
+   *
+   * @param \Civi\ActionSchedule\Event\MailingQueryEvent $e
+   */
   public function alterActionScheduleQuery(\Civi\ActionSchedule\Event\MailingQueryEvent $e) {
     if ($e->mapping->getEntity() !== 'civicrm_contribution') {
       return;
@@ -101,15 +122,7 @@ class CRM_Contribute_Tokens extends \Civi\Token\AbstractTokenSubscriber {
   }
 
   /**
-   * Evaluate the content of a single token.
-   *
-   * @param \Civi\Token\TokenRow $row
-   *   The record for which we want token values.
-   * @param string $field
-   *   The name of the token field.
-   * @param mixed $prefetch
-   *   Any data that was returned by the prefetch().
-   * @return mixed
+   * @inheritDoc
    */
   public function evaluateToken(\Civi\Token\TokenRow $row, $entity, $field, $prefetch = NULL) {
     $actionSearchResult = $row->context['actionSearchResult'];
@@ -122,6 +135,9 @@ class CRM_Contribute_Tokens extends \Civi\Token\AbstractTokenSubscriber {
     }
     elseif (isset($aliasTokens[$field])) {
       $row->dbToken($entity, $field, 'CRM_Contribute_BAO_Contribution', $aliasTokens[$field], $fieldValue);
+    }
+    elseif ($cfID = \CRM_Core_BAO_CustomField::getKeyID($field)) {
+      $row->customToken($entity, $cfID, $actionSearchResult->entity_id);
     }
     else {
       $row->dbToken($entity, $field, 'CRM_Contribute_BAO_Contribution', $field, $fieldValue);

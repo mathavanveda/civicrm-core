@@ -2,9 +2,9 @@
 
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,6 +27,11 @@
  */
 
 /**
+ * @package CRM
+ * @copyright CiviCRM LLC (c) 2004-2019
+ */
+
+/**
  * Class CRM_Member_Tokens
  *
  * Generate "activity.*" tokens.
@@ -40,16 +45,25 @@
  */
 class CRM_Activity_Tokens extends \Civi\Token\AbstractTokenSubscriber {
 
+  /**
+   * CRM_Activity_Tokens constructor.
+   */
   public function __construct() {
-    parent::__construct('activity', array(
-      'activity_id' => ts('Activity ID'),
-      'activity_type' => ts('Activity Type'),
-      'subject' => ts('Activity Subject'),
-      'details' => ts('Activity Details'),
-      'activity_date_time' => ts('Activity Date-Time'),
+    parent::__construct('activity', array_merge(
+      array(
+        'activity_id' => ts('Activity ID'),
+        'activity_type' => ts('Activity Type'),
+        'subject' => ts('Activity Subject'),
+        'details' => ts('Activity Details'),
+        'activity_date_time' => ts('Activity Date-Time'),
+      ),
+      CRM_Utils_Token::getCustomFieldTokens('Activity')
     ));
   }
 
+  /**
+   * @inheritDoc
+   */
   public function checkActive(\Civi\Token\TokenProcessor $processor) {
     // Extracted from scheduled-reminders code. See the class description.
     return
@@ -57,14 +71,17 @@ class CRM_Activity_Tokens extends \Civi\Token\AbstractTokenSubscriber {
       && $processor->context['actionMapping']->getEntity() === 'civicrm_activity';
   }
 
+  /**
+   * @inheritDoc
+   */
   public function alterActionScheduleQuery(\Civi\ActionSchedule\Event\MailingQueryEvent $e) {
     if ($e->mapping->getEntity() !== 'civicrm_activity') {
       return;
     }
 
-    // The join expression for activities needs some extra nuance to handle
-    // multiple revisions of the activity. Q: Could we simplify & move the
-    // extra AND clauses into `where(...)`?
+    // The joint expression for activities needs some extra nuance to handle.
+    // Multiple revisions of the activity.
+    // Q: Could we simplify & move the extra AND clauses into `where(...)`?
     $e->query->param('casEntityJoinExpr', 'e.id = reminder.entity_id AND e.is_current_revision = 1 AND e.is_deleted = 0');
 
     $e->query->select('e.*'); // FIXME: seems too broad.
@@ -82,15 +99,7 @@ class CRM_Activity_Tokens extends \Civi\Token\AbstractTokenSubscriber {
   }
 
   /**
-   * Evaluate the content of a single token.
-   *
-   * @param \Civi\Token\TokenRow $row
-   *   The record for which we want token values.
-   * @param string $field
-   *   The name of the token field.
-   * @param mixed $prefetch
-   *   Any data that was returned by the prefetch().
-   * @return mixed
+   * @inheritDoc
    */
   public function evaluateToken(\Civi\Token\TokenRow $row, $entity, $field, $prefetch = NULL) {
     $actionSearchResult = $row->context['actionSearchResult'];
@@ -100,6 +109,9 @@ class CRM_Activity_Tokens extends \Civi\Token\AbstractTokenSubscriber {
     }
     elseif (isset($actionSearchResult->$field)) {
       $row->tokens($entity, $field, $actionSearchResult->$field);
+    }
+    elseif ($cfID = \CRM_Core_BAO_CustomField::getKeyID($field)) {
+      $row->customToken($entity, $cfID, $actionSearchResult->entity_id);
     }
     else {
       $row->tokens($entity, $field, '');

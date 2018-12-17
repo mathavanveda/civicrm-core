@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,17 +26,12 @@
  */
 
 /**
- *
- *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * This class generates form components for processing Event
- *
+ * This class generates form components for processing Event.
  */
 class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent {
 
@@ -52,8 +47,6 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
 
   /**
    * Set variables up before form is built.
-   *
-   * @return void
    */
   public function preProcess() {
     $this->_addProfileBottom = CRM_Utils_Array::value('addProfileBottom', $_GET, FALSE);
@@ -62,6 +55,7 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
     $this->_profileBottomNumAdd = CRM_Utils_Array::value('addProfileNumAdd', $_GET, 0);
 
     parent::preProcess();
+    $this->assign('selectedChild', 'registration');
 
     $this->assign('addProfileBottom', $this->_addProfileBottom);
     $this->assign('profileBottomNum', $this->_profileBottomNum);
@@ -90,10 +84,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
 
   /**
    * Set default values for the form.
-   * the default values are retrieved from the database
    *
-   *
-   * @return void
+   * The default values are retrieved from the database.
    */
   public function setDefaultValues() {
     if ($this->_addProfileBottom || $this->_addProfileBottomAdd) {
@@ -143,6 +135,11 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
 
       $this->assign('profilePostMultiple', CRM_Utils_Array::value('custom_post', $defaults));
 
+      // CRM-17745: Make max additional participants configurable
+      if (empty($defaults['max_additional_participants'])) {
+        $defaults['max_additional_participants'] = 9;
+      }
+
       if (!empty($defaults['is_multiple_registrations'])) {
         // CRM-4377: set additional participants’ profiles – set to ‘none’ if explicitly unset (non-active)
 
@@ -181,16 +178,6 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
     $defaults['confirm_title'] = CRM_Utils_Array::value('confirm_title', $defaults, ts('Confirm Your Registration Information'));
     $defaults['thankyou_title'] = CRM_Utils_Array::value('thankyou_title', $defaults, ts('Thank You for Registering'));
     $defaults['approval_req_text'] = CRM_Utils_Array::value('approval_req_text', $defaults, ts('Participation in this event requires approval. Submit your registration request here. Once approved, you will receive an email with a link to a web page where you can complete the registration process.'));
-
-    if (!empty($defaults['registration_start_date'])) {
-      list($defaults['registration_start_date'], $defaults['registration_start_date_time'])
-        = CRM_Utils_Date::setDateDefaults($defaults['registration_start_date'], 'activityDateTime');
-    }
-
-    if (!empty($defaults['registration_end_date'])) {
-      list($defaults['registration_end_date'], $defaults['registration_end_date_time'])
-        = CRM_Utils_Date::setDateDefaults($defaults['registration_end_date'], 'activityDateTime');
-    }
 
     return $defaults;
   }
@@ -254,8 +241,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
     $this->add('text', 'registration_link_text', ts('Registration Link Text'));
 
     if (!$this->_isTemplate) {
-      $this->addDateTime('registration_start_date', ts('Registration Start Date'), FALSE, array('formatType' => 'activityDateTime'));
-      $this->addDateTime('registration_end_date', ts('Registration End Date'), FALSE, array('formatType' => 'activityDateTime'));
+      $this->add('datepicker', 'registration_start_date', ts('Registration Start Date'), [], FALSE, array('time' => TRUE));
+      $this->add('datepicker', 'registration_end_date', ts('Registration End Date'), [], FALSE, array('time' => TRUE));
     }
 
     $params = array(
@@ -272,6 +259,10 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
       'is_multiple_registrations',
       ts('Register multiple participants?')
     );
+
+    // CRM-17745: Make maximum additional participants configurable
+    $numericOptions = CRM_Core_SelectValues::getNumericOptions(1, 9);
+    $this->add('select', 'max_additional_participants', ts('Maximum additional participants'), $numericOptions, FALSE, array('class' => 'required'));
 
     $this->addElement('checkbox',
       'allow_same_participant_emails',
@@ -298,7 +289,9 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
 
     $this->add('text', 'expiration_time', ts('Pending participant expiration (hours)'));
     $this->addRule('expiration_time', ts('Please enter the number of hours (as an integer).'), 'integer');
-
+    $this->addField('allow_selfcancelxfer', array('label' => ts('Allow self-service cancellation or transfer?'), 'type' => 'advcheckbox'));
+    $this->add('text', 'selfcancelxfer_time', ts('Cancellation or transfer time limit (hours)'));
+    $this->addRule('selfcancelxfer_time', ts('Please enter the number of hours (as an integer).'), 'integer');
     self::buildRegistrationBlock($this);
     self::buildConfirmationBlock($this);
     self::buildMailBlock($this);
@@ -314,7 +307,7 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
    *
    */
   public function buildRegistrationBlock(&$form) {
-    $attributes = CRM_Core_DAO::getAttribute('CRM_Event_DAO_Event', 'intro_text') + array('class' => 'collapsed');
+    $attributes = CRM_Core_DAO::getAttribute('CRM_Event_DAO_Event', 'intro_text') + array('class' => 'collapsed', 'preset' => 'civievent');
     $form->add('wysiwyg', 'intro_text', ts('Introductory Text'), $attributes);
     $form->add('wysiwyg', 'footer_text', ts('Footer Text'), $attributes);
 
@@ -404,8 +397,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
       $form->addYesNo('is_confirm_enabled', ts('Use a confirmation screen?'), NULL, NULL, array('onclick' => "return showHideByValue('is_confirm_enabled','','confirm_screen_settings','block','radio',false);"));
     }
     $form->add('text', 'confirm_title', ts('Title'), $attributes['confirm_title']);
-    $form->add('wysiwyg', 'confirm_text', ts('Introductory Text'), $attributes['confirm_text'] + array('class' => 'collapsed'));
-    $form->add('wysiwyg', 'confirm_footer_text', ts('Footer Text'), $attributes['confirm_text'] + array('class' => 'collapsed'));
+    $form->add('wysiwyg', 'confirm_text', ts('Introductory Text'), $attributes['confirm_text'] + array('class' => 'collapsed', 'preset' => 'civievent'));
+    $form->add('wysiwyg', 'confirm_footer_text', ts('Footer Text'), $attributes['confirm_text'] + array('class' => 'collapsed', 'preset' => 'civievent'));
   }
 
   /**
@@ -434,8 +427,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
   public function buildThankYouBlock(&$form) {
     $attributes = CRM_Core_DAO::getAttribute('CRM_Event_DAO_Event');
     $form->add('text', 'thankyou_title', ts('Title'), $attributes['thankyou_title']);
-    $form->add('wysiwyg', 'thankyou_text', ts('Introductory Text'), $attributes['thankyou_text'] + array('class' => 'collapsed'));
-    $form->add('wysiwyg', 'thankyou_footer_text', ts('Footer Text'), $attributes['thankyou_text'] + array('class' => 'collapsed'));
+    $form->add('wysiwyg', 'thankyou_text', ts('Introductory Text'), $attributes['thankyou_text'] + array('class' => 'collapsed', 'preset' => 'civievent'));
+    $form->add('wysiwyg', 'thankyou_footer_text', ts('Footer Text'), $attributes['thankyou_text'] + array('class' => 'collapsed', 'preset' => 'civievent'));
   }
 
   /**
@@ -480,13 +473,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
         }
       }
 
-      if (
-        isset($values['registration_start_date']) &&
-        isset($values['registration_end_date'])
-      ) {
-        $start = CRM_Utils_Date::processDate($values['registration_start_date']);
-        $end = CRM_Utils_Date::processDate($values['registration_end_date']);
-        if ($end < $start) {
+      if (isset($values['registration_start_date']) && isset($values['registration_end_date'])) {
+        if ($values['registration_end_date'] < $values['registration_start_date']) {
           $errorMsg['registration_end_date'] = ts('Registration end date should be after Registration start date');
         }
       }
@@ -780,6 +768,10 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
 
   /**
    * Add additional profiles from the form to an array of profile ids.
+   *
+   * @param array $profileIds
+   * @param array $values
+   * @param string $field
    */
   public static function addMultipleProfiles(&$profileIds, $values, $field) {
     if ($multipleProfiles = CRM_Utils_Array::value($field, $values)) {
@@ -811,16 +803,8 @@ class CRM_Event_Form_ManageEvent_Registration extends CRM_Event_Form_ManageEvent
     if (!$params['is_online_registration']) {
       $params['is_email_confirm'] = FALSE;
     }
-
-    if (!$this->_isTemplate) {
-      $params['registration_start_date'] = CRM_Utils_Date::processDate($params['registration_start_date'],
-        $params['registration_start_date_time'],
-        TRUE
-      );
-      $params['registration_end_date'] = CRM_Utils_Date::processDate($params['registration_end_date'],
-        $params['registration_end_date_time'],
-        TRUE
-      );
+    if (!empty($params['allow_selfcancelxfer'])) {
+      $params['selfcancelxfer_time'] = !empty($params['selfcancelxfer_time']) ? $params['selfcancelxfer_time'] : 0;
     }
 
     CRM_Event_BAO_Event::add($params);

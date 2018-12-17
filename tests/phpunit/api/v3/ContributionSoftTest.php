@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,22 +25,35 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  *  Test APIv3 civicrm_contribute_* functions
  *
  * @package CiviCRM_APIv3
  * @subpackage API_ContributionSoft
+ * @group headless
  */
 class api_v3_ContributionSoftTest extends CiviUnitTestCase {
 
   /**
-   * Assume empty database with just civicrm_data.
+   * The hard credit contact.
+   *
+   * @var int
    */
-  protected $_individualId; //the hard credit contact
-  protected $_softIndividual1Id; //the first soft credit contact
-  protected $_softIndividual2Id; //the second soft credit contact
+  protected $_individualId;
+
+  /**
+   * The first soft credit contact.
+   *
+   * @var int
+   */
+  protected $_softIndividual1Id;
+
+  /**
+   * The second soft credit contact.
+   *
+   * @var int
+   */
+  protected $_softIndividual2Id;
   protected $_contributionId;
   protected $_financialTypeId = 1;
   protected $_apiversion = 3;
@@ -58,7 +71,7 @@ class api_v3_ContributionSoftTest extends CiviUnitTestCase {
     $this->_softIndividual2Id = $this->individualCreate();
     $this->_contributionId = $this->contributionCreate(array('contact_id' => $this->_individualId));
 
-    $paymentProcessor = $this->processorCreate();
+    $this->processorCreate();
     $this->_params = array(
       'contact_id' => $this->_individualId,
       'receive_date' => '20120511',
@@ -85,6 +98,7 @@ class api_v3_ContributionSoftTest extends CiviUnitTestCase {
 
   /**
    * Test get methods.
+   *
    * @todo - this might be better broken down into more smaller tests
    */
   public function testGetContributionSoft() {
@@ -277,7 +291,7 @@ class api_v3_ContributionSoftTest extends CiviUnitTestCase {
     $params = array(
       'id' => $softcontributionID,
     );
-    $result = $this->callAPISuccess('contribution_soft', 'delete', $params);
+    $this->callAPISuccess('contribution_soft', 'delete', $params);
   }
 
   /**
@@ -293,7 +307,7 @@ class api_v3_ContributionSoftTest extends CiviUnitTestCase {
     $params = array(
       'contribution_source' => 'SSF',
     );
-    $softcontribution = $this->callAPIFailure('contribution_soft', 'delete', $params);
+    $this->callAPIFailure('contribution_soft', 'delete', $params);
   }
 
   public function testDeleteContributionSoft() {
@@ -310,7 +324,7 @@ class api_v3_ContributionSoftTest extends CiviUnitTestCase {
     $params = array(
       'id' => $softcontributionID,
     );
-    $result = $this->callAPIAndDocument('contribution_soft', 'delete', $params, __FUNCTION__, __FILE__);
+    $this->callAPIAndDocument('contribution_soft', 'delete', $params, __FUNCTION__, __FILE__);
   }
 
   ///////////////// civicrm_contribution_search methods

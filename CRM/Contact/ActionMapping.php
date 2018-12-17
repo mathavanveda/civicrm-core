@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -101,9 +101,11 @@ class CRM_Contact_ActionMapping extends \Civi\ActionSchedule\Mapping {
    *   The schedule as configured by the administrator.
    * @param string $phase
    *   See, e.g., RecipientBuilder::PHASE_RELATION_FIRST.
+   * @param array $defaultParams
+   *
    * @return \CRM_Utils_SQL_Select
-   * @see RecipientBuilder
    * @throws \CRM_Core_Exception
+   * @see RecipientBuilder
    */
   public function createQuery($schedule, $phase, $defaultParams) {
     $selectedValues = (array) \CRM_Utils_Array::explodePadded($schedule->entity_value);

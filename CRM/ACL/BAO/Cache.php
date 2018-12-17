@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -142,23 +142,20 @@ WHERE contact_id = %1
    * Deletes all the cache entries.
    */
   public static function resetCache() {
+    if (!CRM_Core_Config::isPermitCacheFlushMode()) {
+      return;
+    }
     // reset any static caching
     self::$_cache = NULL;
-
-    // reset any db caching
-    $config = CRM_Core_Config::singleton();
-    $smartGroupCacheTimeout = CRM_Contact_BAO_GroupContactCache::smartGroupCacheTimeout();
-
-    //make sure to give original timezone settings again.
-    $now = CRM_Utils_Date::getUTCTime();
 
     $query = "
 DELETE
 FROM   civicrm_acl_cache
 WHERE  modified_date IS NULL
-   OR  (TIMESTAMPDIFF(MINUTE, modified_date, $now) >= $smartGroupCacheTimeout)
+   OR  (modified_date <= %1)
 ";
-    CRM_Core_DAO::singleValueQuery($query);
+    $params = array(1 => array(CRM_Contact_BAO_GroupContactCache::getCacheInvalidDateTime(), 'String'));
+    CRM_Core_DAO::singleValueQuery($query, $params);
 
     // CRM_Core_DAO::singleValueQuery("TRUNCATE TABLE civicrm_acl_contact_cache"); // No, force-commits transaction
     // CRM_Core_DAO::singleValueQuery("DELETE FROM civicrm_acl_contact_cache"); // Transaction-safe

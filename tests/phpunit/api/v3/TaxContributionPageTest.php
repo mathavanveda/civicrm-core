@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
-| CiviCRM version 4.7                                                |
+| CiviCRM version 5                                                  |
 +--------------------------------------------------------------------+
-| Copyright CiviCRM LLC (c) 2004-2015                                |
+| Copyright CiviCRM LLC (c) 2004-2019                                |
 +--------------------------------------------------------------------+
 | This file is a part of CiviCRM.                                    |
 |                                                                    |
@@ -25,10 +25,9 @@
 +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class api_v3_TaxContributionPageTest
+ * @group headless
  */
 class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
   protected $_apiversion = 3;
@@ -143,24 +142,13 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
     $halfFinancialRelation = CRM_Financial_BAO_FinancialTypeAccount::add($financialRelationHalftax);
 
     // Enable component contribute setting
-    $contributeSetting = array(
-      'invoicing' => 1,
-      'invoice_prefix' => 'INV_',
-      'credit_notes_prefix' => 'CN_',
-      'due_date' => 10,
-      'due_date_period' => 'days',
-      'notes' => '',
-      'is_email_pdf' => 1,
-      'tax_term' => 'Sales Tax',
-      'tax_display_settings' => 'Inclusive',
-    );
-    $setInvoiceSettings = CRM_Core_BAO_Setting::setItem($contributeSetting, CRM_Core_BAO_Setting::CONTRIBUTE_PREFERENCES_NAME, 'contribution_invoice_settings');
+    $setInvoiceSettings = $this->enableTaxAndInvoicing();
 
     // Payment Processor
     $paymentProceParams = array(
       'domain_id' => 1,
       'name' => 'dummy' . substr(sha1(rand()), 0, 7),
-      'payment_processor_type_id' => 10,
+      'payment_processor_type_id' => CRM_Core_PseudoConstant::getKey('CRM_Financial_BAO_PaymentProcessor', 'payment_processor_type_id', 'Dummy'),
       'financial_account_id' => 12,
       'is_active' => 1,
       'is_default' => 1,
@@ -179,23 +167,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
   }
 
   public function tearDown() {
-    $this->quickCleanup(array(
-      'civicrm_contribution',
-      'civicrm_contribution_soft',
-      'civicrm_event',
-      'civicrm_contribution_page',
-      'civicrm_participant',
-      'civicrm_participant_payment',
-      'civicrm_line_item',
-      'civicrm_financial_trxn',
-      'civicrm_financial_item',
-      'civicrm_entity_financial_trxn',
-      'civicrm_contact',
-      'civicrm_membership',
-      'civicrm_membership_payment',
-      'civicrm_payment_processor',
-    ));
-    CRM_Core_PseudoConstant::flush('taxRates');
+    $this->quickCleanUpFinancialEntities();
   }
 
   public function setUpContributionPage() {
@@ -236,14 +208,20 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
   }
 
   /**
-   * Online and offline contrbution from above created contrbution page.
+   * Online and offline contrbution from above created contribution page.
+   *
+   * @param string $thousandSeparator
+   *   punctuation used to refer to thousands.
+   *
+   * @dataProvider getThousandSeparators
    */
-  public function testCreateContributionOnline() {
+  public function testCreateContributionOnline($thousandSeparator) {
+    $this->setCurrencySeparators($thousandSeparator);
     $this->setUpContributionPage();
     $params = array(
       'contact_id' => $this->_individualId,
       'receive_date' => '20120511',
-      'total_amount' => 100.00,
+      'total_amount' => $this->formatMoneyInput(100.00),
       'financial_type_id' => $this->financialtypeID,
       'contribution_page_id' => $this->_ids['contribution_page'],
       'payment_processor' => $this->_ids['paymentProcessID'],
@@ -253,7 +231,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
       'contribution_status_id' => 1,
     );
 
-    $contribution = $this->callAPIAndDocument('contribution', 'create', $params, __FUNCTION__, __FILE__);
+    $contribution = $this->callAPISuccess('contribution', 'create', $params);
     $this->_ids['contributionId'] = $contribution['id'];
     $this->assertEquals($contribution['values'][$contribution['id']]['contact_id'], $this->_individualId);
     $this->assertEquals($contribution['values'][$contribution['id']]['total_amount'], 120.00);
@@ -266,7 +244,16 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
     $this->_checkFinancialRecords($contribution, 'online');
   }
 
-  public function testCreateContributionChainedLineItems() {
+  /**
+   * Create contribution with chained line items.
+   *
+   * @param string $thousandSeparator
+   *   punctuation used to refer to thousands.
+   *
+   * @dataProvider getThousandSeparators
+   */
+  public function testCreateContributionChainedLineItems($thousandSeparator) {
+    $this->setCurrencySeparators($thousandSeparator);
     $this->setUpContributionPage();
     $params = array(
       'contact_id' => $this->_individualId,
@@ -296,9 +283,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
       ),
     );
 
-    $description = "Create Contribution with Nested Line Items.";
-    $subfile = "CreateWithNestedLineItems";
-    $contribution = $this->callAPIAndDocument('contribution', 'create', $params, __FUNCTION__, __FILE__, $description, $subfile);
+    $contribution = $this->callAPISuccess('contribution', 'create', $params);
 
     $lineItems = $this->callAPISuccess('line_item', 'get', array(
       'entity_id' => $contribution['id'],
@@ -323,7 +308,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
       'source' => 'SSF',
       'contribution_status_id' => 2,
     );
-    $contribution = $this->callAPIAndDocument('contribution', 'create', $params, __FUNCTION__, __FILE__);
+    $contribution = $this->callAPISuccess('contribution', 'create', $params, __FUNCTION__, __FILE__);
     $this->assertEquals($contribution['values'][$contribution['id']]['contact_id'], $this->_individualId);
     $this->assertEquals($contribution['values'][$contribution['id']]['total_amount'], 120.00);
     $this->assertEquals($contribution['values'][$contribution['id']]['financial_type_id'], $this->financialtypeID);
@@ -335,12 +320,21 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
     $this->_checkFinancialRecords($contribution, 'payLater');
   }
 
-  public function testCreateContributionPendingOnline() {
+  /**
+   * Test online pending contributions.
+   *
+   * @param string $thousandSeparator
+   *   punctuation used to refer to thousands.
+   *
+   * @dataProvider getThousandSeparators
+   */
+  public function testCreateContributionPendingOnline($thousandSeparator) {
+    $this->setCurrencySeparators($thousandSeparator);
     $this->setUpContributionPage();
     $params = array(
       'contact_id' => $this->_individualId,
       'receive_date' => '20120511',
-      'total_amount' => 100.00,
+      'total_amount' => $this->formatMoneyInput(100.00),
       'financial_type_id' => $this->financialtypeID,
       'contribution_page_id' => $this->_ids['contribution_page'],
       'trxn_id' => 12345,
@@ -349,7 +343,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
       'contribution_status_id' => 2,
     );
 
-    $contribution = $this->callAPIAndDocument('contribution', 'create', $params, __FUNCTION__, __FILE__);
+    $contribution = $this->callAPISuccess('contribution', 'create', $params, __FUNCTION__, __FILE__);
     $this->assertEquals($contribution['values'][$contribution['id']]['contact_id'], $this->_individualId);
     $this->assertEquals($contribution['values'][$contribution['id']]['total_amount'], 120.00);
     $this->assertEquals($contribution['values'][$contribution['id']]['financial_type_id'], $this->financialtypeID);
@@ -359,10 +353,12 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
     $this->assertEquals($contribution['values'][$contribution['id']]['tax_amount'], 20);
     $this->assertEquals($contribution['values'][$contribution['id']]['contribution_status_id'], 2);
     $this->_checkFinancialRecords($contribution, 'pending');
+    $this->setCurrencySeparators($thousandSeparator);
   }
 
   /**
-   * Updation of contrbution.
+   * Update a contribution.
+   *
    * Function tests that line items, financial records are updated when contribution amount is changed
    */
   public function testCreateUpdateContributionChangeTotal() {
@@ -390,7 +386,7 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
       'financial_type_id' => 1, // without tax rate i.e Donation
       'total_amount' => '300',
     );
-    $contribution = $this->callAPISuccess('contribution', 'update', $newParams);
+    $contribution = $this->callAPISuccess('contribution', 'create', $newParams);
 
     $lineItems = $this->callAPISuccess('line_item', 'getvalue', array(
       'entity_id' => $contribution['id'],
@@ -520,14 +516,19 @@ class api_v3_TaxContributionPageTest extends CiviUnitTestCase {
   }
 
   /**
+   * Test deleting a contribution.
    *
+   * (It is unclear why this is in this class - it seems like maybe it doesn't test anything not
+   * on the contribution test class & might be copy and paste....).
    */
   public function testDeleteContribution() {
-    $contributionID = $this->contributionCreate(array('contact_id' => $this->_individualId), $this->financialtypeID, 'dfsdf', 12389);
-    $params = array(
-      'id' => $contributionID,
-    );
-    $this->callAPIAndDocument('contribution', 'delete', $params, __FUNCTION__, __FILE__);
+    $contributionID = $this->contributionCreate(array(
+      'contact_id' => $this->_individualId,
+      'trxn_id' => 12389,
+      'financial_type_id' => $this->financialtypeID,
+      'invoice_id' => 'dfsdf',
+    ));
+    $this->callAPISuccess('contribution', 'delete', array('id' => $contributionID));
   }
 
 }

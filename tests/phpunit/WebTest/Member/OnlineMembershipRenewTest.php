@@ -1,9 +1,9 @@
 <?php
 /*
    +--------------------------------------------------------------------+
-   | CiviCRM version 4.7                                                |
+   | CiviCRM version 5                                                  |
    +--------------------------------------------------------------------+
-   | Copyright CiviCRM LLC (c) 2004-2015                                |
+   | Copyright CiviCRM LLC (c) 2004-2019                                |
    +--------------------------------------------------------------------+
    | This file is a part of CiviCRM.                                    |
    |                                                                    |
@@ -402,9 +402,7 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
     $this->type('duration_interval', 1);
     $this->select('duration_unit', 'label=year');
     $this->select('period_type', 'value=rolling');
-
-    $this->removeSelection('relationship_type_id', 'label=- select -');
-    $this->addSelection('relationship_type_id', 'label=Employer of');
+    $this->select2('relationship_type_id', 'Employer of', TRUE);
 
     $this->click('_qf_MembershipType_upload-bottom');
     $this->waitForElementPresent('link=Add Membership Type');
@@ -557,8 +555,8 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
 
     $this->type("sort_name", "$lastName, $firstName");
     $this->click("xpath=//tr/td[1]/p/label[contains(text(),'Membership is a Test?')]/../label[contains(text(),'Yes')]/preceding-sibling::input[1]");
-    $this->clickLink("_qf_Search_refresh", 'css=#memberSearch table tbody tr td span a.action-item:first-child');
-    $this->click('css=#memberSearch table tbody tr td span a.action-item:first-child');
+    $this->clickLink("_qf_Search_refresh", "css=#memberSearch table tbody tr td a.action-item:first-child");
+    $this->click("css=#memberSearch table tbody tr td a.action-item:first-child");
     $this->waitForElementPresent("_qf_MembershipView_cancel-bottom");
 
     //View Membership Record
@@ -627,8 +625,8 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
 
     $this->type("sort_name", "$organisationName");
     $this->click("xpath=//tr/td[1]/p/label[contains(text(),'Membership is a Test?')]/../label[contains(text(),'Yes')]/preceding-sibling::input[1]");
-    $this->clickLink("_qf_Search_refresh", 'css=#memberSearch table tbody tr td span a.action-item:first-child');
-    $this->click('css=#memberSearch table tbody tr td span a.action-item:first-child');
+    $this->clickLink("_qf_Search_refresh", 'css=#memberSearch table tbody tr td a.action-item:first-child');
+    $this->click('css=#memberSearch table tbody tr td a.action-item:first-child');
     $this->waitForElementPresent("_qf_MembershipView_cancel-bottom");
 
     //View Membership Record
@@ -648,8 +646,8 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
 
     $this->type("sort_name", "$lastName, $firstName");
     $this->click("xpath=//tr/td[1]/p/label[contains(text(),'Membership is a Test?')]/../label[contains(text(),'Yes')]/preceding-sibling::input[1]");
-    $this->clickLink("_qf_Search_refresh", 'css=#memberSearch table tbody tr td span a.action-item:first-child');
-    $this->click('css=#memberSearch table tbody tr td span a.action-item:first-child');
+    $this->clickLink("_qf_Search_refresh", 'css=#memberSearch table tbody tr td a.action-item:first-child');
+    $this->click('css=#memberSearch table tbody tr td a.action-item:first-child');
     $this->waitForElementPresent("_qf_MembershipView_cancel-bottom");
 
     //View Membership Record
@@ -687,7 +685,7 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
     $title = substr(sha1(rand()), 0, 7);
     $membershipTypeTitle = "Membership Type $title";
     $this->type('name', "Membership Type $title");
-
+    $this->waitForAjaxContent();
     $this->select2('member_of_contact_id', 'Default Organization');
 
     $this->type('minimum_fee', '100');
@@ -925,7 +923,6 @@ class WebTest_Member_OnlineMembershipRenewTest extends CiviSeleniumTestCase {
     $this->clickLink("_qf_Main_upload-bottom", "_qf_Confirm_next-bottom");
     $this->assertTrue($this->isTextPresent("I want to contribute this amount every month."));
     $this->click("_qf_Confirm_next-bottom");
-    sleep(10);
     $this->waitForPageToLoad($this->getTimeoutMsec());
 
     $expectedParams = array(

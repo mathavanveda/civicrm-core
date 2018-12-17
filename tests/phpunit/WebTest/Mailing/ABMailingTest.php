@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -279,10 +279,10 @@ class WebTest_Mailing_ABMailingTest extends CiviSeleniumTestCase {
     $this->waitForElementPresent("xpath=//div[@id='s2id_crmUiId_20']");
 
     // choose form email address for A
-    $this->select2("s2id_crmUiId_20", $aEmailID);
+    $this->select("crmUiId_20", "value=$aEmailID");
 
     // choose form email address for B
-    $this->select2("s2id_crmUiId_21", $bEmailID);
+    $this->select("crmUiId_21", "value=$bEmailID");
 
     // HTML format message
     $HTMLMessage = "This is HTML formatted content for Mailing {$MailingSubject} Webtest.";

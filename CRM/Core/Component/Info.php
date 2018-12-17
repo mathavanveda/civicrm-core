@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,7 +30,7 @@
  * for a component to introduce itself to the system.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -199,6 +199,15 @@ abstract class CRM_Core_Component_Info {
   abstract public function registerTab();
 
   /**
+   * Get icon font class representing this component.
+   *
+   * @return string
+   */
+  public function getIcon() {
+    return 'crm-i fa-puzzle-piece';
+  }
+
+  /**
    * Provides information about advanced search pane
    * offered by this component.
    *
@@ -266,6 +275,8 @@ abstract class CRM_Core_Component_Info {
 
   /**
    * Builds advanced search form's component specific pane.
+   *
+   * @param CRM_Core_Form $form
    */
   public function buildAdvancedSearchPaneForm(&$form) {
     $bao = $this->getBAOQueryObject();

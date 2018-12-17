@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -29,9 +29,7 @@
  * This class stores logic for managing CiviCRM extensions.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
@@ -50,6 +48,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPreInstall(CRM_Extension_Info $info) {
     $paymentProcessorTypes = $this->_getAllPaymentProcessorTypes('class_name');
@@ -109,6 +109,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPostInstall(CRM_Extension_Info $info) {
     $this->_runPaymentHook($info, 'install');
@@ -116,6 +118,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPreUninstall(CRM_Extension_Info $info) {
     $paymentProcessorTypes = $this->_getAllPaymentProcessorTypes('class_name');
@@ -136,6 +140,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPreDisable(CRM_Extension_Info $info) {
     // HMM? // if ($this->type == 'payment' && $this->status != 'missing') {
@@ -147,6 +153,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPreEnable(CRM_Extension_Info $info) {
     $paymentProcessorTypes = $this->_getAllPaymentProcessorTypes('class_name');
@@ -155,6 +163,8 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
 
   /**
    * @inheritDoc
+   *
+   * @param CRM_Extension_Info $info
    */
   public function onPostEnable(CRM_Extension_Info $info) {
     // HMM? // if ($this->type == 'payment' && $this->status != 'missing') {
@@ -165,7 +175,7 @@ class CRM_Extension_Manager_Payment extends CRM_Extension_Manager_Base {
    * @param string $attr
    *   The attribute used to key the array.
    * @return array
-   *   ($$attr => $id)
+   *   ($attr => $id)
    */
   private function _getAllPaymentProcessorTypes($attr) {
     $ppt = array();

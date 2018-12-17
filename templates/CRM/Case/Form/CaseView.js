@@ -33,7 +33,7 @@
   var miniForms = {
     '#manageTagsDialog': {
       post: function(data) {
-        var tagsChecked = $("#tags", this) ? $("#tags", this).select2('val').join(',') : '',
+        var tagsChecked = $("#tags", this) ? $("#tags", this).val() : '',
           tagList = {},
           url = CRM.url('civicrm/case/ajax/processtags');
         $("input[name^=case_taglist]", this).each(function() {
@@ -66,8 +66,36 @@
     },
     '#addCaseRoleDialog': {
       pre: function() {
-        $('[name=role_type]', this).val('').change();
-        $('[name=add_role_contact_id]', this).val('').crmEntityRef({create: true, api: {params: {contact_type: 'Individual'}}});
+        var $contactField = $('[name=add_role_contact_id]', this);
+        $('[name=role_type]', this)
+          .off('.miniform')
+          .on('change.miniform', function() {
+            var val = $(this).val();
+            $contactField.val('').change().prop('disabled', !val);
+            if (val) {
+              var
+                pieces = val.split('_'),
+                rType = pieces[0],
+                target = pieces[2], // b or a
+                contact_type = CRM.vars.relationshipTypes[rType]['contact_type_' + target],
+                contact_sub_type = CRM.vars.relationshipTypes[rType]['contact_sub_type_' + target],
+                api = {params: {}};
+              if (contact_type) {
+                api.params.contact_type = contact_type;
+              }
+              if (contact_sub_type) {
+                api.params.contact_sub_type = contact_sub_type;
+              }
+              $contactField
+                .data('api-params', api)
+                .data('user-filter', {})
+                .attr('placeholder', CRM.vars.relationshipTypes[rType]['placeholder_' + target])
+                .change();
+            }
+          })
+          .val('')
+          .change();
+        $contactField.val('').crmEntityRef({create: true, api: {params: {contact_type: 'Individual'}}});
       },
       post: function(data) {
         var contactID = $('[name=add_role_contact_id]', this).val(),
@@ -177,6 +205,18 @@
           open(url, {dialog: {width: '50%', height: 'auto'}});
           $(this).select2('val', '');
         }
+      })
+      // When changing case subject, record an activity
+      .on('crmFormSuccess', '[data-field=subject]', function(e, value) {
+        var id = caseId();
+        CRM.api3('Activity', 'create', {
+          case_id: id,
+          activity_type_id: 'Change Case Subject',
+          subject: value,
+          status_id: 'Completed'
+        }).done(function() {
+          $('#case_id_' + id).dataTable().api().draw();
+        });
       })
       .on('click', 'a.case-miniform', function(e) {
         var dialog,

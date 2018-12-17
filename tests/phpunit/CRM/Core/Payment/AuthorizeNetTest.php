@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,11 +25,9 @@
  +--------------------------------------------------------------------+
  */
 
-
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class CRM_Core_Payment_AuthorizeNetTest
+ * @group headless
  */
 class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
 
@@ -63,7 +61,7 @@ class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
     $invoiceID = sha1(rand());
     $amount = rand(100, 1000) . '.00';
 
-    $contributionRecurParams = array(
+    $recur = $this->callAPISuccess('ContributionRecur', 'create', array(
       'contact_id' => $contactId,
       'amount' => $amount,
       'currency' => 'USD',
@@ -76,21 +74,19 @@ class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
       'contribution_status_id' => 2,
       'is_test' => 1,
       'payment_processor_id' => $this->_paymentProcessorID,
-    );
-    $recur = CRM_Contribute_BAO_ContributionRecur::add($contributionRecurParams);
+    ));
 
-    $contributionParams = array(
+    $contribution = $this->callAPISuccess('Contribution', 'create', array(
       'contact_id' => $contactId,
       'financial_type_id' => $this->_financialTypeId,
       'receive_date' => date('Ymd'),
       'total_amount' => $amount,
       'invoice_id' => $invoiceID,
       'currency' => 'USD',
-      'contribution_recur_id' => $recur->id,
+      'contribution_recur_id' => $recur['id'],
       'is_test' => 1,
       'contribution_status_id' => 2,
-    );
-    $contribution = CRM_Contribute_BAO_Contribution::add($contributionParams);
+    ));
 
     $params = array(
       'qfKey' => '08ed21c7ca00a1f7d32fff2488596ef7_4454',
@@ -159,24 +155,24 @@ class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
       'contributionPageID' => '',
       'email' => "{$firstName}.{$lastName}@example.com",
       'contactID' => $contactId,
-      'contributionID' => $contribution->id,
+      'contributionID' => $contribution['id'],
       'contributionTypeID' => $this->_financialTypeId,
-      'contributionRecurID' => $recur->id,
+      'contributionRecurID' => $recur['id'],
     );
 
     // turn verifySSL off
-    CRM_Core_BAO_Setting::setItem('0', CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL');
-    $this->processor->doPayment($params);
+    Civi::settings()->set('verifySSL', '0');
+    $this->doPayment($params);
     // turn verifySSL on
-    CRM_Core_BAO_Setting::setItem('0', CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL');
+    Civi::settings()->set('verifySSL', '0');
 
     // if subscription was successful, processor_id / subscription-id must not be null
-    $this->assertDBNotNull('CRM_Contribute_DAO_ContributionRecur', $recur->id, 'processor_id',
+    $this->assertDBNotNull('CRM_Contribute_DAO_ContributionRecur', $recur['id'], 'processor_id',
       'id', 'Failed to create subscription with Authorize.'
     );
 
     // cancel it or the transaction will be rejected by A.net if the test is re-run
-    $subscriptionID = CRM_Core_DAO::getFieldValue('CRM_Contribute_DAO_ContributionRecur', $recur->id, 'processor_id');
+    $subscriptionID = CRM_Core_DAO::getFieldValue('CRM_Contribute_DAO_ContributionRecur', $recur['id'], 'processor_id');
     $message = '';
     $result = $this->processor->cancelSubscription($message, array('subscriptionId' => $subscriptionID));
     $this->assertTrue($result, 'Failed to cancel subscription with Authorize.');
@@ -306,10 +302,10 @@ class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
     $smarty->assign('subscriptionType', 'create');
 
     // turn verifySSL off
-    CRM_Core_BAO_Setting::setItem('0', CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL');
-    $result = $this->processor->doPayment($params);
+    Civi::settings()->set('verifySSL', '0');
+    $this->doPayment($params);
     // turn verifySSL on
-    CRM_Core_BAO_Setting::setItem('0', CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME, 'verifySSL');
+    Civi::settings()->set('verifySSL', '0');
 
     // if subscription was successful, processor_id / subscription-id must not be null
     $this->assertDBNotNull('CRM_Contribute_DAO_ContributionRecur', $recur->id, 'processor_id',
@@ -321,6 +317,26 @@ class CRM_Core_Payment_AuthorizeNetTest extends CiviUnitTestCase {
     $message = '';
     $result = $this->processor->cancelSubscription($message, array('subscriptionId' => $subscriptionID));
     $this->assertTrue($result, 'Failed to cancel subscription with Authorize.');
+  }
+
+  /**
+   * Process payment against the Authorize.net test server.
+   *
+   * Skip the test if the server is unresponsive.
+   *
+   * @param array $params
+   *
+   * @throws PHPUnit_Framework_SkippedTestError
+   */
+  public function doPayment($params) {
+    try {
+      $this->processor->doPayment($params);
+    }
+    catch (Exception $e) {
+      $this->assertTrue((strpos($e->getMessage(), 'E00001: Internal Error Occurred.') !== FALSE),
+        'AuthorizeNet failed for unknown reason.' . $e->getMessage());
+      $this->markTestSkipped('AuthorizeNet test server is not in a good mood so we can\'t test this right now');
+    }
   }
 
 }

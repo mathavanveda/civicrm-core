@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -224,12 +224,7 @@ class CRM_Case_Selector_Search extends CRM_Core_Selector_Base {
 
     $actionLinks = array();
     foreach (self::$_links as $key => $value) {
-      if ($value['ref'] == 'reassign') {
-        $actionLinks['moreActions'][$key] = $value;
-      }
-      else {
-        $actionLinks['primaryActions'][$key] = $value;
-      }
+      $actionLinks['primaryActions'][$key] = $value;
     }
 
     return $actionLinks;
@@ -348,30 +343,13 @@ class CRM_Case_Selector_Search extends CRM_Core_Selector_Base {
         'Case',
         $result->case_id
       );
-      $row['moreActions'] = CRM_Core_Action::formLink(CRM_Utils_Array::value('moreActions', $links),
-        $mask, array(
-          'id' => $result->case_id,
-          'cid' => $result->contact_id,
-          'cxt' => $this->_context,
-        ),
-        ts('more'),
-        TRUE,
-        'case.selector.moreActions',
-        'Case',
-        $result->case_id
-      );
 
       $row['contact_type'] = CRM_Contact_BAO_Contact_Utils::getImage($result->contact_sub_type ? $result->contact_sub_type : $result->contact_type
       );
 
       //adding case manager to case selector.CRM-4510.
       $caseType = CRM_Case_BAO_Case::getCaseType($result->case_id, 'name');
-      $caseManagerContact = CRM_Case_BAO_Case::getCaseManagerContact($caseType, $result->case_id);
-
-      if (!empty($caseManagerContact)) {
-        $row['casemanager_id'] = CRM_Utils_Array::value('casemanager_id', $caseManagerContact);
-        $row['casemanager'] = CRM_Utils_Array::value('casemanager', $caseManagerContact);
-      }
+      $row['casemanager'] = CRM_Case_BAO_Case::getCaseManagerContact($caseType, $result->case_id);
 
       if (isset($result->case_status_id) &&
         array_key_exists($result->case_status_id, $caseStatus)

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -113,18 +113,10 @@ function civicrm_api3_setting_getdefaults(&$params) {
   $defaults = array();
   foreach ($domains as $domainID) {
     $defaults[$domainID] = array();
-    $noDefaults = array();
     foreach ($settings['values'] as $setting => $spec) {
       if (array_key_exists('default', $spec) && !is_null($spec['default'])) {
         $defaults[$domainID][$setting] = $spec['default'];
       }
-      else {
-        $noDefaults[$setting] = 1;
-      }
-    }
-    if (!empty($params['debug'])) {
-      // we are only tracking 'noDefaults' to help us check the xml
-      print_r($noDefaults);
     }
   }
   return civicrm_api3_create_success($defaults, $params, 'Setting', 'getfields');
@@ -144,6 +136,14 @@ function _civicrm_api3_setting_getdefaults_spec(&$params) {
   );
 }
 
+/**
+ * Get options for settings.
+ *
+ * @param array $params
+ *
+ * @return array
+ * @throws \API_Exception
+ */
 function civicrm_api3_setting_getoptions($params) {
   $specs = CRM_Core_BAO_Setting::getSettingSpecification();
 
@@ -159,6 +159,12 @@ function civicrm_api3_setting_getoptions($params) {
   if (!empty($pseudoconstant['callback'])) {
     $values = Civi\Core\Resolver::singleton()->call($pseudoconstant['callback'], array());
     return civicrm_api3_create_success($values, $params, 'Setting', 'getoptions');
+  }
+  elseif (!empty($pseudoconstant['optionGroupName'])) {
+    return civicrm_api3_create_success(
+      CRM_Core_OptionGroup::values($pseudoconstant['optionGroupName'], FALSE, FALSE, TRUE),
+      $params, 'Setting', 'getoptions'
+    );
   }
 
   throw new API_Exception("The field '" . $params['field'] . "' uses an unsupported option list.");
@@ -307,7 +313,7 @@ function _civicrm_api3_setting_create_spec(&$params) {
  */
 function civicrm_api3_setting_get($params) {
   $domains = _civicrm_api3_setting_getDomainArray($params);
-  $result = $result = CRM_Core_BAO_Setting::getItems($params, $domains, CRM_Utils_Array::value('return', $params, array()));
+  $result = CRM_Core_BAO_Setting::getItems($params, $domains, CRM_Utils_Array::value('return', $params, array()));
   return civicrm_api3_create_success($result, $params, 'Setting', 'get');
 }
 /**
@@ -346,7 +352,7 @@ function civicrm_api3_setting_getvalue($params) {
   //  return $config->$params['name'];
   //}
   return CRM_Core_BAO_Setting::getItem(
-    $params['group'],
+    NULL,
     CRM_Utils_Array::value('name', $params),
     CRM_Utils_Array::value('component_id', $params),
     CRM_Utils_Array::value('default_value', $params),

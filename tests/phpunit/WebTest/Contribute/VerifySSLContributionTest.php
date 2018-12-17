@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -60,7 +60,6 @@ class WebTest_Contribute_VerifySSLContributionTest extends CiviSeleniumTestCase 
       $contributionPageTitle = "Verify SSL ($hash)";
       $this->names['PayPal'] = "PayPal Pro ($hash)";
       $this->names['AuthNet'] = "AuthNet ($hash)";
-      //$this->names['Google_Checkout'] = "Google Checkout ($hash)";
       //$this->names['PayPal_Standard'] = "PayPal Standard ($hash)";
 
       $processors = array();

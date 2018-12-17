@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -190,13 +190,15 @@ class WebTest_Case_AddCaseTest extends CiviSeleniumTestCase {
    */
   public function _testVerifyCaseRoles($caseRoles, $creatorName) {
     $id = $this->urlArg('id');
+    $this->click('css=div.crm-case-roles-block div.crm-accordion-header');
+
     $this->waitForElementPresent("xpath=//table[@id='caseRoles-selector-$id']/tbody/tr[4]/td[2]/a");
     // check that expected roles are listed in the Case Roles pane
     foreach ($caseRoles as $role) {
-      $this->assertText("css=div.crm-case-roles-block", $role);
+      $this->assertElementContainsText("css=div.crm-case-roles-block", $role);
     }
     // check that case creator role has been assigned to logged in user
-    $this->verifyText("xpath=//table[@id='caseRoles-selector-$id']/tbody/tr[4]/td[2]", $creatorName);
+    $this->assertElementContainsText("xpath=//table[@id='caseRoles-selector-$id']/tbody/tr[1]/td[2]", $creatorName);
   }
 
   /**
@@ -206,7 +208,7 @@ class WebTest_Case_AddCaseTest extends CiviSeleniumTestCase {
     $id = $this->urlArg('id');
     // check that expected auto-created activities are listed in the Case Activities table
     foreach ($activityTypes as $aType) {
-      $this->assertText("case_id_$id", $aType);
+      $this->assertElementContainsText("case_id_$id", $aType);
     }
   }
 
@@ -217,7 +219,7 @@ class WebTest_Case_AddCaseTest extends CiviSeleniumTestCase {
   public function _testVerifyOpenCaseActivity($subject, $openCaseData) {
     $id = $this->urlArg('id');
     // check that open case subject is present
-    $this->assertText("case_id_$id", $subject);
+    $this->assertElementContainsText("case_id_$id", $subject);
     // click open case activity pop-up dialog
     $this->click("xpath=//table[@id='case_id_{$id}']/tbody//tr/td[2]/div[text()='{$subject}']/../../td[8]/a[text()='View']");
     $this->waitForElementPresent("ActivityView");
@@ -228,7 +230,7 @@ class WebTest_Case_AddCaseTest extends CiviSeleniumTestCase {
     // Probably don't need both tableId and prefix - but good examples for other situations where only one can be used
 
     $this->webtestVerifyTabularData($openCaseData, '', $activityViewTableId);
-    $this->click("xpath=//span[@class='ui-button-icon-primary ui-icon ui-icon-closethick']");
+    $this->click("xpath=//span[@class='ui-button-icon-primary ui-icon fa-times']");
   }
 
   /**

@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -36,7 +36,7 @@
     </div>
   {/if}
   {if $membershipMode}
-    <div id="help">
+    <div class="help">
       {ts 1=$displayName 2=$registerMode}Use this form to Renew Membership Record on behalf of %1.
         <strong>A %2 transaction will be submitted</strong>
         using the selected payment processor.{/ts}
@@ -58,10 +58,6 @@
     </div>
     <div>{include file="CRM/common/formButtons.tpl" location="top"}</div>
     <table class="form-layout">
-      <tr class="crm-member-membershiprenew-form-block-payment_processor_id">
-        <td class="label">{$form.payment_processor_id.label}</td>
-        <td class="html-adjust">{$form.payment_processor_id.html}</td>
-      </tr>
       <tr class="crm-member-membershiprenew-form-block-org_name">
         <td class="label">{ts}Membership Organization and Type{/ts}</td>
         <td class="html-adjust">{$orgName}&nbsp;&nbsp;-&nbsp;&nbsp;{$memType}
@@ -118,7 +114,8 @@
               <legend>{ts}Renewal Payment and Receipt{/ts}</legend>
       {/if}
       {include file="CRM/Member/Form/MembershipCommon.tpl"}
-      {if $emailExists and $outBound_option != 2}
+    </table>
+    {if $emailExists and $outBound_option != 2}
       <table class="form-layout">
         <tr class="crm-{$formClass}-form-block-send_receipt">
           <td class="label">{$form.send_receipt.label}</td>
@@ -128,7 +125,7 @@
         </tr>
         <tr id="fromEmail">
           <td class="label">{$form.from_email_address.label}</td>
-          <td>{$form.from_email_address.html}</td>
+          <td>{$form.from_email_address.html} {help id="id-from_email" file="CRM/Contact/Form/Task/Email.hlp" isAdmin=$isAdmin}</td>
         </tr>
         <tr id="notice" class="crm-member-membershiprenew-form-block-receipt_text_renewal">
           <td class="label">{$form.receipt_text_renewal.label}</td>
@@ -178,14 +175,6 @@
   {/if}
 
   {if !$membershipMode}
-    {include file="CRM/common/showHideByFieldValue.tpl"
-    trigger_field_id    ="payment_instrument_id"
-    trigger_value       = '4'
-    target_element_id   ="checkNumber"
-    target_element_type ="table-row"
-    field_type          ="select"
-    invert              = 0
-    }
     {include file="CRM/common/showHideByFieldValue.tpl"
     trigger_field_id    ="send_receipt"
     trigger_value       =""

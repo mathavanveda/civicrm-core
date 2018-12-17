@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -45,6 +45,12 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
     if (!isset($form->_caseId)) {
       CRM_Core_Error::fatal(ts('Case Id not found.'));
     }
+
+    $form->addElement('checkbox', 'updateLinkedCases', NULL, NULL, array('class' => 'select-row'));
+
+    $caseID = CRM_Utils_Array::first($form->_caseId);
+    $cases = CRM_Case_BAO_Case::getRelatedCases($caseID);
+    $form->assign('linkedCases', $cases);
   }
 
   /**
@@ -72,7 +78,26 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
     $form->removeElement('status_id');
     $form->removeElement('priority_id');
 
+    $caseTypes = array();
+
     $form->_caseStatus = CRM_Case_PseudoConstant::caseStatus();
+    $statusNames = CRM_Case_PseudoConstant::caseStatus('name');
+
+    // Limit case statuses to allowed types for these case(s)
+    $allCases = civicrm_api3('Case', 'get', array('return' => 'case_type_id', 'id' => array('IN' => (array) $form->_caseId)));
+    foreach ($allCases['values'] as $case) {
+      $caseTypes[$case['case_type_id']] = $case['case_type_id'];
+    }
+    $caseTypes = civicrm_api3('CaseType', 'get', array('id' => array('IN' => $caseTypes)));
+    foreach ($caseTypes['values'] as $ct) {
+      if (!empty($ct['definition']['statuses'])) {
+        foreach ($form->_caseStatus as $id => $label) {
+          if (!in_array($statusNames[$id], $ct['definition']['statuses'])) {
+            unset($form->_caseStatus[$id]);
+          }
+        }
+      }
+    }
 
     foreach ($form->_caseId as $key => $val) {
       $form->_oldCaseStatus[] = $form->_defaultCaseStatus[] = CRM_Core_DAO::getFieldValue('CRM_Case_DAO_Case', $val, 'status_id');
@@ -117,23 +142,33 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
   /**
    * Process the form submission.
    *
-   *
    * @param CRM_Core_Form $form
    * @param array $params
    */
   public static function beginPostProcess(&$form, &$params) {
     $params['id'] = CRM_Utils_Array::value('case_id', $params);
+
+    if ($params['updateLinkedCases'] === '1') {
+      $caseID = CRM_Utils_Array::first($form->_caseId);
+      $cases = CRM_Case_BAO_Case::getRelatedCases($caseID);
+
+      foreach ($cases as $currentCase) {
+        if ($currentCase['status_id'] != $params['case_status_id']) {
+          $form->_caseId[] = $currentCase['case_id'];
+        }
+      }
+    }
   }
 
   /**
    * Process the form submission.
-   *
    *
    * @param CRM_Core_Form $form
    * @param array $params
    * @param CRM_Activity_BAO_Activity $activity
    */
   public static function endPostProcess(&$form, &$params, $activity) {
+
     $groupingValues = CRM_Core_OptionGroup::values('case_status', FALSE, TRUE, FALSE, NULL, 'value');
 
     // Set case end_date if we're closing the case. Clear end_date if we're (re)opening it.
@@ -159,7 +194,7 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
 
       // Reopen case-specific relationships (roles)
       foreach ($params['target_contact_id'] as $cid) {
-        $rels = CRM_Case_BAO_Case::getCaseRoles($cid, $params['case_id']);
+        $rels = CRM_Case_BAO_Case::getCaseRoles($cid, $params['case_id'], NULL, FALSE);
         // FIXME: Is there an existing function?
         $query = 'UPDATE civicrm_relationship SET end_date=NULL WHERE id=%1';
         foreach ($rels as $relId => $relData) {
@@ -168,9 +203,9 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
         }
       }
     }
-    $params['status_id'] = CRM_Core_OptionGroup::getValue('activity_status', 'Completed', 'name');
+    $params['status_id'] = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_status_id', 'Completed');
     $activity->status_id = $params['status_id'];
-    $params['priority_id'] = CRM_Core_OptionGroup::getValue('priority', 'Normal', 'name');
+    $params['priority_id'] = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'priority_id', 'Normal');
     $activity->priority_id = $params['priority_id'];
 
     foreach ($form->_oldCaseStatus as $statuskey => $statusval) {
@@ -183,9 +218,6 @@ class CRM_Case_Form_Activity_ChangeCaseStatus {
         $activity->save();
       }
     }
-
-    // FIXME: does this do anything ?
-    $params['statusMsg'] = ts('Case Status changed successfully.');
   }
 
 }

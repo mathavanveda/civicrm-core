@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -165,6 +165,7 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
       $errors['cms_name'] = $nameError;
     }
 
+    // LOWER in query below roughly translates to 'hurt my database without deriving any benefit' See CRM-19811.
     $sql = "
       SELECT name, mail
       FROM {users}
@@ -285,6 +286,19 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
   public function mapConfigToSSL() {
     global $base_url;
     $base_url = str_replace('http://', 'https://', $base_url);
+  }
+
+  /**
+   * Get the name of the table that stores the user details.
+   *
+   * @return string
+   */
+  protected function getUsersTableName() {
+    $userFrameworkUsersTableName = Civi::settings()->get('userFrameworkUsersTableName');
+    if (empty($userFrameworkUsersTableName)) {
+      $userFrameworkUsersTableName = 'users';
+    }
+    return $userFrameworkUsersTableName;
   }
 
   /**
@@ -509,6 +523,11 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
   }
 
   /**
+   * Get CMS root path.
+   *
+   * @param string $scriptFilename
+   *
+   * @return null|string
    */
   public function cmsRootPath($scriptFilename = NULL) {
     $cmsRoot = $valid = NULL;
@@ -524,6 +543,12 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
       // drush anyway takes care of multisite install etc
       return drush_get_context('DRUSH_DRUPAL_ROOT');
     }
+
+    global $civicrm_paths;
+    if (!empty($civicrm_paths['cms.root']['path'])) {
+      return $civicrm_paths['cms.root']['path'];
+    }
+
     // CRM-7582
     $pathVars = explode('/',
       str_replace('//', '/',
@@ -726,15 +751,25 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
    */
   public function getTimeZoneString() {
     global $user;
-    if (variable_get('configurable_timezones', 1) && $user->uid && strlen($user->timezone)) {
+    // Note that 0 is a valid timezone (GMT) so we use strlen not empty to check.
+    if (variable_get('configurable_timezones', 1) && $user->uid && isset($user->timezone) && strlen($user->timezone)) {
       $timezone = $user->timezone;
     }
     else {
       $timezone = variable_get('date_default_timezone', NULL);
     }
+
+    // Retrieved timezone will be represented as GMT offset in seconds but, according
+    // to the doc for the overridden method, ought to be returned as a region string
+    // (e.g., America/Havana).
+    if (strlen($timezone)) {
+      $timezone = timezone_name_from_abbr("", (int) $timezone);
+    }
+
     if (!$timezone) {
       $timezone = parent::getTimeZoneString();
     }
+
     return $timezone;
   }
 
@@ -743,6 +778,53 @@ class CRM_Utils_System_Drupal6 extends CRM_Utils_System_DrupalBase {
    */
   public function setHttpHeader($name, $value) {
     drupal_set_header("$name: $value");
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public function synchronizeUsers() {
+    $config = CRM_Core_Config::singleton();
+    if (PHP_SAPI != 'cli') {
+      set_time_limit(300);
+    }
+    $rows = array();
+    $id = 'uid';
+    $mail = 'mail';
+    $name = 'name';
+
+    $result = db_query("SELECT uid, mail, name FROM {users} where mail != ''");
+
+    while ($row = db_fetch_array($result)) {
+      $rows[] = $row;
+    }
+
+    $user = new StdClass();
+    $uf = $config->userFramework;
+    $contactCount = 0;
+    $contactCreated = 0;
+    $contactMatching = 0;
+    foreach ($rows as $row) {
+      $user->$id = $row[$id];
+      $user->$mail = $row[$mail];
+      $user->$name = $row[$name];
+      $contactCount++;
+      if ($match = CRM_Core_BAO_UFMatch::synchronizeUFMatch($user, $row[$id], $row[$mail], $uf, 1, 'Individual', TRUE)) {
+        $contactCreated++;
+      }
+      else {
+        $contactMatching++;
+      }
+      if (is_object($match)) {
+        $match->free();
+      }
+    }
+
+    return array(
+      'contactCount' => $contactCount,
+      'contactMatching' => $contactMatching,
+      'contactCreated' => $contactCreated,
+    );
   }
 
 }

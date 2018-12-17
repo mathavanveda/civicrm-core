@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -42,18 +42,18 @@
     {* Show link to Tell a Friend (CRM-2153) *}
     {if $friendText}
         <div id="tell-a-friend" class="crm-section tell_friend_link-section">
-            <a href="{$friendURL}" title="{$friendText}" class="button"><span>&raquo; {$friendText}</span></a>
+            <a href="{$friendURL}" title="{$friendText|escape:'html'}" class="button"><span>&raquo; {$friendText}</span></a>
        </div><br /><br />
     {/if}
 
     {* Add button for donor to create their own Personal Campaign page *}
     {if $pcpLink}
       <div class="crm-section create_pcp_link-section">
-            <a href="{$pcpLink}" title="{$pcpLinkText}" class="button"><span>&raquo; {$pcpLinkText}</span></a>
+            <a href="{$pcpLink}" title="{$pcpLinkText|escape:'html'}" class="button"><span>&raquo; {$pcpLinkText}</span></a>
         </div><br /><br />
     {/if}
 
-    <div id="help">
+    <div class="help">
         {if $isOnWaitlist}
             <p>
                 <span class="bold">{ts}You have been added to the WAIT LIST for this event.{/ts}</span>
@@ -71,12 +71,12 @@
             {/if}
         {* PayPal_Standard sets contribution_mode to 'notify'. We don't know if transaction is successful until we receive the IPN (payment notification) *}
         {elseif $contributeMode EQ 'notify' and $paidEvent}
-            <p>{ts 1=$paymentProcessor.name}Your registration payment has been submitted to %1 for processing. Please print this page for your records.{/ts}</p>
+            <p>{ts 1=$paymentProcessor.name}Your registration payment has been submitted to %1 for processing.{/ts}</p>
             {if $is_email_confirm}
                 <p>{ts 1=$email}A registration confirmation email will be sent to %1 once the transaction is processed successfully.{/ts}</p>
             {/if}
         {else}
-            <p>{ts}Your registration has been processed successfully. Please print this page for your records.{/ts}</p>
+            <p>{ts}Your registration has been processed successfully.{/ts}</p>
             {if $is_email_confirm}
                 <p>{ts 1=$email}A registration confirmation email has also been sent to %1{/ts}</p>
             {/if}

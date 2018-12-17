@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -41,6 +41,7 @@ class CRM_Admin_Page_ConfigTaskList extends CRM_Core_Page {
    * @return string
    */
   public function run() {
+    Civi::resources()->addStyleFile('civicrm', 'css/admin.css');
 
     CRM_Utils_System::setTitle(ts("Configuration Checklist"));
     $this->assign('recentlyViewed', FALSE);
@@ -52,6 +53,8 @@ class CRM_Admin_Page_ConfigTaskList extends CRM_Core_Page {
 
     $destination = urlencode($destination);
     $this->assign('destination', $destination);
+
+    $this->assign('registerSite', htmlspecialchars('https://civicrm.org/register-your-site?src=iam&sid=' . CRM_Utils_System::getSiteID()));
 
     return parent::run();
   }

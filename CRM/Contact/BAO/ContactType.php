@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_BAO_ContactType extends CRM_Contact_DAO_ContactType {
 
@@ -54,7 +54,9 @@ class CRM_Contact_BAO_ContactType extends CRM_Contact_DAO_ContactType {
   }
 
   /**
-   * @param $contactType
+   * Is this contact type active.
+   *
+   * @param string $contactType
    *
    * @return bool
    */
@@ -72,7 +74,7 @@ class CRM_Contact_BAO_ContactType extends CRM_Contact_DAO_ContactType {
    * @return array
    *   Array of basic contact types information.
    */
-  public static function &basicTypeInfo($all = FALSE) {
+  public static function basicTypeInfo($all = FALSE) {
     static $_cache = NULL;
 
     if ($_cache === NULL) {
@@ -93,8 +95,9 @@ WHERE  parent_id IS NULL
           $sql .= " AND is_active = 1";
         }
 
+        $params = array();
         $dao = CRM_Core_DAO::executeQuery($sql,
-          CRM_Core_DAO::$_nullArray,
+          $params,
           FALSE,
           'CRM_Contact_DAO_ContactType'
         );
@@ -151,7 +154,7 @@ WHERE  parent_id IS NULL
    * @return array
    *   Array of sub type information
    */
-  public static function &subTypeInfo($contactType = NULL, $all = FALSE, $ignoreCache = FALSE, $reset = FALSE) {
+  public static function subTypeInfo($contactType = NULL, $all = FALSE, $ignoreCache = FALSE, $reset = FALSE) {
     static $_cache = NULL;
 
     if ($reset === TRUE) {
@@ -266,8 +269,7 @@ WHERE  subtype.name IS NOT NULL AND subtype.parent_id IS NOT NULL {$ctWHERE}
   }
 
   /**
-   *
-   * retrieve info array about all types i.e basic + subtypes.
+   * Retrieve info array about all types i.e basic + subtypes.
    *
    * @param bool $all
    * @param bool $reset
@@ -326,7 +328,7 @@ WHERE  type.name IS NOT NULL
   }
 
   /**
-   * Retrieve basic type pairs with name as 'built-in name' and 'label' as value
+   * Retrieve basic type pairs with name as 'built-in name' and 'label' as value.
    *
    * @param bool $all
    * @param null $typeName
@@ -385,6 +387,7 @@ WHERE  type.name IS NOT NULL
     $argString = $all ? 'CRM_CT_GSE_1' : 'CRM_CT_GSE_0';
     $argString .= $isSeparator ? '_1' : '_0';
     $argString .= $separator;
+    $argString = CRM_Core_BAO_Cache::cleanKey($argString);
     if (!array_key_exists($argString, $_cache)) {
       $cache = CRM_Utils_Cache::singleton();
       $_cache[$argString] = $cache->get($argString);
@@ -652,12 +655,11 @@ WHERE name = %1";
     }
 
     if (!empty($params['id'])) {
-      $params = array('name' => "New $contactName");
       $newParams = array(
         'label' => "New $contact",
         'is_active' => $active,
       );
-      CRM_Core_BAO_Navigation::processUpdate($params, $newParams);
+      CRM_Core_BAO_Navigation::processUpdate(['name' => "New $contactName"], $newParams);
     }
     else {
       $name = self::getBasicType($contactName);
@@ -692,8 +694,8 @@ WHERE name = %1";
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     $params = array('id' => $id);
@@ -840,7 +842,7 @@ LIMIT 1";
     $customSet = $subTypeClause = array();
     foreach ($subtypeSet as $subtype) {
       $subtype = CRM_Utils_Type::escape($subtype, 'String');
-      $subType = CRM_Core_DAO::VALUE_SEPARATOR . $subtype . CRM_Core_DAO::VALUE_SEPARATOR;
+      $subtype = CRM_Core_DAO::VALUE_SEPARATOR . $subtype . CRM_Core_DAO::VALUE_SEPARATOR;
       $subTypeClause[] = "extends_entity_column_value LIKE '%{$subtype}%' ";
     }
     $query = "SELECT table_name
@@ -892,7 +894,7 @@ WHERE extends = %1 AND " . implode(" OR ", $subTypeClause);
    *
    * @return bool
    */
-  public static function deleteCustomRowsOfSubtype($gID, $subtypes = array()) {
+  public static function deleteCustomRowsOfSubtype($gID, $subtypes = array(), $subtypesToPreserve = array()) {
     if (!$gID or empty($subtypes)) {
       return FALSE;
     }
@@ -902,10 +904,17 @@ WHERE extends = %1 AND " . implode(" OR ", $subTypeClause);
     // drop triggers CRM-13587
     CRM_Core_DAO::dropTriggers($tableName);
 
+    foreach ($subtypesToPreserve as $subtypeToPreserve) {
+      $subtypeToPreserve = CRM_Utils_Type::escape($subtypeToPreserve, 'String');
+      $subtypesToPreserveClause[] = "(civicrm_contact.contact_sub_type NOT LIKE '%" . CRM_Core_DAO::VALUE_SEPARATOR . $subtypeToPreserve . CRM_Core_DAO::VALUE_SEPARATOR . "%')";
+    }
+    $subtypesToPreserveClause = implode(' AND ', $subtypesToPreserveClause);
+
     $subtypeClause = array();
     foreach ($subtypes as $subtype) {
       $subtype = CRM_Utils_Type::escape($subtype, 'String');
-      $subtypeClause[] = "civicrm_contact.contact_sub_type LIKE '%" . CRM_Core_DAO::VALUE_SEPARATOR . $subtype . CRM_Core_DAO::VALUE_SEPARATOR . "%'";
+      $subtypeClause[] = "( civicrm_contact.contact_sub_type LIKE '%" . CRM_Core_DAO::VALUE_SEPARATOR . $subtype . CRM_Core_DAO::VALUE_SEPARATOR . "%'"
+                            . " AND " . $subtypesToPreserveClause . ")";
     }
     $subtypeClause = implode(' OR ', $subtypeClause);
 

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -32,7 +32,7 @@
  * The default values in general, should reflect production values (minimizes chances of screwing up)
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 require_once 'Log.php';
@@ -42,6 +42,29 @@ require_once 'api/api.php';
 
 /**
  * Class CRM_Core_Config
+ *
+ * @property CRM_Utils_System_Base $userSystem
+ * @property CRM_Core_Permission_Base $userPermissionClass
+ * @property array $enableComponents
+ * @property array $languageLimit
+ * @property bool $debug
+ * @property bool $doNotResetCache
+ * @property string $maxFileSize
+ * @property string $defaultCurrency
+ * @property string $defaultCurrencySymbol
+ * @property string $lcMessages
+ * @property string $fieldSeparator
+ * @property string $userFramework
+ * @property string $verpSeparator
+ * @property string $dateFormatFull
+ * @property string $resourceBase
+ * @property string $dsn
+ * @property string $customTemplateDir
+ * @property string $defaultContactCountry
+ * @property string $defaultContactStateProvince
+ * @property string $monetaryDecimalPoint
+ * @property string $monetaryThousandSeparator
+ * @property array fiscalYearStart
  */
 class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
@@ -101,6 +124,8 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
         self::$_singleton->getSettings();
 
         Civi::service('settings_manager')->useDefaults();
+
+        self::$_singleton->handleFirstRun();
       }
     }
     return self::$_singleton;
@@ -218,6 +243,11 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
   /**
    * One function to get domain ID.
+   *
+   * @param int $domainID
+   * @param bool $reset
+   *
+   * @return int|null
    */
   public static function domainID($domainID = NULL, $reset = FALSE) {
     static $domain;
@@ -232,8 +262,31 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
   }
 
   /**
+   * Function to get environment.
+   *
+   * @param string $env
+   * @param bool $reset
+   *
+   * @return string
+   */
+  public static function environment($env = NULL, $reset = FALSE) {
+    if ($env) {
+      $environment = $env;
+    }
+    if ($reset || empty($environment)) {
+      $environment = Civi::settings()->get('environment');
+    }
+    if (!$environment) {
+      $environment = 'Production';
+    }
+    return $environment;
+  }
+
+  /**
    * Do general cleanup of caches, temp directories and temp tables
    * CRM-8739
+   *
+   * @param bool $sessionReset
    */
   public function cleanupCaches($sessionReset = TRUE) {
     // cleanup templates_c directory
@@ -241,6 +294,7 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
     // clear all caches
     self::clearDBCache();
+    Civi::cache('session')->clear();
     CRM_Utils_System::flushCache();
 
     if ($sessionReset) {
@@ -302,7 +356,6 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
       'TRUNCATE TABLE civicrm_group_contact_cache',
       'TRUNCATE TABLE civicrm_menu',
       'UPDATE civicrm_setting SET value = NULL WHERE name="navigation" AND contact_id IS NOT NULL',
-      'DELETE FROM civicrm_setting WHERE name="modulePaths"', // CRM-10543
     );
 
     foreach ($queries as $query) {
@@ -335,11 +388,12 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
       WHERE  TABLE_SCHEMA = %1
       AND (
         TABLE_NAME LIKE 'civicrm_import_job_%'
-        OR TABLE_NAME LIKE 'civicrm_export_temp%'
-        OR TABLE_NAME LIKE 'civicrm_task_action_temp%'
         OR TABLE_NAME LIKE 'civicrm_report_temp%'
+        OR TABLE_NAME LIKE 'civicrm_tmp_d%'
         )
     ";
+    // NOTE: Cannot find use-cases where "civicrm_report_temp" would be durable. Could probably remove.
+
     if ($timeInterval) {
       $query .= " AND CREATE_TIME < DATE_SUB(NOW(), INTERVAL {$timeInterval})";
     }
@@ -358,6 +412,10 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
   /**
    * Check if running in upgrade mode.
+   *
+   * @param string $path
+   *
+   * @return bool
    */
   public static function isUpgradeMode($path = NULL) {
     if (defined('CIVICRM_UPGRADE_ACTIVE')) {
@@ -377,6 +435,18 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
     if ($path && preg_match('/^civicrm\/upgrade(\/.*)?$/', $path)) {
       return TRUE;
+    }
+
+    if ($path && preg_match('/^civicrm\/ajax\/l10n-js/', $path)
+      && !empty($_SERVER['HTTP_REFERER'])
+    ) {
+      $ref = parse_url($_SERVER['HTTP_REFERER']);
+      if (
+        (!empty($ref['path']) && preg_match('/civicrm\/upgrade/', $ref['path'])) ||
+        (!empty($ref['query']) && preg_match('/civicrm\/upgrade/', urldecode($ref['query'])))
+      ) {
+        return TRUE;
+      }
     }
 
     return FALSE;
@@ -416,6 +486,10 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
 
   /**
    * @deprecated
+   *
+   * @param string $defaultCurrency
+   *
+   * @return string
    */
   public function defaultCurrencySymbol($defaultCurrency = NULL) {
     return CRM_Core_BAO_Country::defaultCurrencySymbol($defaultCurrency);
@@ -432,6 +506,87 @@ class CRM_Core_Config extends CRM_Core_Config_MagicMerge {
    */
   public function free() {
     self::$_singleton = NULL;
+  }
+
+  /**
+   * Conditionally fire an event during the first page run.
+   *
+   * The install system is currently implemented several times, so it's hard to add
+   * new installation logic. We use a makeshift method to detect the first run.
+   *
+   * Situations to test:
+   *  - New installation
+   *  - Upgrade from an old version (predating first-run tracker)
+   *  - Upgrade from an old version (with first-run tracking)
+   */
+  public function handleFirstRun() {
+    // Ordinarily, we prefetch settings en masse and find that the system is already installed.
+    // No extra SQL queries required.
+    if (Civi::settings()->get('installed')) {
+      return;
+    }
+
+    // Q: How should this behave during testing?
+    if (defined('CIVICRM_TEST')) {
+      return;
+    }
+
+    // If schema hasn't been loaded yet, then do nothing. Don't want to interfere
+    // with the existing installers. NOTE: If we change the installer pageflow,
+    // then we may want to modify this behavior.
+    if (!CRM_Core_DAO::checkTableExists('civicrm_domain')) {
+      return;
+    }
+
+    // If we're handling an upgrade, then the system has already been used, so this
+    // is not the first run.
+    if (CRM_Core_Config::isUpgradeMode()) {
+      return;
+    }
+    $dao = CRM_Core_DAO::executeQuery('SELECT version FROM civicrm_domain');
+    while ($dao->fetch()) {
+      if ($dao->version && version_compare($dao->version, CRM_Utils_System::version(), '<')) {
+        return;
+      }
+    }
+
+    // The installation flag is stored in civicrm_setting, which is domain-aware. The
+    // flag could have been stored under a different domain.
+    $dao = CRM_Core_DAO::executeQuery('
+      SELECT domain_id, value FROM civicrm_setting
+      WHERE is_domain = 1 AND name = "installed"
+    ');
+    while ($dao->fetch()) {
+      $value = unserialize($dao->value);
+      if (!empty($value)) {
+        Civi::settings()->set('installed', 1);
+        return;
+      }
+    }
+
+    // OK, this looks new.
+    Civi::service('dispatcher')->dispatch(\Civi\Core\Event\SystemInstallEvent::EVENT_NAME, new \Civi\Core\Event\SystemInstallEvent());
+    Civi::settings()->set('installed', 1);
+  }
+
+  /**
+   * Is the system permitted to flush caches at the moment.
+   */
+  static public function isPermitCacheFlushMode() {
+    return !CRM_Core_Config::singleton()->doNotResetCache;
+  }
+
+  /**
+   * Set cache clearing to enabled or disabled.
+   *
+   * This might be enabled at the start of a long running process
+   * such as an import in order to delay clearing caches until the end.
+   *
+   * @param bool $enabled
+   *   If true then caches can be cleared at this time.
+   */
+  static public function setPermitCacheFlushMode($enabled) {
+    CRM_Core_Config::singleton()->doNotResetCache = $enabled ? 0 : 1;
   }
 
 }

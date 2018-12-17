@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -23,7 +23,7 @@
  | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
  +--------------------------------------------------------------------+
 *}
-<div id="help">
+<div class="help">
     {ts}You can configure one or more Payment Processors for your CiviCRM installation. You must then assign an active Payment Processor to each <strong>Online Contribution Page</strong> and each paid <strong>Event</strong>.{/ts} {help id='proc-type'}
 </div>
 
@@ -31,6 +31,7 @@
    {include file="CRM/Admin/Form/PaymentProcessor.tpl"}
 {else}
 
+<div class="crm-content-block crm-block">
 {if $rows}
 <div id="ltype">
         {strip}
@@ -43,7 +44,7 @@
             <th >{ts}Description{/ts}</th>
             <th >{ts}Financial Account{/ts}</th>
             <th >{ts}Enabled?{/ts}</th>
-      <th >{ts}Default?{/ts}</th>
+            <th >{ts}Default?{/ts}</th>
             <th ></th>
         </tr>
         {foreach from=$rows item=row}
@@ -53,8 +54,10 @@
             <td class="crmf-description">{$row.description}</td>
             <td class="crmf-financial_account_id">{$row.financialAccount}</td>
             <td class="crmf-is_active">{if $row.is_active eq 1} {ts}Yes{/ts} {else} {ts}No{/ts} {/if}</td>
-            <td class="crmf-is_default">{if $row.is_default eq 1}<img src="{$config->resourceBase}i/check.gif" alt="{ts}Default{/ts}" />{/if}&nbsp;</td>
-          <td>{$row.action|replace:'xx':$row.id}</td>
+            <td class="crmf-is_default">
+              {if $row.is_default eq 1}<img src="{$config->resourceBase}i/check.gif" alt="{ts}Default{/ts}"/>{/if}&nbsp;
+            </td>
+            <td>{$row.action|replace:'xx':$row.id}</td>
         </tr>
         {/foreach}
         </table>
@@ -62,7 +65,7 @@
 
         {if $action ne 1 and $action ne 2}
         <div class="action-link">
-          {crmButton q="action=add&reset=1&pp=$defaultPaymentProcessorType" id="newPaymentProcessor"  icon="circle-plus"}{ts}Add Payment Processor{/ts}{/crmButton}
+          {crmButton q="action=add&reset=1&pp=$defaultPaymentProcessorType" id="newPaymentProcessor"  icon="plus-circle"}{ts}Add Payment Processor{/ts}{/crmButton}
         </div>
         {/if}
 </div>
@@ -72,7 +75,9 @@
         {ts}There are no Payment Processors entered.{/ts}
      </div>
      <div class="action-link">
-       {crmButton p='civicrm/admin/paymentProcessor' q="action=add&reset=1&pp=$defaultPaymentProcessorType" id="newPaymentProcessor"  icon="circle-plus"}{ts}Add Payment Processor{/ts}{/crmButton}
+       {crmButton p='civicrm/admin/paymentProcessor' q="action=add&reset=1&pp=$defaultPaymentProcessorType" id="newPaymentProcessor"  icon="plus-circle"}{ts}Add Payment Processor{/ts}{/crmButton}
      </div>
 {/if}
+</div>
+
 {/if}

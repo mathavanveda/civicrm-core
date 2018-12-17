@@ -53,7 +53,7 @@ class Resolver {
    * @param string|array $id
    *   A callback expression; any of the following.
    *
-   * @return array
+   * @return array|callable
    *   A PHP callback. Do not serialize (b/c it may include an object).
    * @throws \RuntimeException
    */
@@ -267,6 +267,8 @@ class ResolverGlobalCallback {
   /**
    * Invoke function.
    *
+   * @param mixed $arg1
+   *
    * @return mixed
    */
   public function __invoke($arg1 = NULL) {
@@ -275,6 +277,7 @@ class ResolverGlobalCallback {
     }
     elseif ($this->mode === 'setter') {
       \CRM_Utils_Array::pathSet($GLOBALS, explode('/', $this->path), $arg1);
+      return NULL;
     }
     else {
       throw new \RuntimeException("Resolver failed: global:// must specify getter or setter mode.");

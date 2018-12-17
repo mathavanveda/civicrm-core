@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,7 +30,7 @@
  * FIXME: Why are we not just using the dynamic form tpl to display this profile?
  *}
 {if $form.is_for_organization}
-  <div class="crm-section {$form.is_for_organization.name}-section">
+  <div class="crm-public-form-item crm-section {$form.is_for_organization.name}-section">
     <div class="label">&nbsp;</div>
     <div class="content">
       {$form.is_for_organization.html}&nbsp;{$form.is_for_organization.label}
@@ -39,13 +39,13 @@
   </div>
 {/if}
 
-<div id="on-behalf-block">
+<div class="crm-public-form-item" id="on-behalf-block">
   {crmRegion name="onbehalf-block"}
-    {if $onBehalfOfFields|@count}
+    {if $onBehalfOfFields && $onBehalfOfFields|@count}
       <fieldset>
       <legend>{$fieldSetTitle}</legend>
       {if $form.org_option}
-        <div id='orgOptions' class="section crm-section">
+        <div id='orgOptions' class="section crm-public-form-item crm-section">
           <div class="content">
             {$form.org_option.html}
           </div>
@@ -95,7 +95,13 @@
      $('.crm-chain-select-control', "#select_org div").select2('val', '');
      $('input[type=text], select, textarea', "#select_org div").not('.crm-chain-select-control, #onbehalfof_id').val('').change();
      $('input[type=radio], input[type=checkbox]', "#select_org div").prop('checked', false).change();
-     $('#on-behalf-block input').val('');
+
+     $('#on-behalf-block input').not('input[type=checkbox], input[type=radio], #onbehalfof_id').val('');
+     // clear checkboxes and radio
+     $('#on-behalf-block')
+      .find('input[type=checkbox], input[type=radio]')
+      .not('input[name=org_option]')
+      .attr('checked', false);
     }
 
    function selectCreateOrg( orgOption, reset ) {
@@ -125,7 +131,19 @@
 
      if (submittedCID == contactID) {
        $.each(submittedOnBehalfInfo, function(key, value) {
-         $('#onbehalf_' + key ).val(value);
+         //handle checkboxes
+         if (typeof value === 'object') {
+           $.each(value, function(k, v) {
+             $('#onbehalf_' + key + '_' + k).prop('checked', v);
+           });
+         }
+         else if ($('#onbehalf_' + key).length) {
+           $('#onbehalf_' + key ).val(value);
+         }
+         //radio buttons
+         else if ($("input[name='onbehalf[" + key + "]']").length) {
+           $("input[name='onbehalf[" + key + "]']").val([value]);
+         }
        });
        return;
      }

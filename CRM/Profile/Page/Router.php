@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,8 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
+ * @copyright CiviCRM LLC (c) 2004-2019
  *
  */
 
@@ -97,11 +96,12 @@ class CRM_Profile_Page_Router extends CRM_Core_Page {
     }
 
     if ($secondArg == 'edit' || $secondArg == 'create') {
+      $allowRemoteSubmit = Civi::settings()->get('remote_profile_submissions');
       if ($secondArg == 'edit') {
         $controller = new CRM_Core_Controller_Simple('CRM_Profile_Form_Edit',
           ts('Create Profile'),
           CRM_Core_Action::UPDATE,
-          FALSE, FALSE, TRUE
+          FALSE, FALSE, $allowRemoteSubmit
         );
         $controller->set('edit', 1);
         $controller->process();
@@ -113,7 +113,7 @@ class CRM_Profile_Page_Router extends CRM_Core_Page {
           ts('Create Profile'),
           array(
             'mode' => CRM_Core_Action::ADD,
-            'ignoreKey' => TRUE,
+            'ignoreKey' => $allowRemoteSubmit,
           )
         );
       }

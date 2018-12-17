@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -280,22 +280,21 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
     $this->setDefaults($defaults);
 
     $this->addButtons(array(
-        array(
-          'type' => 'back',
-          'name' => ts('Previous'),
-        ),
-        array(
-          'type' => 'next',
-          'name' => ts('Continue'),
-          'spacing' => '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
-          'isDefault' => TRUE,
-        ),
-        array(
-          'type' => 'cancel',
-          'name' => ts('Cancel'),
-        ),
-      )
-    );
+      array(
+        'type' => 'back',
+        'name' => ts('Previous'),
+      ),
+      array(
+        'type' => 'next',
+        'name' => ts('Continue'),
+        'spacing' => '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;',
+        'isDefault' => TRUE,
+      ),
+      array(
+        'type' => 'cancel',
+        'name' => ts('Cancel'),
+      ),
+    ));
   }
 
   /**
@@ -363,7 +362,7 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
               }
               $errors['_qf_default'] .= ts('Missing required contact matching fields.') . " $fieldMessage " . ts('(Sum of all weights should be greater than or equal to threshold: %1).', array(
                 1 => $threshold,
-                )) . ' ' . ts('(OR Membership ID if update mode.)') . '<br />';
+              )) . ' ' . ts('(OR Membership ID if update mode.)') . '<br />';
             }
           }
           else {
@@ -372,7 +371,7 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
             }
             $errors['_qf_default'] .= ts('Missing required field: %1', array(
               1 => $title,
-              )) . '<br />';
+            )) . '<br />';
           }
         }
       }
@@ -384,9 +383,7 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
         $errors['saveMappingName'] = ts('Name is required to save Import Mapping');
       }
       else {
-        $mappingTypeId = CRM_Core_OptionGroup::getValue('mapping_type', 'Import Membership', 'name');
-
-        if (CRM_Core_BAO_Mapping::checkMapping($nameField, $mappingTypeId)) {
+        if (CRM_Core_BAO_Mapping::checkMapping($nameField, CRM_Core_PseudoConstant::getKey('CRM_Core_BAO_Mapping', 'mapping_type_id', 'Import Membership'))) {
           $errors['saveMappingName'] = ts('Duplicate Import Membership Mapping Name');
         }
       }
@@ -420,10 +417,8 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
     }
 
     $fileName = $this->controller->exportValue('DataSource', 'uploadFile');
+    $seperator = $this->controller->exportValue('DataSource', 'fieldSeparator');
     $skipColumnHeader = $this->controller->exportValue('DataSource', 'skipColumnHeader');
-
-    $config = CRM_Core_Config::singleton();
-    $seperator = $config->fieldSeparator;
 
     $mapperKeys = array();
     $mapper = array();
@@ -490,10 +485,7 @@ class CRM_Member_Import_Form_MapField extends CRM_Import_Form_MapField {
       $mappingParams = array(
         'name' => $params['saveMappingName'],
         'description' => $params['saveMappingDesc'],
-        'mapping_type_id' => CRM_Core_OptionGroup::getValue('mapping_type',
-          'Import Membership',
-          'name'
-        ),
+        'mapping_type_id' => CRM_Core_PseudoConstant::getKey('CRM_Core_BAO_Mapping', 'mapping_type_id', 'Import Membership'),
       );
       $saveMapping = CRM_Core_BAO_Mapping::add($mappingParams);
 

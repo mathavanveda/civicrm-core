@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -102,6 +102,27 @@ class CRM_Core_Form_Search extends CRM_Core_Form {
   }
 
   /**
+   * Metadata for fields on the search form.
+   *
+   * @var array
+   */
+  protected $searchFieldMetadata = [];
+
+  /**
+   * @return array
+   */
+  public function getSearchFieldMetadata() {
+    return $this->searchFieldMetadata;
+  }
+
+  /**
+   * @param array $searchFieldMetadata
+   */
+  public function addSearchFieldMetadata($searchFieldMetadata) {
+    $this->searchFieldMetadata = array_merge($this->searchFieldMetadata, $searchFieldMetadata);
+  }
+
+  /**
    * Common buildForm tasks required by all searches.
    */
   public function buildQuickform() {
@@ -119,14 +140,73 @@ class CRM_Core_Form_Search extends CRM_Core_Form {
 
     $this->addClass('crm-search-form');
 
-    // for backwards compatibility we pass an argument to addTaskMenu even though
-    // it could just as well access $this->_taskList internally
     $tasks = $this->buildTaskList();
     $this->addTaskMenu($tasks);
   }
 
   /**
+   * Add any fields described in metadata to the form.
+   *
+   * The goal is to describe all fields in metadata and handle from metadata rather
+   * than existing ad hoc handling.
+   */
+  public function addFormFieldsFromMetadata() {
+    $this->_action = CRM_Core_Action::ADVANCED;
+    foreach ($this->getSearchFieldMetadata() as $entity => $fields) {
+      foreach ($fields as $fieldName => $fieldSpec) {
+        $this->addField($fieldName, ['entity' => $entity]);
+      }
+    }
+  }
+
+  /**
+   * Get the validation rule to apply to a function.
+   *
+   * Alphanumeric is designed to always be safe & for now we just return
+   * that but in future we can use tighter rules for types like int, bool etc.
+   *
+   * @param string $entity
+   * @param string $fieldName
+   *
+   * @return string
+   */
+  protected function getValidationTypeForField($entity, $fieldName) {
+    switch ($this->getSearchFieldMetadata()[$entity][$fieldName]['type']) {
+      case CRM_Utils_Type::T_BOOLEAN:
+        return 'Boolean';
+
+      case CRM_Utils_Type::T_INT:
+        return 'CommaSeparatedIntegers';
+
+      default:
+        return 'Alphanumeric';
+    }
+  }
+
+  /**
+   * Get the defaults for the entity for any fields described in metadata.
+   *
+   * @param string $entity
+   *
+   * @return array
+   */
+  protected function getEntityDefaults($entity) {
+    $defaults = [];
+    foreach ($this->getSearchFieldMetadata()[$entity] as $fieldSpec) {
+      if (empty($_POST[$fieldSpec['name']])) {
+        $value = CRM_Utils_Request::retrieveValue($fieldSpec['name'], $this->getValidationTypeForField($entity, $fieldSpec['name']), FALSE, NULL, 'GET');
+        if ($value !== FALSE) {
+          $defaults[$fieldSpec['name']] = $value;
+        }
+      }
+    }
+    return $defaults;
+  }
+
+  /**
    * Add checkboxes for each row plus a master checkbox.
+   *
+   * @param array $rows
    */
   public function addRowSelectors($rows) {
     $this->addElement('checkbox', 'toggleSelect', NULL, NULL, array('class' => 'select-rows'));
@@ -140,20 +220,133 @@ class CRM_Core_Form_Search extends CRM_Core_Form {
   }
 
   /**
-   * Add actions menu to search results form
-   * @param $tasks
+   * Add actions menu to search results form.
+   *
+   * @param array $tasks
    */
   public function addTaskMenu($tasks) {
-    if (is_array($tasks) && !empty($tasks)) {
-      $tasks = array('' => ts('Actions')) + $tasks;
-      $this->add('select', 'task', NULL, $tasks, FALSE, array('class' => 'crm-select2 crm-action-menu huge crm-search-result-actions'));
-      $this->add('submit', $this->_actionButtonName, ts('Go'), array('class' => 'hiddenElement crm-search-go-button'));
+    $taskMetaData = array();
+    foreach ($tasks as $key => $task) {
+      $taskMetaData[$key] = array('title' => $task);
+    }
+    parent::addTaskMenu($taskMetaData);
+  }
 
-      // Radio to choose "All items" or "Selected items only"
-      $selectedRowsRadio = $this->addElement('radio', 'radio_ts', NULL, '', 'ts_sel', array('checked' => 'checked'));
-      $allRowsRadio = $this->addElement('radio', 'radio_ts', NULL, '', 'ts_all');
-      $this->assign('ts_sel_id', $selectedRowsRadio->_attributes['id']);
-      $this->assign('ts_all_id', $allRowsRadio->_attributes['id']);
+  /**
+   * Add the sort-name field to the form.
+   *
+   * There is a setting to determine whether email is included in the search & we look this up to determine
+   * which text to choose.
+   *
+   * Note that for translation purposes the full string works better than using 'prefix' hence we use override-able functions
+   * to define the string.
+   */
+  protected function addSortNameField() {
+    $this->addElement(
+      'text',
+      'sort_name',
+      civicrm_api3('setting', 'getvalue', array('name' => 'includeEmailInName', 'group' => 'Search Preferences')) ? $this->getSortNameLabelWithEmail() : $this->getSortNameLabelWithOutEmail(),
+      CRM_Core_DAO::getAttribute('CRM_Contact_DAO_Contact', 'sort_name')
+    );
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is on.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithEmail() {
+    return ts('Name or Email');
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is off.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithOutEmail() {
+    return ts('Name');
+  }
+
+  /**
+   * Explicitly declare the form context for addField().
+   */
+  public function getDefaultContext() {
+    return 'search';
+  }
+
+  /**
+   * Add generic fields that specify the contact.
+   */
+  protected function addContactSearchFields() {
+    if (!$this->isFormInViewOrEditMode()) {
+      return;
+    }
+    $this->addSortNameField();
+
+    $this->_group = CRM_Core_PseudoConstant::nestedGroup();
+    if ($this->_group) {
+      $this->add('select', 'group', $this->getGroupLabel(), $this->_group, FALSE,
+        array(
+          'id' => 'group',
+          'multiple' => 'multiple',
+          'class' => 'crm-select2',
+        )
+      );
+    }
+
+    $contactTags = CRM_Core_BAO_Tag::getTags();
+    if ($contactTags) {
+      $this->add('select', 'contact_tags', $this->getTagLabel(), $contactTags, FALSE,
+        array(
+          'id' => 'contact_tags',
+          'multiple' => 'multiple',
+          'class' => 'crm-select2',
+        )
+      );
+    }
+    $this->addField('contact_type', array('entity' => 'Contact'));
+
+    if (CRM_Core_Permission::check('access deleted contacts') && Civi::settings()->get('contact_undelete')) {
+      $this->addElement('checkbox', 'deleted_contacts', ts('Search in Trash') . '<br />' . ts('(deleted contacts)'));
+    }
+
+  }
+
+  /**
+   * we allow the controller to set force/reset externally, useful when we are being
+   * driven by the wizard framework
+   */
+  protected function loadStandardSearchOptionsFromUrl() {
+    $this->_reset = CRM_Utils_Request::retrieve('reset', 'Boolean');
+    $this->_force = CRM_Utils_Request::retrieve('force', 'Boolean', $this, FALSE);
+    $this->_limit = CRM_Utils_Request::retrieve('limit', 'Positive', $this);
+    $this->_context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this, FALSE, 'search');
+    $this->_ssID = CRM_Utils_Request::retrieve('ssID', 'Positive', $this);
+    $this->assign("context", $this->_context);
+  }
+
+  /**
+   * Get user submitted values.
+   *
+   * Get it from controller only if form has been submitted, else preProcess has set this
+   */
+  protected function loadFormValues() {
+    if (!empty($_POST)  && !$this->controller->isModal()) {
+      $this->_formValues = $this->controller->exportValues($this->_name);
+    }
+    else {
+      $this->_formValues = $this->get('formValues');
+    }
+
+    if (empty($this->_formValues)) {
+      if (isset($this->_ssID)) {
+        $this->_formValues = CRM_Contact_BAO_SavedSearch::getFormValues($this->_ssID);
+      }
     }
   }
 

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Search_Custom_Base implements CRM_Contact_Form_Search_Interface {
 
@@ -42,7 +42,7 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
    * @param array $formValues
    */
   public function __construct(&$formValues) {
-    $this->_formValues = $formValues;
+    $this->_formValues = self::formatSavedSearchFields($formValues);
 
     /**
      * Define the columns for search result rows
@@ -70,12 +70,10 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
     );
 
     //Add custom fields to columns array for inclusion in export
-    $groupTree = &CRM_Core_BAO_CustomGroup::getTree('Activity', $form, NULL,
-      NULL, '', NULL
-    );
+    $groupTree = CRM_Core_BAO_CustomGroup::getTree('Activity');
 
     //use simplified formatted groupTree
-    $groupTree = CRM_Core_BAO_CustomGroup::formatGroupTree($groupTree, 1, $form);
+    $groupTree = CRM_Core_BAO_CustomGroup::formatGroupTree($groupTree);
 
     //cycle through custom fields and assign to _columns array
     foreach ($groupTree as $key) {
@@ -84,7 +82,6 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
         $this->_columns[$fieldlabel] = $field['column_name'];
       }
     }
-    //end custom fields
   }
 
   /**
@@ -126,8 +123,8 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
     );
 
     // Activity Date range
-    $form->addDate('start_date', ts('Activity Date From'), FALSE, array('formatType' => 'custom'));
-    $form->addDate('end_date', ts('...through'), FALSE, array('formatType' => 'custom'));
+    $form->add('datepicker', 'start_date', ts('Activity Date From'), [], FALSE, array('time' => FALSE));
+    $form->add('datepicker', 'end_date', ts('...through'), [], FALSE, array('time' => FALSE));
 
     // Contact Name field
     $form->add('text', 'sort_name', ts('Contact Name'));
@@ -156,6 +153,14 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
 
   /**
    * Construct the search query.
+   *
+   * @param int $offset
+   * @param int $rowcount
+   * @param null $sort
+   * @param bool $includeContactIDs
+   * @param bool $justIDs
+   *
+   * @return string
    */
   public function all(
     $offset = 0, $rowcount = 0, $sort = NULL,
@@ -196,7 +201,7 @@ class CRM_Contact_Form_Search_Custom_ActivitySearch extends CRM_Contact_Form_Sea
     }
 
     // add custom group fields to SELECT and FROM clause
-    $groupTree = CRM_Core_BAO_CustomGroup::getTree('Activity', $form, NULL, NULL, '', NULL);
+    $groupTree = CRM_Core_BAO_CustomGroup::getTree('Activity');
 
     foreach ($groupTree as $key) {
       if (!empty($key['extends']) && $key['extends'] == 'Activity') {
@@ -254,7 +259,7 @@ ORDER BY contact_a.sort_name';
    */
   public function from() {
     $this->buildACLClause('contact_a');
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
     $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
     $sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
@@ -323,22 +328,12 @@ ORDER BY contact_a.sort_name';
       $clauses[] = "activity.activity_type_id = {$this->_formValues['activity_type_id']}";
     }
 
-    $startDate = $this->_formValues['start_date'];
-    if (!empty($startDate)) {
-      $startDate .= '00:00:00';
-      $startDateFormatted = CRM_Utils_Date::processDate($startDate);
-      if ($startDateFormatted) {
-        $clauses[] = "activity.activity_date_time >= $startDateFormatted";
-      }
+    if (!empty($this->_formValues['start_date'])) {
+      $clauses[] = "activity.activity_date_time >= '{$this->_formValues['start_date']} 00:00:00'";
     }
 
-    $endDate = $this->_formValues['end_date'];
-    if (!empty($endDate)) {
-      $endDate .= '23:59:59';
-      $endDateFormatted = CRM_Utils_Date::processDate($endDate);
-      if ($endDateFormatted) {
-        $clauses[] = "activity.activity_date_time <= $endDateFormatted";
-      }
+    if (!empty($this->_formValues['end_date'])) {
+      $clauses[] = "activity.activity_date_time <= '{$this->_formValues['end_date']} 23:59:59'";
     }
 
     if ($includeContactIDs) {
@@ -422,6 +417,30 @@ ORDER BY contact_a.sort_name';
    */
   public function buildACLClause($tableAlias = 'contact') {
     list($this->_aclFrom, $this->_aclWhere) = CRM_Contact_BAO_Contact_Permission::cacheClause($tableAlias);
+  }
+
+  /**
+   * Format saved search fields for this custom group.
+   *
+   * Note this is a function to facilitate the transition to jcalendar for
+   * saved search groups. In time it can be stripped out again.
+   *
+   * @param array $formValues
+   *
+   * @return array
+   */
+  public static function formatSavedSearchFields($formValues) {
+    $dateFields = array(
+      'start_date',
+      'end_date',
+    );
+    foreach ($formValues as $element => $value) {
+      if (in_array($element, $dateFields) && !empty($value)) {
+        $formValues[$element] = date('Y-m-d', strtotime($value));
+      }
+    }
+
+    return $formValues;
   }
 
 }

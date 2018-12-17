@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -130,6 +130,8 @@ class CRM_Core_BAO_Country extends CRM_Core_DAO_Country {
   /**
    * Provide cached default currency symbol.
    *
+   * @param string $defaultCurrency
+   *
    * @return string
    */
   public static function defaultCurrencySymbol($defaultCurrency = NULL) {
@@ -150,6 +152,13 @@ class CRM_Core_BAO_Country extends CRM_Core_DAO_Country {
     return $cachedSymbol;
   }
 
+  /**
+   * Get the default currency symbol.
+   *
+   * @param string $k Unused variable
+   *
+   * @return string
+   */
   public static function getDefaultCurrencySymbol($k = NULL) {
     $config = CRM_Core_Config::singleton();
     return $config->defaultCurrencySymbol(Civi::settings()->get('defaultCurrency'));

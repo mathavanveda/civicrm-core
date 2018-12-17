@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -203,7 +203,7 @@ class CRM_Admin_Form_PaymentProcessorType extends CRM_Admin_Form {
    * Process the form submission.
    */
   public function postProcess() {
-    CRM_Utils_System::flushCache('CRM_Financial_DAO_PaymentProcessorType');
+    CRM_Utils_System::flushCache();
 
     if ($this->_action & CRM_Core_Action::DELETE) {
       CRM_Financial_BAO_PaymentProcessorType::del($this->_id);
@@ -215,7 +215,7 @@ class CRM_Admin_Form_PaymentProcessorType extends CRM_Admin_Form {
     if (!empty($values['is_default'])) {
       $query = "
 UPDATE civicrm_payment_processor SET is_default = 0";
-      CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+      CRM_Core_DAO::executeQuery($query);
     }
 
     $dao = new CRM_Financial_DAO_PaymentProcessorType();

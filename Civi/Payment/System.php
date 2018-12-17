@@ -38,7 +38,7 @@ class System {
    *   Override the config check. This is required in uninstall as no valid instances exist
    *   but will deliberately not work with any valid processors.
    *
-   * @return CRM_Core_Payment|NULL
+   * @return \CRM_Core_Payment|NULL
    *
    * @throws \CRM_Core_Exception
    */
@@ -53,18 +53,17 @@ class System {
       }
       else {
         $paymentClass = 'CRM_Core_' . $processor['class_name'];
-        if (empty($paymentClass)) {
+        if (empty($processor['class_name'])) {
           throw new \CRM_Core_Exception('no class provided');
         }
-        require_once str_replace('_', DIRECTORY_SEPARATOR, $paymentClass) . '.php';
       }
 
-      $processorObject = new $paymentClass(!empty($processor['is_test']) ? 'test' : 'live', $processor);
-      if (!$force && $processorObject->checkConfig()) {
-        $processorObject = NULL;
-      }
-      else {
-        $processorObject->setPaymentProcessor($processor);
+      $processorObject = NULL;
+      if (class_exists($paymentClass)) {
+        $processorObject = new $paymentClass(!empty($processor['is_test']) ? 'test' : 'live', $processor);
+        if ($force || !$processorObject->checkConfig()) {
+          $processorObject->setPaymentProcessor($processor);
+        }
       }
       $this->cache[$id] = $processorObject;
     }
@@ -73,12 +72,45 @@ class System {
   }
 
   /**
+   * Execute checkConfig() on the payment processor Object.
+   * This function creates a new instance of the processor object and returns the output of checkConfig
+   *
+   * @param array $processor
+   *
+   * @return string|NULL
+   *
+   * @throws \CRM_Core_Exception
+   */
+  public function checkProcessorConfig($processor) {
+    $ext = \CRM_Extension_System::singleton()->getMapper();
+    if ($ext->isExtensionKey($processor['class_name'])) {
+      $paymentClass = $ext->keyToClass($processor['class_name'], 'payment');
+      require_once $ext->classToPath($paymentClass);
+    }
+    else {
+      $paymentClass = 'CRM_Core_' . $processor['class_name'];
+      if (empty($paymentClass)) {
+        throw new \CRM_Core_Exception('no class provided');
+      }
+      require_once str_replace('_', DIRECTORY_SEPARATOR, $paymentClass) . '.php';
+    }
+
+    $processorObject = new $paymentClass(!empty($processor['is_test']) ? 'test' : 'live', $processor);
+    return $processorObject->checkConfig();
+  }
+
+  /**
+   * Get payment processor by it's ID.
+   *
    * @param int $id
    *
-   * @return \Civi\Payment\CRM_Core_Payment|NULL
+   * @return \CRM_Core_Payment|NULL
    * @throws \CiviCRM_API3_Exception
    */
   public function getById($id) {
+    if ($id == 0) {
+      return new \CRM_Core_Payment_Manual();
+    }
     $processor = civicrm_api3('payment_processor', 'getsingle', array('id' => $id, 'is_test' => NULL));
     return self::getByProcessor($processor);
   }
@@ -87,7 +119,7 @@ class System {
    * @param string $name
    * @param bool $is_test
    *
-   * @return \Civi\Payment\CRM_Core_Payment|NULL
+   * @return \CRM_Core_Payment|NULL
    * @throws \CiviCRM_API3_Exception
    */
   public function getByName($name, $is_test) {

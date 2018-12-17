@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,7 +27,7 @@
 <div class="crm-block crm-form-block crm-campaign-survey-main-form-block">
 <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="top"}</div>
   {if $action  eq 1}
-    <div id="help">
+    <div class="help">
       {ts}Use this form to Add new Survey. You can create a new Activity type, specific to this Survey or select an existing activity type for this Survey.{/ts}
     </div>
   {/if}
@@ -83,6 +83,18 @@
        </td>
    </tr>
   </table>
+  <div id="customData"></div>
+  {*include custom data js file*}
+  {include file="CRM/common/customData.tpl"}
+  {literal}
+    <script type="text/javascript">
+      CRM.$(function($) {
+        {/literal}
+        CRM.buildCustomData( 'Survey' );
+        {literal}
+      });
+    </script>
+  {/literal}
 <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="bottom"}</div>
 </div>
 

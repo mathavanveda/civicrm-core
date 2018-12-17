@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 // we should consider moving these to the settings table
@@ -41,25 +41,23 @@ define('MAIL_BATCH_SIZE', 50);
  */
 class CRM_Utils_Mail_EmailProcessor {
 
+  const MIME_MAX_RECURSION = 10;
+
   /**
    * Process the default mailbox (ie. that is used by civiMail for the bounce)
    *
-   * @return bool
-   *   Always returns true (for the api). at a later stage we should
-   *   fix this to return true on success / false on failure etc.
+   * @param bool $is_create_activities
+   *   Should activities be created
    */
-  public static function processBounces() {
+  public static function processBounces($is_create_activities) {
     $dao = new CRM_Core_DAO_MailSettings();
     $dao->domain_id = CRM_Core_Config::domainID();
     $dao->is_default = TRUE;
     $dao->find();
 
     while ($dao->fetch()) {
-      self::_process(TRUE, $dao);
+      self::_process(TRUE, $dao, $is_create_activities);
     }
-
-    // always returns true, i.e. never fails :)
-    return TRUE;
   }
 
   /**
@@ -102,7 +100,7 @@ class CRM_Utils_Mail_EmailProcessor {
     $found = FALSE;
     while ($dao->fetch()) {
       $found = TRUE;
-      self::_process(FALSE, $dao);
+      self::_process(FALSE, $dao, TRUE);
     }
     if (!$found) {
       CRM_Core_Error::fatal(ts('No mailboxes have been configured for Email to Activity Processing'));
@@ -127,20 +125,20 @@ class CRM_Utils_Mail_EmailProcessor {
 
   /**
    * @param $civiMail
-   * @param CRM_Core_DAO $dao
+   * @param CRM_Core_DAO_MailSettings $dao
+   * @param bool $is_create_activities
+   *   Create activities.
    *
    * @throws Exception
    */
-  public static function _process($civiMail, $dao) {
+  public static function _process($civiMail, $dao, $is_create_activities) {
     // 0 = activities; 1 = bounce;
     $usedfor = $dao->is_default;
 
     $emailActivityTypeId
-      = (defined('EMAIL_ACTIVITY_TYPE_ID') && EMAIL_ACTIVITY_TYPE_ID) ? EMAIL_ACTIVITY_TYPE_ID : CRM_Core_OptionGroup::getValue(
-        'activity_type',
-        'Inbound Email',
-        'name'
-      );
+      = (defined('EMAIL_ACTIVITY_TYPE_ID') && EMAIL_ACTIVITY_TYPE_ID)
+      ? EMAIL_ACTIVITY_TYPE_ID
+      : CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_type_id', 'Inbound Email');
 
     if (!$emailActivityTypeId) {
       CRM_Core_Error::fatal(ts('Could not find a valid Activity Type ID for Inbound Email'));
@@ -160,7 +158,7 @@ class CRM_Utils_Mail_EmailProcessor {
     $regex = '/^' . preg_quote($dao->localpart) . '(b|c|e|o|r|u)' . $twoDigitString . '([0-9a-f]{16})@' . preg_quote($dao->domain) . '$/';
 
     // a tighter regex for finding bounce info in soft bounces’ mail bodies
-    $rpRegex = '/Return-Path: ' . preg_quote($dao->localpart) . '(b)' . $twoDigitString . '([0-9a-f]{16})@' . preg_quote($dao->domain) . '/';
+    $rpRegex = '/Return-Path:\s*' . preg_quote($dao->localpart) . '(b)' . $twoDigitString . '([0-9a-f]{16})@' . preg_quote($dao->domain) . '/';
 
     // a regex for finding bound info X-Header
     $rpXheaderRegex = '/X-CiviMail-Bounce: ' . preg_quote($dao->localpart) . '(b)' . $twoDigitString . '([0-9a-f]{16})@' . preg_quote($dao->domain) . '/i';
@@ -236,7 +234,7 @@ class CRM_Utils_Mail_EmailProcessor {
         }
 
         // preseve backward compatibility
-        if ($usedfor == 0 || !$civiMail) {
+        if ($usedfor == 0 || $is_create_activities) {
           // if its the activities that needs to be processed ..
           try {
             $mailParams = CRM_Utils_Mail_Incoming::parseMailingObject($mail);
@@ -251,6 +249,9 @@ class CRM_Utils_Mail_EmailProcessor {
           $params = _civicrm_api3_deprecated_activity_buildmailparams($mailParams, $emailActivityTypeId);
 
           $params['version'] = 3;
+          if (!empty($dao->activity_status)) {
+            $params['status_id'] = $dao->activity_status;
+          }
           $result = civicrm_api('activity', 'create', $params);
 
           if ($result['is_error']) {
@@ -259,10 +260,9 @@ class CRM_Utils_Mail_EmailProcessor {
           }
           else {
             $matches = TRUE;
+            CRM_Utils_Hook::emailProcessor('activity', $params, $mail, $result);
             echo "Processed as Activity: {$mail->subject}\n";
           }
-
-          CRM_Utils_Hook::emailProcessor('activity', $params, $mail, $result);
         }
 
         // if $matches is empty, this email is not CiviMail-bound
@@ -288,55 +288,7 @@ class CRM_Utils_Mail_EmailProcessor {
                 $text = $mail->body->text;
               }
               elseif ($mail->body instanceof ezcMailMultipart) {
-                if ($mail->body instanceof ezcMailMultipartReport) {
-                  $part = $mail->body->getMachinePart();
-                  if ($part instanceof ezcMailDeliveryStatus) {
-                    foreach ($part->recipients as $rec) {
-                      if (isset($rec["Diagnostic-Code"])) {
-                        $text = $rec["Diagnostic-Code"];
-                        break;
-                      }
-                      elseif (isset($rec["Description"])) {
-                        $text = $rec["Description"];
-                        break;
-                      }
-                      // no diagnostic info present - try getting the human readable part
-                      elseif (isset($rec["Status"])) {
-                        $text = $rec["Status"];
-                        $textpart = $mail->body->getReadablePart();
-                        if ($textpart != NULL and isset($textpart->text)) {
-                          $text .= " " . $textpart->text;
-                        }
-                        else {
-                          $text .= " Delivery failed but no diagnostic code or description.";
-                        }
-                        break;
-                      }
-                    }
-                  }
-                  elseif ($part != NULL and isset($part->text)) {
-                    $text = $part->text;
-                  }
-                  elseif (($part = $mail->body->getReadablePart()) != NULL) {
-                    $text = $part->text;
-                  }
-                }
-                elseif ($mail->body instanceof ezcMailMultipartRelated) {
-                  foreach ($mail->body->getRelatedParts() as $part) {
-                    if (isset($part->subType) and $part->subType == 'plain') {
-                      $text = $part->text;
-                      break;
-                    }
-                  }
-                }
-                else {
-                  foreach ($mail->body->getParts() as $part) {
-                    if (isset($part->subType) and $part->subType == 'plain') {
-                      $text = $part->text;
-                      break;
-                    }
-                  }
-                }
+                $text = self::getTextFromMultipart($mail->body);
               }
 
               if (
@@ -377,6 +329,14 @@ class CRM_Utils_Mail_EmailProcessor {
                 'hash' => $hash,
                 'body' => $text,
                 'version' => 3,
+                // Setting is_transactional means it will rollback if
+                // it crashes part way through creating the bounce.
+                // If the api were standard & had a create this would be the
+                // default. Adding the standard api & deprecating this one
+                // would probably be the
+                // most consistent way to address this - but this is
+                // a quick hack.
+                'is_transactional' => 1,
               );
               $result = civicrm_api('Mailing', 'event_bounce', $params);
               break;
@@ -467,6 +427,109 @@ class CRM_Utils_Mail_EmailProcessor {
       // CRM-7356 – used by IMAP only
       $store->expunge();
     }
+  }
+
+  /**
+   * @param \ezcMailMultipart $multipart
+   * @param int $recursionLevel
+   *
+   * @return array
+   */
+  protected static function getTextFromMultipart($multipart, $recursionLevel = 0) {
+    if ($recursionLevel >= self::MIME_MAX_RECURSION) {
+      return NULL;
+    }
+    $recursionLevel += 1;
+    $text = NULL;
+    if ($multipart instanceof ezcMailMultipartReport) {
+      $text = self::getTextFromMulipartReport($multipart, $recursionLevel);
+    }
+    elseif ($multipart instanceof ezcMailMultipartRelated) {
+      $text = self::getTextFromMultipartRelated($multipart, $recursionLevel);
+    }
+    else {
+      foreach ($multipart->getParts() as $part) {
+        if (isset($part->subType) and $part->subType === 'plain') {
+          $text = $part->text;
+        }
+        elseif ($part instanceof ezcMailMultipart) {
+          $text = self::getTextFromMultipart($part, $recursionLevel);
+        }
+        if ($text) {
+          break;
+        }
+      }
+    }
+    return $text;
+  }
+
+  /**
+   * @param \ezcMailMultipartRelated $related
+   * @param int $recursionLevel
+   *
+   * @return array
+   */
+  protected static function getTextFromMultipartRelated($related, $recursionLevel) {
+    $text = NULL;
+    foreach ($related->getRelatedParts() as $part) {
+      if (isset($part->subType) and $part->subType === 'plain') {
+        $text = $part->text;
+      }
+      elseif ($part instanceof ezcMailMultipart) {
+        $text = self::getTextFromMultipart($part, $recursionLevel);
+      }
+      if ($text) {
+        break;
+      }
+    }
+    return $text;
+  }
+
+  /**
+   * @param \ezcMailMultipartReport $multipart
+   * @param $recursionLevel
+   *
+   * @return array
+   */
+  protected static function getTextFromMulipartReport($multipart, $recursionLevel) {
+    $text = NULL;
+    $part = $multipart->getMachinePart();
+    if ($part instanceof ezcMailDeliveryStatus) {
+      foreach ($part->recipients as $rec) {
+        if (isset($rec["Diagnostic-Code"])) {
+          $text = $rec["Diagnostic-Code"];
+          break;
+        }
+        elseif (isset($rec["Description"])) {
+          $text = $rec["Description"];
+          break;
+        }
+        // no diagnostic info present - try getting the human readable part
+        elseif (isset($rec["Status"])) {
+          $text = $rec["Status"];
+          $textpart = $multipart->getReadablePart();
+          if ($textpart !== NULL and isset($textpart->text)) {
+            $text .= " " . $textpart->text;
+          }
+          else {
+            $text .= " Delivery failed but no diagnostic code or description.";
+          }
+          break;
+        }
+      }
+    }
+    elseif ($part !== NULL and isset($part->text)) {
+      $text = $part->text;
+    }
+    elseif (($part = $multipart->getReadablePart()) !== NULL) {
+      if (isset($part->text)) {
+        $text = $part->text;
+      }
+      elseif ($part instanceof ezcMailMultipart) {
+        $text = self::getTextFromMultipart($part, $recursionLevel);
+      }
+    }
+    return $text;
   }
 
 }

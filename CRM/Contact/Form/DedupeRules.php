@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -58,7 +58,16 @@ class CRM_Contact_Form_DedupeRules extends CRM_Admin_Form {
     }
     $this->_options = CRM_Core_SelectValues::getDedupeRuleTypes();
     $this->_rgid = CRM_Utils_Request::retrieve('id', 'Positive', $this, FALSE, 0);
-    $this->_contactType = CRM_Utils_Request::retrieve('contact_type', 'String', $this, FALSE, 0);
+
+    // check if $contactType is valid
+    $contactTypes = civicrm_api3('Contact', 'getOptions', array('field' => "contact_type", 'context' => "validate"));
+    $contactType = CRM_Utils_Request::retrieve('contact_type', 'String', $this, FALSE, 0);
+    if (CRM_Utils_Array::value($contactType, $contactTypes['values'])) {
+      $this->_contactType = $contactType;
+    }
+    elseif (!empty($contactType)) {
+      throw new CRM_Core_Exception('Contact Type is Not valid');
+    }
     if ($this->_rgid) {
       $rgDao = new CRM_Dedupe_DAO_RuleGroup();
       $rgDao->id = $this->_rgid;
@@ -66,7 +75,7 @@ class CRM_Contact_Form_DedupeRules extends CRM_Admin_Form {
 
       $this->_defaults['threshold'] = $rgDao->threshold;
       $this->_contactType = $rgDao->contact_type;
-      $this->_defaults['used'] = CRM_Utils_Array::key($rgDao->used, $this->_options);
+      $this->_defaults['used'] = $rgDao->used;
       $this->_defaults['title'] = $rgDao->title;
       $this->_defaults['name'] = $rgDao->name;
       $this->_defaults['is_reserved'] = $rgDao->is_reserved;
@@ -155,6 +164,13 @@ class CRM_Contact_Form_DedupeRules extends CRM_Admin_Form {
         break;
       }
     }
+    if (empty($fields['threshold'])) {
+      // CRM-20607 - Don't validate the threshold of hard-coded rules
+      if (!(CRM_Utils_Array::value('is_reserved', $fields) &&
+        CRM_Utils_File::isIncludable("CRM/Dedupe/BAO/QueryBuilder/{$self->_defaultValues['name']}.php"))) {
+        $errors['threshold'] = ts('Threshold weight cannot be empty or zero.');
+      }
+    }
 
     if (!$fieldSelected) {
       $errors['_qf_default'] = ts('Please select at least one field.');
@@ -220,7 +236,7 @@ UPDATE civicrm_dedupe_rule_group
     }
 
     // lets skip updating of fields for reserved dedupe group
-    if (isset($this->_defaults['is_reserved'])) {
+    if (CRM_Utils_Array::value('is_reserved', $this->_defaults)) {
       CRM_Core_Session::setStatus(ts("The rule '%1' has been saved.", array(1 => $rgDao->title)), ts('Saved'), 'success');
       return;
     }

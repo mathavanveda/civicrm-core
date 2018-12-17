@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -141,7 +141,7 @@ class WebTest_Member_OnlineMembershipAddPricesetTest extends CiviSeleniumTestCas
     $i = 2;
     foreach ($options as $index => $values) {
       $this->select("membership_type_id_{$index}", "value={$values['membership_type_id']}");
-
+      $this->waitForAjaxContent();
       $this->waitForElementPresent("xpath=//table[@id='optionField']/tbody/tr[$i]/td[4]/input");
       $this->type("xpath=//table[@id='optionField']/tbody/tr[$i]/td[4]/input", $values['membership_num_terms']);
       $this->type("xpath=//table[@id='optionField']/tbody/tr[$i]/td[5]/input", $values['label']);
@@ -519,8 +519,8 @@ class WebTest_Member_OnlineMembershipAddPricesetTest extends CiviSeleniumTestCas
       );
     }
     //check if the membership amount is correct
-    $this->waitForElementPresent("xpath=//form[@id='MembershipView']/div[2]/div/div[2]/div[2]/table/tbody/tr/td[1]/span[text()='{$amount}']");
-    $this->assertTrue($this->isElementPresent("xpath=//form[@id='MembershipView']/div[2]/div/div[2]/div[2]/table/tbody/tr/td[1]/span[text()='{$amount}']"));
+    $this->waitForElementPresent("xpath=//form[@id='MembershipView']/div[2]/div/div[2]/div[2]/table/tbody/tr/td[1]/a");
+    $this->assertElementContainsText("xpath=//form[@id='MembershipView']/div[2]/div/div[2]/div[2]/table/tbody/tr/td[1]/a", $amount);
   }
 
 }

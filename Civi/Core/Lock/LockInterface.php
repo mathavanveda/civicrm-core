@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,9 +26,14 @@
  */
 namespace Civi\Core\Lock;
 
+/**
+ * Lock interface.
+ */
 interface LockInterface {
 
   /**
+   * Acquire lock.
+   *
    * @param int|NULL $timeout
    *   The number of seconds to wait to get the lock.
    *   For a default value, use NULL.

@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -30,20 +30,21 @@
     <tr id="soft-credit-row-{$rowNumber}"
         class="crm-contribution-form-block-soft_credit_to {if $rowNumber gte $showSoftCreditRow}hiddenElement{/if}">
       <td>
-        {$form.soft_credit_contact_id.$rowNumber.label}&nbsp;{$form.soft_credit_contact_id.$rowNumber.html|crmAddClass:twenty}
+        {$form.soft_credit_contact_id.$rowNumber.label}<br>{$form.soft_credit_contact_id.$rowNumber.html|crmAddClass:twenty}
       </td>
       <td>
-        {$form.soft_credit_amount.$rowNumber.label}&nbsp;{$form.soft_credit_amount.$rowNumber.html|crmAddClass:eight}
+        {$form.soft_credit_amount.$rowNumber.label}<br>{$form.soft_credit_amount.$rowNumber.html|crmAddClass:eight}
       </td>
       <td>
-        {$form.soft_credit_type.$rowNumber.label}&nbsp;{$form.soft_credit_type.$rowNumber.html}
+        {$form.soft_credit_type.$rowNumber.label}<br>
+        {$form.soft_credit_type.$rowNumber.html}
         &nbsp;<a class="crm-hover-button soft-credit-delete-link" href="#"><span class="icon delete-icon"></span></a>
       </td>
     </tr>
   {/section}
   <tr>
     <td>
-      <a href="#" class="crm-hover-button" id="addMoreSoftCredit"><span class="icon ui-icon-circle-plus"></span> {ts}another soft credit{/ts}</a>
+      <a href="#" class="crm-hover-button" id="addMoreSoftCredit"><i class="crm-i fa-plus-circle"></i> {ts}another soft credit{/ts}</a>
     </td>
   </tr>
 </table>

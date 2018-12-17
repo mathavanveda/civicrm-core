@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -42,6 +42,7 @@
           <tr class="columnheader">
             <th class='crm-custom_option-label'>{ts}Label{/ts}</th>
             <th class='crm-custom_option-value'>{ts}Value{/ts}</th>
+	          <th class='crm-custom_option-description'>{ts}Description{/ts}</th>
             <th class='crm-custom_option-default_value'>{ts}Default{/ts}</th>
             <th class='crm-custom_option-is_active'>{ts}Enabled?{/ts}</th>
             <th class='crm-custom_option-links'>&nbsp;</th>
@@ -58,7 +59,7 @@
 
         function buildOptions() {
           var sourceUrl = {/literal}'{crmURL p="civicrm/ajax/optionlist" h=0 q="snippet=4&fid=$fid&gid=$gid"}'{literal};
-          var $context = $('.crm-ajax-container');
+          var $context = $('.crm-container');
           var ZeroRecordText = {/literal}'{ts escape="js"}None found.{/ts}'{literal};
 
           crmOptionSelector = $('table.crm-option-selector', $context).dataTable({
@@ -70,6 +71,7 @@
                               {sClass:'crm-custom_option-label'},
                               {sClass:'crm-custom_option-value'},
                               {sClass:'crm-custom_option-default_value'},
+                              {sClass:'crm-custom_option-default_description'},
                               {sClass:'crm-custom_option-is_active'},
                               {sClass:'crm-custom_option-links'},
                               {sClass:'hiddenElement'}
@@ -99,14 +101,13 @@
                 var id = $('td:last', nRow).text().split(',')[0];
                 var cl = $('td:last', nRow).text().split(',')[1];
                 $(nRow).addClass(cl).attr({id: 'OptionValue-' + id});
-                $('td:eq(0)', nRow).wrapInner('<div style="margin-left: 10px;" class="crm-editable crmf-label" />');
-                $('td:eq(0)', nRow).prepend('<div style="cursor:move; position: relative; left: -7px;" class="icon ui-icon-arrowthick-2-n-s" />');
+                $('td:eq(0)', nRow).wrapInner('<span class="crm-editable crmf-label" />');
+                $('td:eq(0)', nRow).prepend('<span class="crm-i fa-arrows crm-grip" />');
                 $('td:eq(2)', nRow).addClass('crmf-default_value');
                 return nRow;
               },
               "fnDrawCallback": function() {
-                // FIXME: trigger crmLoad and crmEditable would happen automatically
-                $('.crm-editable').crmEditable();
+                $(this).trigger('crmLoad');
               },
 
               "fnServerData": function ( sSource, aoData, fnCallback ) {
@@ -127,7 +128,7 @@
         var gid = {/literal}'{$optionGroupID}'{literal};
 
         $("table.crm-option-selector tbody").sortable({
-          handle: ".ui-icon-arrowthick-2-n-s",
+          handle: ".fa-arrows",
           cursor: "move",
           start:function(event, ui) {
             var oSettings = $('table.crm-option-selector').dataTable().fnSettings();
@@ -158,8 +159,11 @@
       {/literal}
 
       <div class="action-link">
-          {crmButton q="reset=1&action=add&fid=$fid&gid=$gid" class="action-item" icon="circle-plus"}{ts}Add Option{/ts}{/crmButton}
-          {crmButton p="civicrm/admin/custom/group/field" q="reset=1&action=browse&gid=$gid" class="action-item cancel" icon="close"}{ts}Done{/ts}{/crmButton}
+          {crmButton q="reset=1&action=map&fid=$fid&gid=$gid" class="action-item open-inline-noreturn" icon="sort-alpha-asc"}{ts}Alphabetize Options{/ts}{/crmButton}
+          {if !$isOptionGroupLocked}
+            {crmButton q="reset=1&action=add&fid=$fid&gid=$gid" class="action-item" icon="plus-circle"}{ts}Add Option{/ts}{/crmButton}
+          {/if}
+          {crmButton p="civicrm/admin/custom/group/field" q="reset=1&action=browse&gid=$gid" class="action-item cancel" icon="times"}{ts}Done{/ts}{/crmButton}
       </div>
     </div>
   </div>

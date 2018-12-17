@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,14 +25,9 @@
  +--------------------------------------------------------------------+
  */
 
-
-// Patch for CRM-3154
-if (phpversion() == "5.2.2" &&
-  !isset($GLOBALS['HTTP_RAW_POST_DATA'])
-) {
-  $GLOBALS['HTTP_RAW_POST_DATA'] = file_get_contents('php://input');
+if (defined('PANTHEON_ENVIRONMENT')) {
+  ini_set('session.save_handler', 'files');
 }
-
 session_start();
 
 require_once '../civicrm.config.php';

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -164,11 +164,17 @@ function civicrm_api3_generic_getfields($apiRequest, $unique = TRUE) {
       $metadata = array();
   }
 
-  // Normalize this for the sake of spec funcions
-  $apiRequest['params']['options']['get_options'] = $optionsToResolve;
+  // Hack for product api to pass tests.
+  if (!is_string($apiRequest['params']['options'])) {
+    // Normalize this for the sake of spec funcions
+    $apiRequest['params']['options']['get_options'] = $optionsToResolve;
+  }
 
   // find any supplemental information
   $hypApiRequest = array('entity' => $apiRequest['entity'], 'action' => $action, 'version' => $apiRequest['version']);
+  if ($action == 'getsingle') {
+    $hypApiRequest['action'] = 'get';
+  }
   try {
     list ($apiProvider, $hypApiRequest) = \Civi::service('civi_api_kernel')->resolve($hypApiRequest);
     if (isset($hypApiRequest['function'])) {
@@ -234,7 +240,15 @@ function civicrm_api3_generic_getfield($apiRequest) {
   return civicrm_api3_create_success($result, $apiRequest['params'], $apiRequest['entity'], 'getfield');
 }
 
-
+/**
+ * Get metadata for getfield action.
+ *
+ * @param array $params
+ * @param array $apiRequest
+ *
+ * @throws \CiviCRM_API3_Exception
+ * @throws \Exception
+ */
 function _civicrm_api3_generic_getfield_spec(&$params, $apiRequest) {
   $params = array(
     'name' => array(
@@ -350,6 +364,7 @@ function civicrm_api3_generic_getvalue($apiRequest) {
  * Get count of contact references.
  *
  * @param array $params
+ * @param array $apiRequest
  */
 function _civicrm_api3_generic_getrefcount_spec(&$params, $apiRequest) {
   $params['id']['api.required'] = 1;
@@ -459,6 +474,13 @@ function _civicrm_api3_generic_getoptions_spec(&$params, $apiRequest) {
         $params['field']['options'][$name] = CRM_Utils_Array::value('title', $field, $name);
       }
     }
+  }
+
+  $entityName = _civicrm_api_get_entity_name_from_camel($apiRequest['entity']);
+  $getOptionsSpecFunction = '_civicrm_api3_' . $entityName . '_getoptions_spec';
+
+  if (function_exists($getOptionsSpecFunction)) {
+    $getOptionsSpecFunction($params);
   }
 }
 

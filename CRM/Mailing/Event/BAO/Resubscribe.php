@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 require_once 'Mail/mime.php';
@@ -215,7 +215,7 @@ class CRM_Mailing_Event_BAO_Resubscribe {
                         WHERE $jobTable.id = $job");
     $dao->fetch();
 
-    $component = new CRM_Mailing_BAO_Component();
+    $component = new CRM_Mailing_BAO_MailingComponent();
     $component->id = $dao->resubscribe_id;
     $component->find(TRUE);
 
@@ -260,21 +260,19 @@ class CRM_Mailing_Event_BAO_Resubscribe {
       $message->setHTMLBody($html);
     }
     if (!$html || $eq->format == 'Text' || $eq->format == 'Both') {
-      $text = CRM_Utils_Token::replaceDomainTokens($html, $domain, TRUE, $tokens['text']);
+      $text = CRM_Utils_Token::replaceDomainTokens($text, $domain, TRUE, $tokens['text']);
       $text = CRM_Utils_Token::replaceResubscribeTokens($text, $domain, $groups, FALSE, $eq->contact_id, $eq->hash);
       $text = CRM_Utils_Token::replaceActionTokens($text, $addresses, $urls, FALSE, $tokens['text']);
       $text = CRM_Utils_Token::replaceMailingTokens($text, $dao, NULL, $tokens['text']);
       $message->setTxtBody($text);
     }
 
-    $emailDomain = CRM_Core_BAO_MailSettings::defaultDomain();
-
     $headers = array(
       'Subject' => $component->subject,
-      'From' => "\"$domainEmailName\" <do-not-reply@$emailDomain>",
+      'From' => "\"$domainEmailName\" <" . CRM_Core_BAO_Domain::getNoReplyEmailAddress() . '>',
       'To' => $eq->email,
-      'Reply-To' => "do-not-reply@$emailDomain",
-      'Return-Path' => "do-not-reply@$emailDomain",
+      'Reply-To' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
+      'Return-Path' => CRM_Core_BAO_Domain::getNoReplyEmailAddress(),
     );
     CRM_Mailing_BAO_Mailing::addMessageIdHeader($headers, 'e', $job, $queue_id, $eq->hash);
     $b = CRM_Utils_Mail::setMimeParams($message);

@@ -1,6 +1,8 @@
 <?php
 /**
- *  File for the CRM_Utils_Cache_AllTests class
+ * @file
+ *
+ * File for the CRM_Utils_Cache_AllTests class
  *
  *  (PHP 5)
  *
@@ -27,11 +29,6 @@
  *   License along with this program.  If not, see
  *   <http://www.gnu.org/licenses/>.
  */
-
-/**
- *  Include parent class definition.
- */
-require_once 'CiviTest/CiviTestSuite.php';
 
 /**
  *  Class containing all test suites.

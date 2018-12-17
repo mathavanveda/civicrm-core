@@ -16,13 +16,10 @@ class CRM_Member_Form_Task_PDFLetterCommon extends CRM_Contact_Form_Task_PDFLett
    * @param $skipOnHold
    * @param $skipDeceased
    * @param $contactIDs
-   *
-   * @return void
    */
   public static function postProcessMembers(&$form, $membershipIDs, $skipOnHold, $skipDeceased, $contactIDs) {
-
-    list($formValues, $categories, $html_message, $messageToken, $returnProperties)
-      = self::processMessageTemplate($form);
+    $formValues = $form->controller->exportValues($form->getName());
+    list($formValues, $categories, $html_message, $messageToken, $returnProperties) = self::processMessageTemplate($formValues);
 
     $html
       = self::generateHTML(
@@ -34,13 +31,13 @@ class CRM_Member_Form_Task_PDFLetterCommon extends CRM_Contact_Form_Task_PDFLett
         $html_message,
         $categories
       );
-    self::createActivities($form, $html_message, $contactIDs);
+    self::createActivities($form, $html_message, $contactIDs, $formValues['subject'], CRM_Utils_Array::value('campaign_id', $formValues));
 
     CRM_Utils_PDF_Utils::html2pdf($html, "CiviLetter.pdf", FALSE, $formValues);
 
     $form->postProcessHook();
 
-    CRM_Utils_System::civiExit(1);
+    CRM_Utils_System::civiExit();
   }
 
   /**
@@ -50,14 +47,15 @@ class CRM_Member_Form_Task_PDFLetterCommon extends CRM_Contact_Form_Task_PDFLett
    * @param array $returnProperties
    * @param bool $skipOnHold
    * @param bool $skipDeceased
-   * @param unknown_type $messageToken
+   * @param array $messageToken
    * @param $html_message
    * @param $categories
    *
-   * @return unknown
+   * @return array
    */
   public static function generateHTML($membershipIDs, $returnProperties, $skipOnHold, $skipDeceased, $messageToken, $html_message, $categories) {
     $memberships = CRM_Utils_Token::getMembershipTokenDetails($membershipIDs);
+    $html = array();
 
     foreach ($membershipIDs as $membershipID) {
       $membership = $memberships[$membershipID];

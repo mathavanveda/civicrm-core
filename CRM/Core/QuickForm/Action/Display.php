@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -29,7 +29,7 @@
  * Redefine the display action.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Core_QuickForm_Action_Display extends CRM_Core_QuickForm_Action {
 
@@ -111,7 +111,7 @@ class CRM_Core_QuickForm_Action_Display extends CRM_Core_QuickForm_Action {
     $form = $page->toSmarty();
 
     // Deprecated - use snippet=6 instead of json=1
-    $json = CRM_Utils_Request::retrieve('json', 'Boolean', CRM_Core_DAO::$_nullObject);
+    $json = CRM_Utils_Request::retrieve('json', 'Boolean');
     if ($json) {
       CRM_Utils_JSON::output($form);
     }

@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -33,16 +33,10 @@
   <td class="crm-event-form-block-event_type_id"> {$form.event_type_id.label}<br />{$form.event_type_id.html} </td>
 </tr>
 <tr>
-  <td colspan="2"><label>{ts}Event Dates{/ts}</label></td>
+  {include file="CRM/Core/DateRange.tpl" fieldName="event" from='_start_date_low' to='_end_date_high' label="<label>Event Dates</label>"}
 </tr>
 <tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="event" from='_start_date_low' to='_end_date_high'}
-</tr>
-<tr>
-  <td><label>{ts}Registration Date{/ts}</label></td>
-</tr>
-<tr>
-{include file="CRM/Core/DateRange.tpl" fieldName="participant" from='_register_date_low' to='_register_date_high'}
+  {include file="CRM/Core/DateRange.tpl" fieldName="participant" from='_register_date_low' to='_register_date_high' label="<label>Registration Date</label>"}
 </tr>
 <tr>
   <td class="crm-event-form-block-participant_status"><label>{$form.participant_status_id.label}</label>
@@ -98,37 +92,19 @@ CRM.$(function($) {
       if (!$(this).data('select2')) {
         $(this).crmEntityRef();
       }
-      isRepeating = $(this).select2('data').extra.is_recur;
+      // allow repeat checkbox to be shown for first event selected
+      if (!$.isEmptyObject($(this).select2('data')[0])) {
+        isRepeating = $(this).select2('data')[0].extra.is_recur;
+      }
     }
     if (isRepeating) {
       $('.crm-event-form-block-event_include_repeating_events').show();
-      $('label[for=event_include_repeating_events]').html(recurringLabel.replace('%1', $(this).select2('data').label));
+      $('label[for=event_include_repeating_events]').html(recurringLabel.replace('%1', $(this).select2('data')[0].label));
     } else {
       $('.crm-event-form-block-event_include_repeating_events').hide().find('input').prop('checked', false);
     }
   }
   $('#event_id').each(toggleRecurrigCheckbox).change(toggleRecurrigCheckbox);
-
-  // FIXME: This could be much simpler as an entityRef field but the priceFieldValue api doesn't currently support the filters we need
-  $('#participant_fee_id').crmSelect2({
-    placeholder: {/literal}'{ts escape="js"}- any -{/ts}'{literal},
-    minimumInputLength: 1,
-    allowClear: true,
-    ajax: {
-      url: "{/literal}{$dataURLEventFee}{literal}",
-      data: function(term) {
-        return {term: term};
-      },
-      results: function(response) {
-        return {results: response};
-      }
-    },
-    initSelection: function(el, callback) {
-      CRM.api3('price_field_value', 'getsingle', {id: $(el).val()}).done(function(data) {
-        callback({id: data.id, text: data.label});
-      });
-    }
-  });
 });
 </script>
 {/literal}

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,7 +31,7 @@
  * abstract class.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -58,7 +58,7 @@ class CRM_Member_Info extends CRM_Core_Component_Info {
     return array(
       'name' => 'CiviMember',
       'translatedName' => ts('CiviMember'),
-      'title' => 'CiviCRM Membership Engine',
+      'title' => ts('CiviCRM Membership Engine'),
       'search' => 1,
       'showActivitiesInCore' => 1,
     );
@@ -148,6 +148,14 @@ class CRM_Member_Info extends CRM_Core_Component_Info {
       'url' => 'membership',
       'weight' => 30,
     );
+  }
+
+  /**
+   * @inheritDoc
+   * @return string
+   */
+  public function getIcon() {
+    return 'crm-i fa-id-badge';
   }
 
   /**

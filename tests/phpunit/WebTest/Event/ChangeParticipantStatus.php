@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -68,7 +68,7 @@ class WebTest_Event_ChangeParticipantStatus extends CiviSeleniumTestCase {
     $this->click($id2);
 
     // Change participant status for selected participants
-    $this->select('task', "label=Participant status - change");
+    $this->select('task', "label=Participant status - change (emails sent)");
     $this->waitForElementPresent('_qf_ParticipantStatus_next');
 
     $this->select('status_change', "label=Attended");
@@ -161,7 +161,7 @@ class WebTest_Event_ChangeParticipantStatus extends CiviSeleniumTestCase {
         'Event Source' => 'Event StandaloneAddTest Webtest',
       )
     );
-    $this->verifyText("xpath=//td[text()='Selections']/following-sibling::td//div/div", preg_quote('Event Total: $ 800.00'));
+    $this->verifyText("xpath=//td[text()='Selections']/following-sibling::td//div", preg_quote('Event Total: $ 800.00'));
   }
 
 }

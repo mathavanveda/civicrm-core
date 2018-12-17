@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -105,9 +105,8 @@ function _civicrm_api3_attachment_create_spec(&$spec) {
  * @see Civi\API\Subscriber\DynamicFKAuthorization
  */
 function civicrm_api3_attachment_create($params) {
-
   if (empty($params['id'])) {
-    // When creating we need either entity_table or field_name
+    // When creating we need either entity_table or field_name.
     civicrm_api3_verify_one_mandatory($params, NULL, array('entity_table', 'field_name'));
   }
 
@@ -118,7 +117,8 @@ function civicrm_api3_attachment_create($params) {
   $entityFileDao = new CRM_Core_DAO_EntityFile();
 
   if ($id) {
-    $fileDao->id = $id;
+    $file['id'] = $fileDao->id = $id;
+
     if (!$fileDao->find(TRUE)) {
       throw new API_Exception("Invalid ID");
     }
@@ -145,11 +145,11 @@ function civicrm_api3_attachment_create($params) {
     throw new API_Exception("Cannot modify name");
   }
 
-  $fileDao->copyValues($file);
   if (!$id) {
-    $fileDao->uri = CRM_Utils_File::makeFileName($name);
+    $file['uri'] = CRM_Utils_File::makeFileName($name);
   }
-  $fileDao->save();
+  $fileDao = CRM_Core_BAO_File::create($file);
+  $fileDao->find(TRUE);
 
   $entityFileDao->copyValues($entityFile);
   $entityFileDao->file_id = $fileDao->id;
@@ -160,7 +160,10 @@ function civicrm_api3_attachment_create($params) {
     file_put_contents($path, $content);
   }
   elseif (is_string($moveFile)) {
-    rename($moveFile, $path);
+    // CRM-17432 Do not use rename() since it will break file permissions.
+    // Also avoid move_uplaoded_file() because the API can use options.move-file.
+    copy($moveFile, $path);
+    unlink($moveFile);
   }
 
   // Save custom field to entity
@@ -297,6 +300,7 @@ function __civicrm_api3_attachment_find($params, $id, $file, $entityFile, $isTru
       'cf.mime_type',
       'cf.description',
       'cf.upload_date',
+      'cf.created_id',
       'cef.entity_table',
       'cef.entity_id',
     ));
@@ -428,6 +432,8 @@ function _civicrm_api3_attachment_format_result($fileDao, $entityFileDao, $retur
     'upload_date' => is_numeric($fileDao->upload_date) ? CRM_Utils_Date::mysqlToIso($fileDao->upload_date) : $fileDao->upload_date,
     'entity_table' => $entityFileDao->entity_table,
     'entity_id' => $entityFileDao->entity_id,
+    'icon' => CRM_Utils_File::getIconFromMimeType($fileDao->mime_type),
+    'created_id' => $fileDao->created_id,
   );
   $result['url'] = CRM_Utils_System::url(
     'civicrm/file', 'reset=1&id=' . $result['id'] . '&eid=' . $result['entity_id'],
@@ -489,6 +495,11 @@ function _civicrm_api3_attachment_getfields() {
     'title' => 'Content',
     'description' => 'File content (not searchable, not returned by default)',
     'type' => CRM_Utils_Type::T_STRING,
+  );
+  $spec['created_id'] = array(
+    'title' => 'Created By Contact ID',
+    'type' => CRM_Utils_Type::T_INT,
+    'description' => 'FK to civicrm_contact, who uploaded this file',
   );
 
   return $spec;

@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -112,6 +112,9 @@ function selectValue( val, prefix) {
     if (document.getElementById("subject").length) {
       document.getElementById("subject").value ="";
     }
+    if (document.getElementById("subject").length) {
+      document.getElementById("subject").value ="";
+    }
     if ( !isPDF ) {
       if (prefix == 'SMS') {
         document.getElementById("sms_text_message").value ="";
@@ -121,6 +124,12 @@ function selectValue( val, prefix) {
         document.getElementById("text_message").value ="";
       }
     }
+    else {
+      cj('.crm-html_email-accordion').show();
+      cj('.crm-document-accordion').hide();
+      cj('#document_type').closest('tr').show();
+    }
+
     CRM.wysiwyg.setVal('#' + html_message, '');
     if ( isPDF ) {
       showBindFormatChkBox();
@@ -131,6 +140,23 @@ function selectValue( val, prefix) {
   var dataUrl = {/literal}"{crmURL p='civicrm/ajax/template' h=0 }"{literal};
 
   cj.post( dataUrl, {tid: val}, function( data ) {
+    var hide = (data.document_body && isPDF) ? false : true;
+    cj('.crm-html_email-accordion, .crm-pdf-format-accordion').toggle(hide);
+    cj('.crm-document-accordion').toggle(!hide);
+
+    cj('#document_type').closest('tr').toggle(hide);
+
+    // Unset any uploaded document when any template is chosen
+    if (cj('#document.file').length) {
+      cj('#document_file').val('');
+    }
+
+    if (!hide) {
+      cj("#subject").val( data.subject );
+      cj("#document-preview").html(data.document_body).parent().css({'background': 'white'});
+      return;
+    }
+
     if ( !isPDF ) {
       if (prefix == "SMS") {
           text_message = "sms_text_message";
@@ -217,7 +243,7 @@ CRM.$(function($) {
     var
       token = $(this).val(),
       field = $(this).data('field');
-    if (field !== 'html_message') {
+    if (field.indexOf('html') < 0) {
       field = textMsgID($(this));
     }
     CRM.wysiwyg.insert('#' + field, token);
@@ -244,7 +270,7 @@ CRM.$(function($) {
   // Initialize token selector widgets
   var form = $('form.{/literal}{$form.formClass}{literal}');
   $('input.crm-token-selector', form)
-    .addClass('crm-action-menu action-icon-token')
+    .addClass('crm-action-menu fa-code')
     .change(insertToken)
     .crmSelect2({
       data: form.data('tokens'),

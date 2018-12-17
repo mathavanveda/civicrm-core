@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 require_once 'packages/OpenFlashChart/php-ofc-library/open-flash-chart.php';
@@ -89,7 +87,7 @@ class CRM_Utils_OpenFlashChart {
     $xValues = array_keys($values[0]);
     $yValues = array_values($values[0]);
 
-    //set y axis parameters.
+    // set y axis parameters.
     $yMin = 0;
 
     // calculate max scale for graph.
@@ -148,7 +146,7 @@ class CRM_Utils_OpenFlashChart {
     $xAxis = new x_axis();
     $xAxis->set_labels($xLabels);
 
-    //create y axis and set range.
+    // create y axis and set range.
     $yAxis = new y_axis();
     $yAxis->set_range($yMin, $yMax, $ySteps);
 
@@ -215,7 +213,7 @@ class CRM_Utils_OpenFlashChart {
     }
     $graphTitle = !empty($params['legend']) ? $params['legend'] : ts('Pie Chart');
 
-    //get the currency.
+    // get the currency.
     $config = CRM_Core_Config::singleton();
     $symbol = $config->defaultCurrencySymbol;
 
@@ -240,7 +238,7 @@ class CRM_Utils_OpenFlashChart {
 
     $pie->set_values($values);
 
-    //create chart.
+    // create chart.
     $chart = new open_flash_chart();
 
     // create chart title obj.
@@ -328,7 +326,7 @@ class CRM_Utils_OpenFlashChart {
 
     $chartTitle = !empty($params['legend']) ? $params['legend'] : ts('Bar Chart');
 
-    //set y axis parameters.
+    // set y axis parameters.
     $yMin = 0;
 
     // calculate max scale for graph.
@@ -359,7 +357,7 @@ class CRM_Utils_OpenFlashChart {
     $xAxis = new x_axis();
     $xAxis->set_labels($xLabels);
 
-    //create y axis and set range.
+    // create y axis and set range.
     $yAxis = new y_axis();
     $yAxis->set_range($yMin, $yMax, $ySteps);
 
@@ -408,39 +406,39 @@ class CRM_Utils_OpenFlashChart {
    * @return array
    */
   public static function chart($rows, $chart, $interval) {
+    $lcInterval = strtolower($interval);
+    $label = ucfirst($lcInterval);
     $chartData = $dateKeys = array();
+    $intervalLabels = array(
+      'year' => ts('Yearly'),
+      'fiscalyear' => ts('Yearly (Fiscal)'),
+      'month' => ts('Monthly'),
+      'quarter' => ts('Quarterly'),
+      'week' => ts('Weekly'),
+      'yearweek' => ts('Weekly'),
+    );
 
-    switch ($interval) {
-      case 'Month':
+    switch ($lcInterval) {
+      case 'month':
+      case 'quarter':
+      case 'week':
+      case 'yearweek':
         foreach ($rows['receive_date'] as $key => $val) {
           list($year, $month) = explode('-', $val);
-          $dateKeys[] = substr($rows['Month'][$key], 0, 3) . ' ' . $year;
+          $dateKeys[] = substr($rows[$interval][$key], 0, 3) . ' of ' . $year;
         }
-        $legend = ts('Monthly');
+        $legend = $intervalLabels[$lcInterval];
         break;
 
-      case 'Quarter':
-        foreach ($rows['receive_date'] as $key => $val) {
-          list($year, $month) = explode('-', $val);
-          $dateKeys[] = 'Quarter ' . $rows['Quarter'][$key] . ' of ' . $year;
-        }
-        $legend = ts('Quarterly');
-        break;
-
-      case 'Week':
-        foreach ($rows['receive_date'] as $key => $val) {
-          list($year, $month) = explode('-', $val);
-          $dateKeys[] = 'Week ' . $rows['Week'][$key] . ' of ' . $year;
-        }
-        $legend = ts('Weekly');
-        break;
-
-      case 'Year':
+      default:
         foreach ($rows['receive_date'] as $key => $val) {
           list($year, $month) = explode('-', $val);
           $dateKeys[] = $year;
         }
-        $legend = ts('Yearly');
+        $legend = ts("%1", array(1 => $label));
+        if (!empty($intervalLabels[$lcInterval])) {
+          $legend = $intervalLabels[$lcInterval];
+        }
         break;
     }
 
@@ -466,7 +464,7 @@ class CRM_Utils_OpenFlashChart {
       $chartData['tip'] = $rows['tip'];
     }
 
-    //legend
+    // legend
     $chartData['xname'] = CRM_Utils_Array::value('xname', $rows);
     $chartData['yname'] = CRM_Utils_Array::value('yname', $rows);
 
@@ -544,7 +542,7 @@ class CRM_Utils_OpenFlashChart {
         if ($chart == 'barChart') {
           $ySize = CRM_Utils_Array::value('ySize', $params, 250);
           $xSize = 60 * count($params['values']);
-          //hack to show tooltip.
+          // hack to show tooltip.
           if ($xSize < 200) {
             $xSize = (count($params['values']) > 1) ? 100 * count($params['values']) : 170;
           }

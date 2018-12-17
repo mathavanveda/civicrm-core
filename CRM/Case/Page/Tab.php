@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -59,7 +59,7 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
     }
 
     $this->_id = CRM_Utils_Request::retrieve('id', 'Positive', $this);
-    $this->_context = CRM_Utils_Request::retrieve('context', 'String', $this);
+    $this->_context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
 
     if ($this->_contactId) {
       $this->assign('contactId', $this->_contactId);
@@ -67,8 +67,7 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
       if ($this->_id && ($this->_action & CRM_Core_Action::VIEW)) {
         //user might have special permissions to view this case, CRM-5666
         if (!CRM_Core_Permission::check('access all cases and activities')) {
-          $session = CRM_Core_Session::singleton();
-          $userCases = CRM_Case_BAO_Case::getCases(FALSE, $session->get('userID'), 'any');
+          $userCases = CRM_Case_BAO_Case::getCases(FALSE, array('type' => 'any'));
           if (!array_key_exists($this->_id, $userCases)) {
             CRM_Core_Error::fatal(ts('You are not authorized to access this page.'));
           }
@@ -136,7 +135,7 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
    */
   public function browse() {
 
-    $controller = new CRM_Core_Controller_Simple('CRM_Case_Form_Search', ts('Case'), NULL);
+    $controller = new CRM_Core_Controller_Simple('CRM_Case_Form_Search', ts('Case'), CRM_Core_Action::BROWSE);
     $controller->setEmbedded(TRUE);
     $controller->reset();
     $controller->set('limit', 20);
@@ -179,7 +178,7 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
    */
   public function run() {
     $contactID = CRM_Utils_Request::retrieve('cid', 'Positive', CRM_Core_DAO::$_nullArray);
-    $context = CRM_Utils_Request::retrieve('context', 'String', $this);
+    $context = CRM_Utils_Request::retrieve('context', 'Alphanumeric', $this);
 
     if ($context == 'standalone' && !$contactID) {
       $this->_action = CRM_Core_Action::ADD;
@@ -191,7 +190,7 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
 
     $this->assign('action', $this->_action);
 
-    $this->setContext();
+    self::setContext($this);
 
     if ($this->_action & CRM_Core_Action::VIEW) {
       $this->view();
@@ -241,11 +240,14 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
     return self::$_links;
   }
 
-  public function setContext() {
-    $context = $this->get('context');
+  /**
+   * @param CRM_Core_Form $form
+   */
+  public static function setContext(&$form) {
+    $context = $form->get('context');
     $url = NULL;
 
-    $qfKey = CRM_Utils_Request::retrieve('key', 'String', $this);
+    $qfKey = CRM_Utils_Request::retrieve('key', 'String', $form);
     //validate the qfKey
     if (!CRM_Utils_Rule::qfKey($qfKey)) {
       $qfKey = NULL;
@@ -253,9 +255,9 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
 
     switch ($context) {
       case 'activity':
-        if ($this->_contactId) {
+        if ($form->_contactId) {
           $url = CRM_Utils_System::url('civicrm/contact/view',
-            "reset=1&force=1&cid={$this->_contactId}&selectedChild=activity"
+            "reset=1&force=1&cid={$form->_contactId}&selectedChild=activity"
           );
         }
         break;
@@ -281,12 +283,12 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
         break;
 
       case 'fulltext':
-        $action = CRM_Utils_Request::retrieve('action', 'String', $this);
+        $action = CRM_Utils_Request::retrieve('action', 'String', $form);
         $urlParams = 'force=1';
         $urlString = 'civicrm/contact/search/custom';
         if ($action == CRM_Core_Action::RENEW) {
-          if ($this->_contactId) {
-            $urlParams .= '&cid=' . $this->_contactId;
+          if ($form->_contactId) {
+            $urlParams .= '&cid=' . $form->_contactId;
           }
           $urlParams .= '&context=fulltext&action=view';
           $urlString = 'civicrm/contact/view/case';
@@ -298,9 +300,9 @@ class CRM_Case_Page_Tab extends CRM_Core_Page {
         break;
 
       default:
-        if ($this->_contactId) {
+        if ($form->_contactId) {
           $url = CRM_Utils_System::url('civicrm/contact/view',
-            "reset=1&force=1&cid={$this->_contactId}&selectedChild=case"
+            "reset=1&force=1&cid={$form->_contactId}&selectedChild=case"
           );
         }
         break;

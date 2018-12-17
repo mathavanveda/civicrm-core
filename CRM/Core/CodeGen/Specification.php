@@ -16,28 +16,31 @@ class CRM_Core_CodeGen_Specification {
    * @param string $buildVersion
    *   Which version of the schema to build.
    */
-  public function parse($schemaPath, $buildVersion) {
+  public function parse($schemaPath, $buildVersion, $verbose = TRUE) {
     $this->buildVersion = $buildVersion;
 
-    echo "Parsing schema description " . $schemaPath . "\n";
+    if ($verbose) {
+      echo "Parsing schema description " . $schemaPath . "\n";
+    }
     $dbXML = CRM_Core_CodeGen_Util_Xml::parse($schemaPath);
-    // print_r( $dbXML );
 
-    echo "Extracting database information\n";
+    if ($verbose) {
+      echo "Extracting database information\n";
+    }
     $this->database = &$this->getDatabase($dbXML);
-    // print_r( $this->database );
 
     $this->classNames = array();
 
     # TODO: peel DAO-specific stuff out of getTables, and spec reading into its own class
-    echo "Extracting table information\n";
+    if ($verbose) {
+      echo "Extracting table information\n";
+    }
     $this->tables = $this->getTables($dbXML, $this->database);
 
     $this->resolveForeignKeys($this->tables, $this->classNames);
     $this->tables = $this->orderTables($this->tables);
 
     // add archive tables here
-    $archiveTables = array();
     foreach ($this->tables as $name => $table) {
       if ($table['archive'] == 'true') {
         $name = 'archive_' . $table['name'];
@@ -91,11 +94,11 @@ class CRM_Core_CodeGen_Specification {
     $tables = array();
     foreach ($dbXML->tables as $tablesXML) {
       foreach ($tablesXML->table as $tableXML) {
-        if ($this->value('drop', $tableXML, 0) > 0 and $this->value('drop', $tableXML, 0) <= $this->buildVersion) {
+        if ($this->value('drop', $tableXML, 0) > 0 && version_compare($this->value('drop', $tableXML, 0), $this->buildVersion, '<=')) {
           continue;
         }
 
-        if ($this->value('add', $tableXML, 0) <= $this->buildVersion) {
+        if (version_compare($this->value('add', $tableXML, 0), $this->buildVersion, '<=')) {
           $this->getTable($tableXML, $database, $tables);
         }
       }
@@ -187,6 +190,7 @@ class CRM_Core_CodeGen_Specification {
     $base = $this->value('base', $tableXML);
     $sourceFile = "xml/schema/{$base}/{$klass}.xml";
     $daoPath = "{$base}/DAO/";
+    $baoPath = __DIR__ . '/../../../' . str_replace(' ', '', "{$base}/BAO/");
     $pre = str_replace('/', '_', $daoPath);
     $this->classNames[$name] = $pre . $klass;
 
@@ -206,6 +210,8 @@ class CRM_Core_CodeGen_Specification {
       'objectName' => $klass,
       'labelName' => substr($name, 8),
       'className' => $this->classNames[$name],
+      'bao' => (file_exists($baoPath . $klass . '.php') ? str_replace('DAO', 'BAO', $this->classNames[$name]) : $this->classNames[$name]),
+      'entity' => $klass,
       'attributes_simple' => trim($database['tableAttributes_simple']),
       'attributes_modern' => trim($database['tableAttributes_modern']),
       'comment' => $this->value('comment', $tableXML),
@@ -216,11 +222,11 @@ class CRM_Core_CodeGen_Specification {
 
     $fields = array();
     foreach ($tableXML->field as $fieldXML) {
-      if ($this->value('drop', $fieldXML, 0) > 0 and $this->value('drop', $fieldXML, 0) <= $this->buildVersion) {
+      if ($this->value('drop', $fieldXML, 0) > 0 && version_compare($this->value('drop', $fieldXML, 0), $this->buildVersion, '<=')) {
         continue;
       }
 
-      if ($this->value('add', $fieldXML, 0) <= $this->buildVersion) {
+      if (version_compare($this->value('add', $fieldXML, 0), $this->buildVersion, '<=')) {
         $this->getField($fieldXML, $fields);
       }
     }
@@ -231,29 +237,27 @@ class CRM_Core_CodeGen_Specification {
       $this->getPrimaryKey($tableXML->primaryKey, $fields, $table);
     }
 
-    // some kind of refresh?
-    CRM_Core_Config::singleton(FALSE);
     if ($this->value('index', $tableXML)) {
       $index = array();
       foreach ($tableXML->index as $indexXML) {
-        if ($this->value('drop', $indexXML, 0) > 0 and $this->value('drop', $indexXML, 0) <= $this->buildVersion) {
+        if ($this->value('drop', $indexXML, 0) > 0 && version_compare($this->value('drop', $indexXML, 0), $this->buildVersion, '<=')) {
           continue;
         }
 
         $this->getIndex($indexXML, $fields, $index);
       }
+      CRM_Core_BAO_SchemaHandler::addIndexSignature($name, $index);
       $table['index'] = &$index;
     }
 
     if ($this->value('foreignKey', $tableXML)) {
       $foreign = array();
       foreach ($tableXML->foreignKey as $foreignXML) {
-        // print_r($foreignXML);
 
-        if ($this->value('drop', $foreignXML, 0) > 0 and $this->value('drop', $foreignXML, 0) <= $this->buildVersion) {
+        if ($this->value('drop', $foreignXML, 0) > 0 && version_compare($this->value('drop', $foreignXML, 0), $this->buildVersion, '<=')) {
           continue;
         }
-        if ($this->value('add', $foreignXML, 0) <= $this->buildVersion) {
+        if (version_compare($this->value('add', $foreignXML, 0), $this->buildVersion, '<=')) {
           $this->getForeignKey($foreignXML, $fields, $foreign, $name);
         }
       }
@@ -263,10 +267,10 @@ class CRM_Core_CodeGen_Specification {
     if ($this->value('dynamicForeignKey', $tableXML)) {
       $dynamicForeign = array();
       foreach ($tableXML->dynamicForeignKey as $foreignXML) {
-        if ($this->value('drop', $foreignXML, 0) > 0 and $this->value('drop', $foreignXML, 0) <= $this->buildVersion) {
+        if ($this->value('drop', $foreignXML, 0) > 0 && version_compare($this->value('drop', $foreignXML, 0), $this->buildVersion, '<=')) {
           continue;
         }
-        if ($this->value('add', $foreignXML, 0) <= $this->buildVersion) {
+        if (version_compare($this->value('add', $foreignXML, 0), $this->buildVersion, '<=')) {
           $this->getDynamicForeignKey($foreignXML, $dynamicForeign, $name);
         }
       }
@@ -282,7 +286,7 @@ class CRM_Core_CodeGen_Specification {
    */
   public function getField(&$fieldXML, &$fields) {
     $name = trim((string ) $fieldXML->name);
-    $field = array('name' => $name, 'localizable' => $fieldXML->localizable);
+    $field = array('name' => $name, 'localizable' => ((bool) $fieldXML->localizable) ? 1 : 0);
     $type = (string ) $fieldXML->type;
     switch ($type) {
       case 'varchar':
@@ -332,12 +336,13 @@ class CRM_Core_CodeGen_Specification {
         break;
 
       default:
-        $field['sqlType'] = $field['phpType'] = $type;
+        $field['phpType'] = $this->value('phpType', $fieldXML, $type);
+        $field['sqlType'] = $type;
         if ($type == 'int unsigned') {
           $field['crmType'] = 'CRM_Utils_Type::T_INT';
         }
         else {
-          $field['crmType'] = 'CRM_Utils_Type::T_' . strtoupper($type);
+          $field['crmType'] = $this->value('crmType', $fieldXML, 'CRM_Utils_Type::T_' . strtoupper($type));
         }
         break;
     }
@@ -361,10 +366,13 @@ class CRM_Core_CodeGen_Specification {
     $field['headerPattern'] = $this->value('headerPattern', $fieldXML);
     $field['dataPattern'] = $this->value('dataPattern', $fieldXML);
     $field['uniqueName'] = $this->value('uniqueName', $fieldXML);
+    $field['serialize'] = $this->value('serialize', $fieldXML);
     $field['html'] = $this->value('html', $fieldXML);
     if (!empty($field['html'])) {
       $validOptions = array(
         'type',
+        'formatType',
+        'label',
         /* Fixme: prior to CRM-13497 these were in a flat structure
         // CRM-13497 moved them to be nested within 'html' but there's no point
         // making that change in the DAOs right now since we are in the process of
@@ -395,7 +403,9 @@ class CRM_Core_CodeGen_Specification {
         $field['widget']['required'] = $this->value('required', $fieldXML);
       }
     }
-
+    if (isset($fieldXML->localize_context)) {
+      $field['localize_context'] = $fieldXML->localize_context;
+    }
     $field['pseudoconstant'] = $this->value('pseudoconstant', $fieldXML);
     if (!empty($field['pseudoconstant'])) {
       //ok this is a bit long-winded but it gets there & is consistent with above approach
@@ -462,26 +472,56 @@ class CRM_Core_CodeGen_Specification {
   }
 
   /**
-   * @param $primaryXML
-   * @param $fields
-   * @param $table
+   * @param object $primaryXML
+   * @param array $fields
+   * @param array $table
    */
   public function getPrimaryKey(&$primaryXML, &$fields, &$table) {
     $name = trim((string ) $primaryXML->name);
 
-    /** need to make sure there is a field of type name */
-    if (!array_key_exists($name, $fields)) {
-      echo "primary key $name in $table->name does not have a field definition, ignoring\n";
-      return;
-    }
-
     // set the autoincrement property of the field
     $auto = $this->value('autoincrement', $primaryXML);
+    if (isset($fields[$name])) {
+      $fields[$name]['autoincrement'] = $auto;
+    }
     $fields[$name]['autoincrement'] = $auto;
     $primaryKey = array(
       'name' => $name,
       'autoincrement' => $auto,
     );
+
+    // populate fields
+    foreach ($primaryXML->fieldName as $v) {
+      $fieldName = (string) ($v);
+      $length = (string) ($v['length']);
+      if (strlen($length) > 0) {
+        $fieldName = "$fieldName($length)";
+      }
+      $primaryKey['field'][] = $fieldName;
+    }
+
+    // when field array is empty set it to the name of the primary key.
+    if (empty($primaryKey['field'])) {
+      $primaryKey['field'][] = $name;
+    }
+
+    // all fieldnames have to be defined and should exist in schema.
+    foreach ($primaryKey['field'] as $fieldName) {
+      if (!$fieldName) {
+        echo "Invalid field defination for index $name\n";
+        return;
+      }
+      $parenOffset = strpos($fieldName, '(');
+      if ($parenOffset > 0) {
+        $fieldName = substr($fieldName, 0, $parenOffset);
+      }
+      if (!array_key_exists($fieldName, $fields)) {
+        echo "Table does not contain $fieldName\n";
+        print_r($fields);
+        exit();
+      }
+    }
+
     $table['primaryKey'] = &$primaryKey;
   }
 
@@ -522,9 +562,6 @@ class CRM_Core_CodeGen_Specification {
     if ($this->value('unique', $indexXML)) {
       $index['unique'] = TRUE;
     }
-
-    //echo "\$index = \n";
-    //print_r($index);
 
     // field array cannot be empty
     if (empty($index['field'])) {
@@ -660,6 +697,10 @@ class CRM_Core_CodeGen_Specification {
 
   /**
    * Sets the size property of a textfield.
+   *
+   * @param string $fieldXML
+   *
+   * @return null|string
    */
   protected function getSize($fieldXML) {
     // Extract from <size> tag if supplied

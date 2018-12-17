@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Pledge_StateMachine_Search extends CRM_Core_StateMachine {
 
@@ -82,7 +80,7 @@ class CRM_Pledge_StateMachine_Search extends CRM_Core_StateMachine {
    *
    * @param string $formName
    *
-   * @return string
+   * @return array
    *   the name of the form that will handle the task
    */
   public function taskName($controller, $formName = 'Search') {

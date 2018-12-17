@@ -1,9 +1,9 @@
 <?php
 /*
   +--------------------------------------------------------------------+
-  | CiviCRM version 4.7                                                |
+  | CiviCRM version 5                                                  |
   +--------------------------------------------------------------------+
-  | Copyright CiviCRM LLC (c) 2004-2015                                |
+  | Copyright CiviCRM LLC (c) 2004-2019                                |
    +--------------------------------------------------------------------+
   | This file is a part of CiviCRM.                                    |
   |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -259,8 +259,8 @@ FROM civicrm_action_schedule cas
    * @param bool $is_active
    *   Value we want to set the is_active field.
    *
-   * @return Object
-   *   DAO object on success, null otherwise
+   * @return bool
+   *   true if we found and updated the object, else false
    */
   public static function setIsActive($id, $is_active) {
     return CRM_Core_DAO::setFieldValue('CRM_Core_DAO_ActionSchedule', $id, 'is_active', $is_active);
@@ -310,6 +310,11 @@ FROM civicrm_action_schedule cas
             if ($actionSchedule->mode == 'Email' or $actionSchedule->mode == 'User_Preference') {
               CRM_Utils_Array::extend($errors, self::sendReminderEmail($tokenRow, $actionSchedule, $dao->contactID));
             }
+            // insert activity log record if needed
+            if ($actionSchedule->record_activity && empty($errors)) {
+              $caseID = empty($dao->case_id) ? NULL : $dao->case_id;
+              CRM_Core_BAO_ActionSchedule::createMailingActivity($tokenRow, $mapping, $dao->contactID, $dao->entityID, $caseID);
+            }
           }
         }
         catch (\Civi\Token\TokenException $e) {
@@ -324,12 +329,6 @@ FROM civicrm_action_schedule cas
           'action_date_time' => $now,
         );
         CRM_Core_BAO_ActionLog::create($logParams);
-
-        // insert activity log record if needed
-        if ($actionSchedule->record_activity && empty($errors)) {
-          $caseID = empty($dao->case_id) ? NULL : $dao->case_id;
-          CRM_Core_BAO_ActionSchedule::createMailingActivity($actionSchedule, $mapping, $dao->contactID, $dao->entityID, $caseID);
-        }
       }
 
       $dao->free();
@@ -425,8 +424,8 @@ FROM civicrm_action_schedule cas
    * @param $preferred_language
    */
   public static function setCommunicationLanguage($communication_language, $preferred_language) {
-    $config = CRM_Core_Config::singleton();
-    $language = $config->lcMessages;
+    $currentLocale = CRM_Core_I18n::getLocale();
+    $language = $currentLocale;
 
     // prepare the language for the email
     if ($communication_language == CRM_Core_I18n::AUTO) {
@@ -440,13 +439,13 @@ FROM civicrm_action_schedule cas
 
     // language not in the existing language, use default
     $languages = CRM_Core_I18n::languages(TRUE);
-    if (!in_array($language, $languages)) {
-      $language = $config->lcMessages;
+    if (!array_key_exists($language, $languages)) {
+      $language = $currentLocale;
     }
 
     // change the language
     $i18n = CRM_Core_I18n::singleton();
-    $i18n->setLanguage($language);
+    $i18n->setLocale($language);
   }
 
   /**
@@ -455,35 +454,40 @@ FROM civicrm_action_schedule cas
    * WISHLIST: Instead of saving $actionSchedule->body_html, call this immediately after
    * sending the message and pass in the fully rendered text of the message.
    *
-   * @param CRM_Core_DAO_ActionSchedule $actionSchedule
+   * @param object $tokenRow
    * @param Civi\ActionSchedule\Mapping $mapping
    * @param int $contactID
    * @param int $entityID
    * @param int|NULL $caseID
    * @throws CRM_Core_Exception
    */
-  protected static function createMailingActivity($actionSchedule, $mapping, $contactID, $entityID, $caseID) {
+  protected static function createMailingActivity($tokenRow, $mapping, $contactID, $entityID, $caseID) {
     $session = CRM_Core_Session::singleton();
 
     if ($mapping->getEntity() == 'civicrm_membership') {
+      // @todo - not required with api
       $activityTypeID
-        = CRM_Core_OptionGroup::getValue('activity_type', 'Membership Renewal Reminder', 'name');
+        = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_type_id', 'Membership Renewal Reminder');
     }
     else {
+      // @todo - not required with api
       $activityTypeID
-        = CRM_Core_OptionGroup::getValue('activity_type', 'Reminder Sent', 'name');
+        = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_type_id', 'Reminder Sent');
     }
 
     $activityParams = array(
-      'subject' => $actionSchedule->title,
-      'details' => $actionSchedule->body_html,
+      'subject' => $tokenRow->render('subject'),
+      'details' => $tokenRow->render('body_html'),
       'source_contact_id' => $session->get('userID') ? $session->get('userID') : $contactID,
       'target_contact_id' => $contactID,
+      // @todo - not required with api
       'activity_date_time' => CRM_Utils_Time::getTime('YmdHis'),
-      'status_id' => CRM_Core_OptionGroup::getValue('activity_status', 'Completed', 'name'),
+      // @todo - not required with api
+      'status_id' => CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'status_id', 'Completed'),
       'activity_type_id' => $activityTypeID,
       'source_record_id' => $entityID,
     );
+    // @todo use api, remove all the above wrangling
     $activity = CRM_Activity_BAO_Activity::create($activityParams);
 
     //file reminder on case if source activity is a case activity
@@ -552,17 +556,14 @@ FROM civicrm_action_schedule cas
       'provider_id' => $schedule->sms_provider_id,
       'activity_subject' => $messageSubject,
     );
-    $activityTypeID = CRM_Core_OptionGroup::getValue('activity_type',
-      'SMS',
-      'name'
-    );
+    $activityTypeID = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_type_id', 'SMS');
     $activityParams = array(
       'source_contact_id' => $userID,
       'activity_type_id' => $activityTypeID,
       'activity_date_time' => date('YmdHis'),
       'subject' => $messageSubject,
       'details' => $sms_body_text,
-      'status_id' => CRM_Core_OptionGroup::getValue('activity_status', 'Completed', 'name'),
+      'status_id' => CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'status_id', 'Completed'),
     );
 
     $activity = CRM_Activity_BAO_Activity::create($activityParams);
@@ -662,8 +663,11 @@ FROM civicrm_action_schedule cas
   }
 
   /**
-   * @param $dao
-   * @return string|NULL
+   * Pick SMS phone number.
+   *
+   * @param int $smsToContactId
+   *
+   * @return NULL|string
    */
   protected static function pickSmsPhoneNumber($smsToContactId) {
     $toPhoneNumbers = CRM_Core_BAO_Phone::allPhones($smsToContactId, FALSE, 'Mobile', array(

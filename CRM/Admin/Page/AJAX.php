@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -45,19 +45,27 @@ class CRM_Admin_Page_AJAX {
     $contactID = CRM_Core_Session::singleton()->get('userID');
     if ($contactID) {
       CRM_Core_Page_AJAX::setJsHeaders();
-      print CRM_Core_Smarty::singleton()->fetchWith('CRM/common/navigation.js.tpl', array(
-        'navigation' => CRM_Core_BAO_Navigation::createNavigation($contactID),
+      $smarty = CRM_Core_Smarty::singleton();
+      $smarty->assign('quicksearchOptions', self::getSearchOptions());
+      print $smarty->fetchWith('CRM/common/navigation.js.tpl', array(
+        'navigation' => CRM_Core_BAO_Navigation::createNavigation(),
       ));
     }
     CRM_Utils_System::civiExit();
   }
 
-  /**
-   * Return menu tree as json data for editing.
-   */
-  public static function getNavigationList() {
-    echo CRM_Core_BAO_Navigation::buildNavigation(TRUE, FALSE);
-    CRM_Utils_System::civiExit();
+  public static function getSearchOptions() {
+    $searchOptions = Civi::settings()->get('quicksearch_options');
+    $searchOptions[] = 'sort_name';
+    $searchOptions = array_intersect_key(CRM_Core_SelectValues::quicksearchOptions(), array_flip($searchOptions));
+    foreach ($searchOptions as $key => $label) {
+      if (strpos($key, 'custom_') === 0) {
+        unset($searchOptions[$key]);
+        $id = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_CustomField', substr($key, 7), 'id', 'name');
+        $searchOptions["custom_$id"] = $label;
+      }
+    }
+    return $searchOptions;
   }
 
   /**
@@ -129,7 +137,7 @@ class CRM_Admin_Page_AJAX {
           $ret['content'] = ts('Are you sure you want to disable this CiviCRM Profile field?');
           break;
 
-        case 'CRM_Contribute_BAO_ManagePremiums':
+        case 'CRM_Contribute_BAO_Product':
           $ret['content'] = ts('Are you sure you want to disable this premium? This action will remove the premium from any contribution pages that currently offer it. However it will not delete the premium record - so you can re-enable it and add it back to your contribution page(s) at a later time.');
           break;
 
@@ -171,7 +179,7 @@ class CRM_Admin_Page_AJAX {
           $ret['content'] = ts('Are you sure you want to disable this Participant Status?') . '<br/><br/> ' . ts('Users will no longer be able to select this value when adding or editing Participant Status.');
           break;
 
-        case 'CRM_Mailing_BAO_Component':
+        case 'CRM_Mailing_BAO_MailingComponent':
           $ret['content'] = ts('Are you sure you want to disable this component?');
           break;
 
@@ -209,6 +217,7 @@ class CRM_Admin_Page_AJAX {
 
         case 'CRM_Contact_BAO_Group':
           $ret['content'] = ts('Are you sure you want to disable this Group?');
+          $ret['content'] .= '<br /><br /><strong>' . ts('WARNING - Disabling this group will disable all the child groups associated if any.') . '</strong>';
           break;
 
         case 'CRM_Core_BAO_OptionGroup':
@@ -245,54 +254,6 @@ class CRM_Admin_Page_AJAX {
     CRM_Core_Page_AJAX::returnJsonResponse($ret);
   }
 
-  public static function mergeTagList() {
-    $name = CRM_Utils_Type::escape($_GET['term'], 'String');
-    $fromId = CRM_Utils_Type::escape($_GET['fromId'], 'Integer');
-    $limit = Civi::settings()->get('search_autocomplete_count');
-
-    // build used-for clause to be used in main query
-    $usedForTagA = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_Tag', $fromId, 'used_for');
-    $usedForClause = array();
-    if ($usedForTagA) {
-      $usedForTagA = explode(",", $usedForTagA);
-      foreach ($usedForTagA as $key => $value) {
-        $usedForClause[] = "t1.used_for LIKE '%{$value}%'";
-      }
-    }
-    $usedForClause = !empty($usedForClause) ? implode(' OR ', $usedForClause) : '1';
-    sort($usedForTagA);
-
-    // query to list mergable tags
-    $query = "
-SELECT t1.name, t1.id, t1.used_for, t2.name as parent
-FROM   civicrm_tag t1
-LEFT JOIN civicrm_tag t2 ON t1.parent_id = t2.id
-WHERE  t1.id <> {$fromId} AND
-       t1.name LIKE '%{$name}%' AND
-       ({$usedForClause})
-LIMIT $limit";
-    $dao = CRM_Core_DAO::executeQuery($query);
-    $result = array();
-
-    while ($dao->fetch()) {
-      $row = array(
-        'id' => $dao->id,
-        'text' => ($dao->parent ? "{$dao->parent} :: " : '') . $dao->name,
-      );
-      // Add warning about used_for types
-      if (!empty($dao->used_for)) {
-        $usedForTagB = explode(',', $dao->used_for);
-        sort($usedForTagB);
-        $usedForDiff = array_diff($usedForTagA, $usedForTagB);
-        if (!empty($usedForDiff)) {
-          $row['warning'] = TRUE;
-        }
-      }
-      $result[] = $row;
-    }
-    CRM_Utils_JSON::output($result);
-  }
-
   /**
    * Get a list of mappings.
    *
@@ -319,8 +280,8 @@ LIMIT $limit";
     $recipientMapping = array_combine(array_keys($entityRecipientLabels), array_keys($entityRecipientLabels));
 
     $output = array(
-      'sel4' => CRM_Utils_Array::toKeyValueRows($dateFieldLabels),
-      'sel5' => CRM_Utils_Array::toKeyValueRows($entityRecipientLabels),
+      'sel4' => CRM_Utils_Array::makeNonAssociative($dateFieldLabels),
+      'sel5' => CRM_Utils_Array::makeNonAssociative($entityRecipientLabels),
       'recipientMapping' => $recipientMapping,
     );
 
@@ -345,27 +306,96 @@ LIMIT $limit";
     ));
 
     CRM_Utils_JSON::output(array(
-      'recipients' => CRM_Utils_Array::toKeyValueRows(CRM_Core_BAO_ActionSchedule::getRecipientListing($mappingID, $recipientType)),
+      'recipients' => CRM_Utils_Array::makeNonAssociative(CRM_Core_BAO_ActionSchedule::getRecipientListing($mappingID, $recipientType)),
     ));
   }
 
-  public static function mergeTags() {
-    $tagAId = CRM_Utils_Type::escape($_POST['fromId'], 'Integer');
-    $tagBId = CRM_Utils_Type::escape($_POST['toId'], 'Integer');
+  /**
+   * Outputs one branch in the tag tree
+   *
+   * Used by jstree to incrementally load tags
+   */
+  public static function getTagTree() {
+    $parent = CRM_Utils_Type::escape(CRM_Utils_Array::value('parent_id', $_GET, 0), 'Integer');
+    $substring = CRM_Utils_Type::escape(CRM_Utils_Array::value('str', $_GET), 'String');
+    $result = array();
 
-    $result = CRM_Core_BAO_EntityTag::mergeTags($tagAId, $tagBId);
+    $whereClauses = array('is_tagset <> 1');
+    $orderColumn = 'name';
 
-    if (!empty($result['tagB_used_for'])) {
-      $usedFor = CRM_Core_OptionGroup::values('tag_used_for');
-      foreach ($result['tagB_used_for'] as & $val) {
-        $val = $usedFor[$val];
+    // fetch all child tags in Array('parent_tag' => array('child_tag_1', 'child_tag_2', ...)) format
+    $childTagIDs = CRM_Core_BAO_Tag::getChildTags($substring);
+    $parentIDs = array_keys($childTagIDs);
+
+    if ($parent) {
+      $whereClauses[] = "parent_id = $parent";
+    }
+    elseif ($substring) {
+      $whereClauses['substring'] = " name LIKE '%$substring%' ";
+      if (!empty($parentIDs)) {
+        $whereClauses['substring'] = sprintf(" %s OR id IN (%s) ", $whereClauses['substring'], implode(',', $parentIDs));
       }
-      $result['tagB_used_for'] = implode(', ', $result['tagB_used_for']);
+      $orderColumn = 'id';
+    }
+    else {
+      $whereClauses[] = "parent_id IS NULL";
     }
 
-    $result['message'] = ts('"%1" has been merged with "%2". All records previously tagged "%1" are now tagged "%2".',
-      array(1 => $result['tagA'], 2 => $result['tagB'])
-    );
+    $dao = CRM_Utils_SQL_Select::from('civicrm_tag')
+            ->where($whereClauses)
+            ->groupBy('id')
+            ->orderBy($orderColumn)
+            ->execute();
+
+    while ($dao->fetch()) {
+      if (!empty($substring)) {
+        $result[] = $dao->id;
+        if (!empty($childTagIDs[$dao->id])) {
+          $result = array_merge($result, $childTagIDs[$dao->id]);
+        }
+      }
+      else {
+        $hasChildTags = empty($childTagIDs[$dao->id]) ? FALSE : TRUE;
+        $usedFor = (array) explode(',', $dao->used_for);
+        $tag = [
+          'id' => $dao->id,
+          'text' => $dao->name,
+          'a_attr' => [
+            'class' => 'crm-tag-item',
+          ],
+          'children' => $hasChildTags,
+          'data' => [
+            'description' => (string) $dao->description,
+            'is_selectable' => (bool) $dao->is_selectable,
+            'is_reserved' => (bool) $dao->is_reserved,
+            'used_for' => $usedFor,
+            'color' => $dao->color ? $dao->color : '#ffffff',
+            'usages' => civicrm_api3('EntityTag', 'getcount', [
+              'entity_table' => ['IN' => $usedFor],
+              'tag_id' => $dao->id,
+            ]),
+          ],
+        ];
+        if ($dao->description || $dao->is_reserved) {
+          $tag['li_attr']['title'] = ((string) $dao->description) . ($dao->is_reserved ? ' (*' . ts('Reserved') . ')' : '');
+        }
+        if ($dao->is_reserved) {
+          $tag['li_attr']['class'] = 'is-reserved';
+        }
+        if ($dao->color) {
+          $tag['a_attr']['style'] = "background-color: {$dao->color}; color: " . CRM_Utils_Color::getContrast($dao->color);
+        }
+        $result[] = $tag;
+      }
+    }
+
+    if ($substring) {
+      $result = array_values(array_unique($result));
+    }
+
+    if (!empty($_REQUEST['is_unit_test'])) {
+      return $result;
+    }
 
     CRM_Utils_JSON::output($result);
   }

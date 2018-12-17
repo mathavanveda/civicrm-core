@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -83,7 +83,7 @@ class CRM_Contact_Page_SavedSearch extends CRM_Core_Page {
       $group = new CRM_Contact_DAO_Group();
       $group->saved_search_id = $savedSearch->id;
       if ($group->find(TRUE)) {
-        $permissions = CRM_Group_Page_Group::checkPermission($group->id, $group->title);
+        $permissions = CRM_Contact_BAO_Group::checkPermission($group->id, TRUE);
         if (!CRM_Utils_System::isNull($permissions)) {
           $row = array();
 

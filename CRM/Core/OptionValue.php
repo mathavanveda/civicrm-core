@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Core_OptionValue {
 
@@ -62,21 +62,24 @@ class CRM_Core_OptionValue {
    *   Has links like edit, delete, disable ..etc.
    * @param string $orderBy
    *   For orderBy clause.
+   * @param bool $skipEmptyComponents
+   *   Whether to skip OptionValue rows with empty Component name
+   *   (i.e. when Extension providing the Component is disabled)
    *
    * @return array
    *   Array of option-values
    *
    */
-  public static function getRows($groupParams, $links, $orderBy = 'weight') {
+  public static function getRows($groupParams, $links, $orderBy = 'weight', $skipEmptyComponents = TRUE) {
     $optionValue = array();
-
     $optionGroupID = NULL;
+    $isGroupLocked = FALSE;
+
     if (!isset($groupParams['id']) || !$groupParams['id']) {
       if ($groupParams['name']) {
-        $config = CRM_Core_Config::singleton();
-
         $optionGroup = CRM_Core_BAO_OptionGroup::retrieve($groupParams, $dnc);
         $optionGroupID = $optionGroup->id;
+        $isGroupLocked = (bool) $optionGroup->is_locked;
       }
     }
     else {
@@ -115,6 +118,13 @@ class CRM_Core_OptionValue {
     while ($dao->fetch()) {
       $optionValue[$dao->id] = array();
       CRM_Core_DAO::storeValues($dao, $optionValue[$dao->id]);
+      if (!empty($optionValue[$dao->id]['component_id']) &&
+        empty($componentNames[$optionValue[$dao->id]['component_id']]) &&
+        $skipEmptyComponents
+      ) {
+        unset($optionValue[$dao->id]);
+        continue;
+      }
       // form all action links
       $action = array_sum(array_keys($links));
 
@@ -136,8 +146,14 @@ class CRM_Core_OptionValue {
         }
       }
 
+      // disallow deletion of option values for locked groups
+      if (($action & CRM_Core_Action::DELETE) && $isGroupLocked) {
+        $action -= CRM_Core_Action::DELETE;
+      }
+
       $optionValue[$dao->id]['label'] = htmlspecialchars($optionValue[$dao->id]['label']);
       $optionValue[$dao->id]['order'] = $optionValue[$dao->id]['weight'];
+      $optionValue[$dao->id]['icon'] = CRM_Utils_Array::value('icon', $optionValue[$dao->id], '');
       $optionValue[$dao->id]['action'] = CRM_Core_Action::formLink($links, $action,
         array(
           'id' => $dao->id,
@@ -171,7 +187,7 @@ class CRM_Core_OptionValue {
    *
    * @param array $params
    *   Array containing exported values from the invoking form.
-   * @param array $groupParams
+   * @param string $optionGroupName
    *   Array containing group fields whose option-values is to retrieved/saved.
    * @param $action
    * @param int $optionValueID Has the id of the optionValue being edited, disabled ..etc.
@@ -180,22 +196,17 @@ class CRM_Core_OptionValue {
    * @return CRM_Core_DAO_OptionValue
    *
    */
-  public static function addOptionValue(&$params, &$groupParams, &$action, &$optionValueID) {
+  public static function addOptionValue(&$params, $optionGroupName, $action, $optionValueID) {
     $params['is_active'] = CRM_Utils_Array::value('is_active', $params, FALSE);
     // checking if the group name with the given id or name (in $groupParams) exists
-    if (!empty($groupParams)) {
-      $config = CRM_Core_Config::singleton();
-      $groupParams['is_active'] = 1;
-      $optionGroup = CRM_Core_BAO_OptionGroup::retrieve($groupParams, $defaults);
-    }
+    $groupParams = ['name' => $optionGroupName, 'is_active' => 1];
+    $optionGroup = CRM_Core_BAO_OptionGroup::retrieve($groupParams, $defaults);
 
-    // if the corresponding group doesn't exist, create one, provided $groupParams has 'name' in it.
+    // if the corresponding group doesn't exist, create one.
     if (!$optionGroup->id) {
-      if ($groupParams['name']) {
-        $newOptionGroup = CRM_Core_BAO_OptionGroup::add($groupParams, $defaults);
-        $params['weight'] = 1;
-        $optionGroupID = $newOptionGroup->id;
-      }
+      $newOptionGroup = CRM_Core_BAO_OptionGroup::add($groupParams);
+      $params['weight'] = 1;
+      $optionGroupID = $newOptionGroup->id;
     }
     else {
       $optionGroupID = $optionGroup->id;
@@ -208,7 +219,7 @@ class CRM_Core_OptionValue {
     }
     $params['option_group_id'] = $optionGroupID;
 
-    if (($action & CRM_Core_Action::ADD) && empty($params['value'])) {
+    if (($action & CRM_Core_Action::ADD) && !isset($params['value'])) {
       $fieldValues = array('option_group_id' => $optionGroupID);
       // use the next available value
       /* CONVERT(value, DECIMAL) is used to convert varchar
@@ -228,9 +239,9 @@ class CRM_Core_OptionValue {
       $params['name'] = $params['label'];
     }
     if ($action & CRM_Core_Action::UPDATE) {
-      $ids['optionValue'] = $optionValueID;
+      $params['id'] = $optionValueID;
     }
-    $optionValue = CRM_Core_BAO_OptionValue::add($params, $ids);
+    $optionValue = CRM_Core_BAO_OptionValue::add($params);
     return $optionValue;
   }
 
@@ -247,14 +258,23 @@ class CRM_Core_OptionValue {
    * @param int $optionGroupID
    * @param string $fieldName
    *   The name of the field in the DAO.
+   * @param bool $domainSpecific
+   *   Filter this check to the current domain.
+   *   Some optionGroups allow for same labels or same names but
+   *   they must be in different domains, so filter the check to
+   *   the current domain.
    *
    * @return bool
    *   true if object exists
    */
-  public static function optionExists($value, $daoName, $daoID, $optionGroupID, $fieldName = 'name') {
+  public static function optionExists($value, $daoName, $daoID, $optionGroupID, $fieldName = 'name', $domainSpecific) {
     $object = new $daoName();
     $object->$fieldName = $value;
     $object->option_group_id = $optionGroupID;
+
+    if ($domainSpecific) {
+      $object->domain_id = CRM_Core_Config::domainID();
+    }
 
     if ($object->find(TRUE)) {
       return ($daoID && $object->id == $daoID) ? TRUE : FALSE;
@@ -270,8 +290,7 @@ class CRM_Core_OptionValue {
    * @param string $mode
    * @param string $contactType
    *
-   * @return bool
-   *   true if object exists
+   * @return array
    */
   public static function getFields($mode = '', $contactType = 'Individual') {
     $key = "$mode $contactType";
@@ -286,6 +305,10 @@ class CRM_Core_OptionValue {
 
       $nameTitle = array();
       if ($mode == 'contribute') {
+        // This is part of a move towards standardising option values but we
+        // should derive them from the fields array so am deprecating it again...
+        // note that the reason this was needed was that payment_instrument_id was
+        // not set to exportable.
         $nameTitle = array(
           'payment_instrument' => array(
             'name' => 'payment_instrument',

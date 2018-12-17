@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -89,32 +89,8 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
     $this->_done = FALSE;
     $this->defaults = array();
 
-    /*
-     * we allow the controller to set force/reset externally, useful when we are being
-     * driven by the wizard framework
-     */
-
-    $this->_reset = CRM_Utils_Request::retrieve('reset', 'Boolean', CRM_Core_DAO::$_nullObject);
-    $this->_force = CRM_Utils_Request::retrieve('force', 'Boolean', $this, FALSE);
-    $this->_limit = CRM_Utils_Request::retrieve('limit', 'Positive', $this);
-    $this->_context = CRM_Utils_Request::retrieve('context', 'String', $this, FALSE, 'search');
-
-    $this->assign('context', $this->_context);
-
-    // get user submitted values
-    // get it from controller only if form has been submitted, else preProcess has set this
-    if (!empty($_POST) && !$this->controller->isModal()) {
-      $this->_formValues = $this->controller->exportValues($this->_name);
-    }
-    else {
-      $this->_formValues = $this->get('formValues');
-    }
-
-    if (empty($this->_formValues)) {
-      if (isset($this->_ssID)) {
-        $this->_formValues = CRM_Contact_BAO_SavedSearch::getFormValues($this->_ssID);
-      }
-    }
+    $this->loadStandardSearchOptionsFromUrl();
+    $this->loadFormValues();
 
     if ($this->_force) {
       $this->postProcess();
@@ -164,11 +140,7 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
    */
   public function buildQuickForm() {
     parent::buildQuickForm();
-    $this->addElement('text',
-      'sort_name',
-      ts('Client Name or Email'),
-      CRM_Core_DAO::getAttribute('CRM_Contact_DAO_Contact', 'sort_name')
-    );
+    $this->addSortNameField();
 
     CRM_Case_BAO_Query::buildSearchForm($this);
 
@@ -178,20 +150,40 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
         $this->addRowSelectors($rows);
       }
 
-      $permission = CRM_Core_Permission::getPermission();
-
-      $tasks = CRM_Case_Task::permissionedTaskTitles($permission);
+      $tasks = CRM_Case_Task::permissionedTaskTitles(CRM_Core_Permission::getPermission());
 
       if (!empty($this->_formValues['case_deleted'])) {
-        unset($tasks[1]);
+        unset($tasks[CRM_Case_Task::TASK_DELETE]);
       }
       else {
-        unset($tasks[4]);
+        unset($tasks[CRM_Case_Task::RESTORE_CASES]);
       }
 
       $this->addTaskMenu($tasks);
     }
 
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is on.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithEmail() {
+    return ts('Client Name or Email');
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is off.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithOutEmail() {
+    return ts('Client Name');
   }
 
   /**
@@ -225,11 +217,6 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
       if (array_key_exists('case_owner', $this->_formValues) && !$this->_formValues['case_owner']) {
         $this->_formValues['case_owner'] = 0;
       }
-    }
-
-    //only fetch own cases.
-    if (!CRM_Core_Permission::check('access all cases and activities')) {
-      $this->_formValues['case_owner'] = 2;
     }
 
     if (empty($this->_formValues['case_deleted'])) {
@@ -343,33 +330,25 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
       return;
     }
 
-    $caseStatus = CRM_Utils_Request::retrieve('status', 'Positive',
-      CRM_Core_DAO::$_nullObject
-    );
+    $caseStatus = CRM_Utils_Request::retrieve('status', 'Positive');
     if ($caseStatus) {
       $this->_formValues['case_status_id'] = $caseStatus;
       $this->_defaults['case_status_id'] = $caseStatus;
     }
-    $caseType = CRM_Utils_Request::retrieve('type', 'Positive',
-      CRM_Core_DAO::$_nullObject
-    );
+    $caseType = CRM_Utils_Request::retrieve('type', 'Positive');
     if ($caseType) {
-      $this->_formValues['case_type_id'][$caseType] = 1;
-      $this->_defaults['case_type_id'][$caseType] = 1;
+      $this->_formValues['case_type_id'] = (array) $caseType;
+      $this->_defaults['case_type_id'] = (array) $caseType;
     }
 
-    $caseFromDate = CRM_Utils_Request::retrieve('pstart', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $caseFromDate = CRM_Utils_Request::retrieve('pstart', 'Date');
     if ($caseFromDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($caseFromDate);
       $this->_formValues['case_start_date_low'] = $date;
       $this->_defaults['case_start_date_low'] = $date;
     }
 
-    $caseToDate = CRM_Utils_Request::retrieve('pend', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $caseToDate = CRM_Utils_Request::retrieve('pend', 'Date');
     if ($caseToDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($caseToDate);
       $this->_formValues['case_start_date_high'] = $date;
@@ -402,9 +381,7 @@ class CRM_Case_Form_Search extends CRM_Core_Form_Search {
       }
 
       // Now if case_owner is set in the url/post, use that instead.
-      $caseOwner = CRM_Utils_Request::retrieve('case_owner', 'Positive',
-        CRM_Core_DAO::$_nullObject
-      );
+      $caseOwner = CRM_Utils_Request::retrieve('case_owner', 'Positive');
       if ($caseOwner) {
         $this->_formValues['case_owner'] = $caseOwner;
         $this->_defaults['case_owner'] = $caseOwner;

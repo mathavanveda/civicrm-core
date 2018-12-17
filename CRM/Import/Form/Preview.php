@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,19 +28,18 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * This class previews the uploaded file and returns summary statistics
+ * This class previews the uploaded file and returns summary statistics.
+ *
  * TODO: CRM-11254 - if preProcess and postProcess functions can be reconciled between the 5 child classes,
  * those classes can be removed entirely and this class will not need to be abstract
  */
 abstract class CRM_Import_Form_Preview extends CRM_Core_Form {
   /**
-   * Return a descriptive name for the page, used in wizard header
+   * Return a descriptive name for the page, used in wizard header.
    *
    * @return string
    */
@@ -50,11 +49,8 @@ abstract class CRM_Import_Form_Preview extends CRM_Core_Form {
 
   /**
    * Build the form object.
-   *
-   * @return void
    */
   public function buildQuickForm() {
-
     $this->addButtons(array(
         array(
           'type' => 'back',
@@ -72,6 +68,19 @@ abstract class CRM_Import_Form_Preview extends CRM_Core_Form {
         ),
       )
     );
+  }
+
+  /**
+   * Set status url for ajax.
+   */
+  public function setStatusUrl() {
+    $statusID = $this->get('statusID');
+    if (!$statusID) {
+      $statusID = md5(uniqid(rand(), TRUE));
+      $this->set('statusID', $statusID);
+    }
+    $statusUrl = CRM_Utils_System::url('civicrm/ajax/status', "id={$statusID}", FALSE, NULL, FALSE);
+    $this->assign('statusUrl', $statusUrl);
   }
 
 }

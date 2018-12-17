@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -24,8 +24,8 @@
  +--------------------------------------------------------------------+
 *}
 {* add/update/view custom data group *}
+<div class="help">{ts}Use Custom Field Sets to add logically related fields for a specific type of CiviCRM record (e.g. contact records, contribution records, etc.).{/ts} {help id="id-group_intro"}</div>
 <div class="crm-block crm-form-block">
-    <div id="help">{ts}Use Custom Field Sets to add logically related fields for a specific type of CiviCRM record (e.g. contact records, contribution records, etc.).{/ts} {help id="id-group_intro"}</div>
     <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="top"}</div>
     <table class="form-layout">
     <tr>
@@ -64,6 +64,10 @@
         <td>&nbsp;</td>
         <td>{$form.is_active.html} {$form.is_active.label}</td>
     </tr>
+    <tr>
+        <td>&nbsp;</td>
+        <td>{$form.is_public.html} {$form.is_public.label} {help id="id-is-public"}</td>
+    </tr>
     <tr class="html-adjust">
         <td class="label">{$form.help_pre.label} <!--{if $action == 2}{include file='CRM/Core/I18n/Dialog.tpl' table='civicrm_custom_group' field='help_pre' id=$gid}{/if}-->{help id="id-help_pre"}</td>
         <td>{$form.help_pre.html}</td>
@@ -78,7 +82,7 @@
 {if $action eq 2 or $action eq 4} {* Update or View*}
     <p></p>
     <div class="action-link">
-      {crmButton p='civicrm/admin/custom/group/field' q="action=browse&reset=1&gid=$gid"}{ts}Custom Fields for this Set{/ts}{/crmButton}
+      {crmButton p='civicrm/admin/custom/group/field' q="action=browse&reset=1&gid=$gid" icon="th-list"}{ts}Custom Fields for this Set{/ts}{/crmButton}
     </div>
 {/if}
 {$initHideBlocks}
@@ -89,7 +93,7 @@ CRM.$(function($) {
 
   $('#extends_0').each(showHideStyle).change(showHideStyle);
 
-  var isGroupEmpty = "{/literal}{$isGroupEmpty}{literal}";
+  var isGroupEmpty = {/literal}{$isGroupEmpty|@json_encode}{literal};
   if (isGroupEmpty) {
     showRange(true);
   }
@@ -188,7 +192,7 @@ CRM.$(function($) {
     });
 
     if (warning) {
-      return confirm({/literal}'{ts escape='js'}Warning: You have chosen to remove one or more subtypes. This will cause any custom data records associated with those subtypes to be removed.{/ts}'{literal});
+      return confirm({/literal}'{ts escape='js'}Warning: You have chosen to remove one or more subtypes. This will cause any custom data records associated with those subtypes to be removed as long as the contact does not have a contact subtype still selected.{/ts}'{literal});
     }
     return true;
   });

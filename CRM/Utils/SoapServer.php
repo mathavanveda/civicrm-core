@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -29,7 +29,7 @@
  * This class handles all SOAP client requests.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_SoapServer {
 
@@ -95,7 +95,7 @@ class CRM_Utils_SoapServer {
       throw new SoapFault('Client', 'Expired key');
     }
 
-    /* otherwise, we're ok.  update the timestamp */
+    // otherwise, we're ok.  update the timestamp
 
     $session->set('soap_time', $t);
   }
@@ -117,12 +117,12 @@ class CRM_Utils_SoapServer {
   public function authenticate($name, $pass, $loadCMSBootstrap = FALSE) {
     require_once str_replace('_', DIRECTORY_SEPARATOR, $this->ufClass) . '.php';
 
-    if ($this->ufClass == 'CRM_Utils_System_Joomla') {
+    if ($this->ufClass == 'CRM_Utils_System_Joomla'
+      || $this->ufClass == 'CRM_Utils_System_WordPress') {
       $loadCMSBootstrap = TRUE;
     }
 
-    $className = $this->ufClass;
-    $result =& $className::authenticate($name, $pass, $loadCMSBootstrap);
+    $result = CRM_Utils_System::authenticate($name, $pass, $loadCMSBootstrap);
 
     if (empty($result)) {
       throw new SoapFault('Client', 'Invalid login');
@@ -137,6 +137,15 @@ class CRM_Utils_SoapServer {
 
   /**
    * MAILER API.
+   *
+   * @param string $key
+   * @param int $job
+   * @param int $queue
+   * @param string $hash
+   * @param string $body
+   *
+   * @return array|int
+   * @throws \SoapFault
    */
   public function mailer_event_bounce($key, $job, $queue, $hash, $body) {
     $this->verify($key);
@@ -148,14 +157,17 @@ class CRM_Utils_SoapServer {
       'body' => $body,
       'version' => 3,
     );
-    return civicrm_api('Mailing', 'event_bounce', $params);
+    $result = civicrm_api('Mailing', 'event_bounce', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
-   * @param $key
-   * @param $job
-   * @param $queue
-   * @param $hash
+   * Mailer event unsubscribe.
+   *
+   * @param string $key
+   * @param int $job
+   * @param int $queue
+   * @param string $hash
    *
    * @return array|int
    * @throws SoapFault
@@ -170,7 +182,8 @@ class CRM_Utils_SoapServer {
       'hash' => $hash,
       'version' => 3,
     );
-    return civicrm_api('MailingGroup', 'event_unsubscribe', $params);
+    $result = civicrm_api('MailingGroup', 'event_unsubscribe', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -192,7 +205,8 @@ class CRM_Utils_SoapServer {
       'hash' => $hash,
       'version' => 3,
     );
-    return civicrm_api('MailingGroup', 'event_domain_unsubscribe', $params);
+    $result = civicrm_api('MailingGroup', 'event_domain_unsubscribe', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -214,7 +228,8 @@ class CRM_Utils_SoapServer {
       'hash' => $hash,
       'version' => 3,
     );
-    return civicrm_api('MailingGroup', 'event_resubscribe', $params);
+    $result = civicrm_api('MailingGroup', 'event_resubscribe', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -233,7 +248,8 @@ class CRM_Utils_SoapServer {
       'group_id' => $group,
       'version' => 3,
     );
-    return civicrm_api('MailingGroup', 'event_subscribe', $params);
+    $result = civicrm_api('MailingGroup', 'event_subscribe', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -255,7 +271,8 @@ class CRM_Utils_SoapServer {
       'hash' => $hash,
       'version' => 3,
     );
-    return civicrm_api('Mailing', 'event_confirm', $params);
+    $result = civicrm_api('Mailing', 'event_confirm', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -284,7 +301,8 @@ class CRM_Utils_SoapServer {
       'time_stamp' => date('YmdHis'),
       'version' => 3,
     );
-    return civicrm_api('Mailing', 'event_reply', $params);
+    $result = civicrm_api('Mailing', 'event_reply', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -306,7 +324,8 @@ class CRM_Utils_SoapServer {
       'email' => $email,
       'version' => 3,
     );
-    return civicrm_api('Mailing', 'event_forward', $params);
+    $result = civicrm_api('Mailing', 'event_forward', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
   /**
@@ -319,7 +338,8 @@ class CRM_Utils_SoapServer {
   public function get_contact($key, $params) {
     $this->verify($key);
     $params['version'] = 3;
-    return civicrm_api('contact', 'get', $params);
+    $result = civicrm_api('contact', 'get', $params);
+    return CRM_Utils_Array::encode_items($result);
   }
 
 }

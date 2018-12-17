@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Report_Form_Case_Demographics extends CRM_Report_Form {
 
@@ -39,10 +37,21 @@ class CRM_Report_Form_Case_Demographics extends CRM_Report_Form {
   protected $_emailField = FALSE;
 
   protected $_phoneField = FALSE;
+  /**
+   * This report has not been optimised for group filtering.
+   *
+   * The functionality for group filtering has been improved but not
+   * all reports have been adjusted to take care of it. This report has not
+   * and will run an inefficient query until fixed.
+   *
+   * CRM-19170
+   *
+   * @var bool
+   */
+  protected $groupFilterNotOptimised = TRUE;
 
   /**
-   */
-  /**
+   * Class constructor.
    */
   public function __construct() {
     $this->_columns = array(
@@ -86,6 +95,13 @@ class CRM_Report_Form_Case_Demographics extends CRM_Report_Form {
           'id' => array(
             'title' => ts('Contact ID'),
             'no_display' => TRUE,
+          ),
+        ),
+        'order_bys' => array(
+          'sort_name' => array(
+            'title' => ts('Contact Name'),
+            'default_weight' => '1',
+            'dbAlias' => 'civicrm_contact_sort_name',
           ),
         ),
         'grouping' => 'contact-fields',
@@ -179,13 +195,20 @@ class CRM_Report_Form_Case_Demographics extends CRM_Report_Form {
             'operatorType' => CRM_Report_Form::OP_DATE,
           ),
         ),
+        'order_bys' => array(
+          'id' => array(
+            'title' => ts('Case ID'),
+            'default_weight' => '2',
+            'dbAlias' => 'civicrm_case_id',
+          ),
+        ),
       ),
     );
 
     $this->_groupFilter = TRUE;
     $this->_tagFilter = TRUE;
 
-    $open_case_val = CRM_Core_OptionGroup::getValue('activity_type', 'Open Case', 'name');
+    $open_case_val = CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'activity_type_id', 'Open Case');
     $crmDAO = &CRM_Core_DAO::executeQuery("SELECT cg.table_name, cg.extends AS ext, cf.label, cf.column_name FROM civicrm_custom_group cg INNER JOIN civicrm_custom_field cf ON cg.id = cf.custom_group_id
 where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_column_value='$open_case_val') AND cg.is_active=1 AND cf.is_active=1 ORDER BY cg.table_name");
     $curTable = '';
@@ -251,6 +274,7 @@ where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_colu
         }
       }
     }
+    $this->_selectClauses = $select;
 
     $this->_select = "SELECT " . implode(', ', $select) . " ";
   }
@@ -289,19 +313,9 @@ where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_colu
       }
     }
 
-    if ($this->_emailField) {
-      $this->_from .= "
-            LEFT JOIN  civicrm_email {$this->_aliases['civicrm_email']}
-                   ON ({$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_email']}.contact_id AND
-                      {$this->_aliases['civicrm_email']}.is_primary = 1) ";
-    }
+    $this->joinPhoneFromContact();
+    $this->joinEmailFromContact();
 
-    if ($this->_phoneField) {
-      $this->_from .= "
-            LEFT JOIN civicrm_phone {$this->_aliases['civicrm_phone']}
-                   ON {$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_phone']}.contact_id AND
-                      {$this->_aliases['civicrm_phone']}.is_primary = 1 ";
-    }
   }
 
   public function where() {
@@ -357,11 +371,8 @@ where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_colu
   }
 
   public function groupBy() {
-    $this->_groupBy = "GROUP BY {$this->_aliases['civicrm_contact']}.id, {$this->_aliases['civicrm_case']}.id";
-  }
-
-  public function orderBy() {
-    $this->_orderBy = "ORDER BY {$this->_aliases['civicrm_contact']}.sort_name, {$this->_aliases['civicrm_contact']}.id, {$this->_aliases['civicrm_case']}.id";
+    $groupBy = array("{$this->_aliases['civicrm_contact']}.id", "{$this->_aliases['civicrm_case']}.id");
+    $this->_groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($this->_selectClauses, $groupBy);
   }
 
   public function postProcess() {
@@ -411,20 +422,6 @@ where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_colu
         $entryFound = TRUE;
       }
 
-      // handle country
-      if (array_key_exists('civicrm_address_country_id', $row)) {
-        if ($value = $row['civicrm_address_country_id']) {
-          $rows[$rowNum]['civicrm_address_country_id'] = CRM_Core_PseudoConstant::country($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-      if (array_key_exists('civicrm_address_state_province_id', $row)) {
-        if ($value = $row['civicrm_address_state_province_id']) {
-          $rows[$rowNum]['civicrm_address_state_province_id'] = CRM_Core_PseudoConstant::stateProvince($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-
       // handle custom fields
       foreach ($row as $k => $r) {
         if (substr($k, 0, 13) == 'civicrm_value' ||
@@ -438,6 +435,8 @@ where (cg.extends='Contact' OR cg.extends='Individual' OR cg.extends_entity_colu
           $entryFound = TRUE;
         }
       }
+
+      $entryFound = $this->alterDisplayAddressFields($row, $rows, $rowNum, NULL, NULL) ? TRUE : $entryFound;
 
       // skip looking further in rows, if first row itself doesn't
       // have the column we need

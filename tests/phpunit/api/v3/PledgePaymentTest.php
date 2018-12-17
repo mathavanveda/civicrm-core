@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,12 +25,11 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Test class for Pledge API - civicrm_pledge_*
  *
  * @package CiviCRM_APIv3
+ * @group headless
  */
 class api_v3_PledgePaymentTest extends CiviUnitTestCase {
 
@@ -48,7 +47,7 @@ class api_v3_PledgePaymentTest extends CiviUnitTestCase {
   public function setUp() {
     parent::setUp();
     $this->_individualId = $this->individualCreate();
-    $this->_pledgeID = $this->pledgeCreate($this->_individualId);
+    $this->_pledgeID = $this->pledgeCreate(array('contact_id' => $this->_individualId));
     $this->_contributionID = $this->contributionCreate(array('contact_id' => $this->_individualId));
   }
 
@@ -87,6 +86,89 @@ class api_v3_PledgePaymentTest extends CiviUnitTestCase {
     $result = $this->callAPISuccess('pledge_payment', 'get', $params);
     $this->assertEquals(1, $result['count'], " in line " . __LINE__);
   }
+
+  /**
+   * Test process_pledge job log.
+   */
+  public function testProcessPledgeJob() {
+    $pledgeStatuses = CRM_Core_OptionGroup::values('pledge_status',
+      FALSE, FALSE, FALSE, NULL, 'name'
+    );
+    //Make first payment.
+    $paymentParams = array(
+      'contact_id' => $this->_individualId,
+      'pledge_id' => $this->_pledgeID,
+      'contribution_id' => $this->_contributionID,
+      'scheduled_date' => date('Ymd', strtotime("-1 days")),
+      'status_id' => array_search('Pending', $pledgeStatuses),
+    );
+    $firstPayment = $this->callAPISuccess('pledge_payment', 'create', $paymentParams);
+    //Status should be 'Pending' after first incomplete payment.
+    $checkStatus = $this->callAPISuccess('pledge', 'getsingle', array(
+      'id' => $this->_pledgeID,
+      'return' => 'pledge_status',
+    ));
+    $this->assertEquals('Pending', $checkStatus['pledge_status']);
+
+    //Execute process_pledge job log.
+    $result = $this->callAPISuccess('Job', 'process_pledge', array());
+    $this->assertEquals("Checking if status update is needed for Pledge Id: {$this->_pledgeID} (current status is Pending)\n\r- status updated to: Overdue\n\r1 records updated.", $result['values']);
+
+    //Status should be 'Overdue' after processing.
+    $statusAfterProcessing = $this->callAPISuccess('pledge', 'getsingle', array(
+      'id' => $this->_pledgeID,
+      'return' => 'pledge_status',
+    ));
+    $this->assertEquals('Overdue', $statusAfterProcessing['pledge_status']);
+  }
+
+  /**
+   * Test status of pledge on payments and cancellation.
+   */
+  public function testPledgeStatus() {
+    //Status should initially be Pending.
+    $checkStatus = $this->callAPISuccess('pledge', 'getsingle', array(
+      'id' => $this->_pledgeID,
+      'return' => 'pledge_status',
+    ));
+    $this->assertEquals('Pending', $checkStatus['pledge_status']);
+
+    //Make first payment.
+    $paymentParams = array(
+      'contact_id' => $this->_individualId,
+      'pledge_id' => $this->_pledgeID,
+      'contribution_id' => $this->_contributionID,
+      'status_id' => 1,
+    );
+    $firstPayment = $this->callAPISuccess('pledge_payment', 'create', $paymentParams);
+
+    //Status should be 'In Progress' after first payment.
+    $checkStatus = $this->callAPISuccess('pledge', 'getsingle', array(
+      'id' => $this->_pledgeID,
+      'return' => 'pledge_status',
+    ));
+    $this->assertEquals('In Progress', $checkStatus['pledge_status']);
+
+    //Cancel the Pledge.
+    $paymentStatusTypes = CRM_Contribute_PseudoConstant::contributionStatus(NULL, 'name');
+    $updateParams = array(
+      'id' => $this->_pledgeID,
+      'status_id' => array_search('Cancelled', $paymentStatusTypes),
+    );
+    $this->callAPISuccess('pledge', 'create', $updateParams);
+
+    //Status should be calculated as Cancelled.
+    $pledgeStatus = CRM_Pledge_BAO_PledgePayment::calculatePledgeStatus($this->_pledgeID);
+    $this->assertEquals('Cancelled', $paymentStatusTypes[$pledgeStatus]);
+
+    //Already completed payments should not be cancelled.
+    $checkPaymentStatus = $this->callAPISuccess('pledge_payment', 'getsingle', array(
+      'id' => $firstPayment['id'],
+      'return' => 'status_id',
+    ));
+    $this->assertEquals(array_search('Completed', $paymentStatusTypes), $checkPaymentStatus['status_id']);
+  }
+
 
   /**
    * Test that passing in a single variable works:: status_id
@@ -214,8 +296,12 @@ class api_v3_PledgePaymentTest extends CiviUnitTestCase {
       'sequential' => 1,
     );
 
-    $contributionID = $this->contributionCreate(array('contact_id' => $this->_individualId), $this->_financialTypeId,
-      45, 45);
+    $contributionID = $this->contributionCreate(array(
+      'contact_id' => $this->_individualId,
+      'financial_type_id' => $this->_financialTypeId,
+      'invoice_id' => 45,
+      'trxn_id' => 45,
+    ));
     $pledge = $this->callAPISuccess('Pledge', 'Create', $pledgeParams);
 
     //test the pledge_payment_create function

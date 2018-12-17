@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,8 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Report_Form_Membership_Summary extends CRM_Report_Form {
 
@@ -86,7 +85,7 @@ class CRM_Report_Form_Membership_Summary extends CRM_Report_Form {
         'grouping' => 'member-fields',
         'fields' => array(
           'membership_type_id' => array(
-            'title' => 'Membership Type',
+            'title' => ts('Membership Type'),
             'required' => TRUE,
           ),
           'join_date' => NULL,
@@ -146,19 +145,10 @@ class CRM_Report_Form_Membership_Summary extends CRM_Report_Form {
   }
 
   /**
-   * Set default values.
-   *
-   * @return array
-   *   Default values.
-   */
-  public function setDefaultValues() {
-    return parent::setDefaultValues();
-  }
-
-  /**
    * Generate select clause.
    */
   public function select() {
+    // @todo remove this in favour of just using parent.
     $select = array();
     $this->_columnHeaders = array();
     foreach ($this->_columns as $tableName => $table) {
@@ -167,14 +157,6 @@ class CRM_Report_Form_Membership_Summary extends CRM_Report_Form {
           if (!empty($field['required']) ||
             !empty($this->_params['fields'][$fieldName])
           ) {
-            // to include optional columns address and email, only if checked
-            if ($tableName == 'civicrm_address') {
-              $this->_addressField = TRUE;
-              $this->_emailField = TRUE;
-            }
-            elseif ($tableName == 'civicrm_email') {
-              $this->_emailField = TRUE;
-            }
             $select[] = "{$field['dbAlias']} as {$tableName}_{$fieldName}";
             $this->_columnHeaders["{$tableName}_{$fieldName}"]['type'] = $field['type'];
             $this->_columnHeaders["{$tableName}_{$fieldName}"]['title'] = $field['title'];
@@ -186,22 +168,8 @@ class CRM_Report_Form_Membership_Summary extends CRM_Report_Form {
   }
 
   /**
-   * Set form rules.
-   *
-   * @param $fields
-   * @param $files
-   * @param $self
-   *
-   * @return array
+   * Generate from clause.
    */
-  public static function formRule($fields, $files, $self) {
-    $errors = $grouping = array();
-    //check for searching combination of dispaly columns and
-    //grouping criteria
-
-    return $errors;
-  }
-
   public function from() {
     $this->_from = NULL;
 
@@ -214,17 +182,15 @@ LEFT  JOIN civicrm_membership_type  {$this->_aliases['civicrm_membership_type']}
 LEFT  JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
        ON {$this->_aliases['civicrm_membership']}.contact_id = {$this->_aliases['civicrm_contribution']}.contact_id
 ";
-    // Include address table if address column is to be included.
-    if ($this->_addressField) {
-      $this->_from .= "LEFT JOIN civicrm_address {$this->_aliases['civicrm_address']} ON {$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_address']}.contact_id AND {$this->_aliases['civicrm_address']}.is_primary = 1\n";
-    }
-
-    // Include email table if email column is to be included.
-    if ($this->_emailField) {
-      $this->_from .= "LEFT JOIN civicrm_email {$this->_aliases['civicrm_email']} ON {$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_email']}.contact_id AND {$this->_aliases['civicrm_email']}.is_primary = 1\n";
-    }
+    $this->joinAddressFromContact();
+    $this->joinEmailFromContact();
   }
 
+  /**
+   * Generate where clause.
+   *
+   * @todo this looks like it duplicates the parent & could go.
+   */
   public function where() {
     $clauses = array();
     foreach ($this->_columns as $tableName => $table) {
@@ -283,6 +249,11 @@ LEFT  JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
     return $statistics;
   }
 
+  /**
+   * Generate group by clause.
+   *
+   * @todo looks like a broken duplicate of the parent.
+   */
   public function groupBy() {
     $this->_groupBy = "";
     if (is_array($this->_params['group_bys']) &&
@@ -311,6 +282,9 @@ LEFT  JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
     }
   }
 
+  /**
+   * PostProcess function.
+   */
   public function postProcess() {
     $this->_params = $this->controller->exportValues($this->_name);
     if (empty($this->_params) &&
@@ -414,22 +388,6 @@ LEFT  JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
         $entryFound = TRUE;
       }
 
-      // handle state province
-      if (array_key_exists('civicrm_address_state_province_id', $row)) {
-        if ($value = $row['civicrm_address_state_province_id']) {
-          $rows[$rowNum]['civicrm_address_state_province_id'] = CRM_Core_PseudoConstant::stateProvinceAbbreviation($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-
-      // handle country
-      if (array_key_exists('civicrm_address_country_id', $row)) {
-        if ($value = $row['civicrm_address_country_id']) {
-          $rows[$rowNum]['civicrm_address_country_id'] = CRM_Core_PseudoConstant::country($value, FALSE);
-        }
-        $entryFound = TRUE;
-      }
-
       // convert display name to links
       if (array_key_exists('civicrm_contact_sort_name', $row) &&
         array_key_exists('civicrm_contact_id', $row)
@@ -444,6 +402,7 @@ LEFT  JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
         $entryFound = TRUE;
       }
 
+      $entryFound = $this->alterDisplayAddressFields($row, $rows, $rowNum, NULL, NULL) ? TRUE : $entryFound;
       // skip looking further in rows, if first row itself doesn't
       // have the column we need
       if (!$entryFound) {

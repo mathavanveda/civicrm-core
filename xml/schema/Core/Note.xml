@@ -26,6 +26,9 @@
     <length>64</length>
     <required>true</required>
     <comment>Name of table where item being referenced is stored.</comment>
+    <pseudoconstant>
+      <callback>CRM_Core_BAO_Note::entityTables</callback>
+    </pseudoconstant>
     <add>1.1</add>
   </field>
   <field>
@@ -102,5 +105,8 @@
     <length>255</length>
     <comment>Foreign Key to Note Privacy Level (which is an option value pair and hence an implicit FK)</comment>
     <add>3.3</add>
+    <pseudoconstant>
+      <optionGroupName>note_privacy</optionGroupName>
+    </pseudoconstant>
   </field>
 </table>

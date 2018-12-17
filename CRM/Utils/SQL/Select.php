@@ -1,4 +1,29 @@
 <?php
+/*
+ +--------------------------------------------------------------------+
+ | CiviCRM version 5                                                  |
+ +--------------------------------------------------------------------+
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
+ +--------------------------------------------------------------------+
+ | This file is a part of CiviCRM.                                    |
+ |                                                                    |
+ | CiviCRM is free software; you can copy, modify, and distribute it  |
+ | under the terms of the GNU Affero General Public License           |
+ | Version 3, 19 November 2007 and the CiviCRM Licensing Exception.   |
+ |                                                                    |
+ | CiviCRM is distributed in the hope that it will be useful, but     |
+ | WITHOUT ANY WARRANTY; without even the implied warranty of         |
+ | MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.               |
+ | See the GNU Affero General Public License for more details.        |
+ |                                                                    |
+ | You should have received a copy of the GNU Affero General Public   |
+ | License and the CiviCRM Licensing Exception along                  |
+ | with this program; if not, contact CiviCRM LLC                     |
+ | at info[AT]civicrm[DOT]org. If you have questions about the        |
+ | GNU Affero General Public License or the licensing of CiviCRM,     |
+ | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
+ +--------------------------------------------------------------------+
+ */
 
 /**
  * Dear God Why Do I Have To Write This (Dumb SQL Builder)
@@ -22,7 +47,6 @@
  *  - Portable
  *    - No knowledge of the underlying SQL API (except for escaping -- CRM_Core_DAO::escapeString)
  *    - No knowledge of the underlying data model
- *    - Single file
  *  - SQL clauses correspond to PHP functions ($select->where("foo_id=123"))
  *  - Variable escaping is concise and controllable based on prefixes, eg
  *    - similar to Drupal's t()
@@ -52,40 +76,14 @@
  *     ->where('activity_type_id = #type')
  *     ->param('type', 234),
  * @endcode
+ *
+ * @package CRM
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
-class CRM_Utils_SQL_Select implements ArrayAccess {
+class CRM_Utils_SQL_Select extends CRM_Utils_SQL_BaseParamQuery {
 
-  /**
-   * Interpolate values as soon as they are passed in (where(), join(), etc).
-   *
-   * Default.
-   *
-   * Pro: Every clause has its own unique namespace for parameters.
-   * Con: Probably slower.
-   * Advice: Use this when aggregating SQL fragments from agents who
-   *   maintained by different parties.
-   */
-  const INTERPOLATE_INPUT = 'in';
-
-  /**
-   * Interpolate values when rendering SQL output (toSQL()).
-   *
-   * Pro: Probably faster.
-   * Con: Must maintain an aggregated list of all parameters.
-   * Advice: Use this when you have control over the entire query.
-   */
-  const INTERPOLATE_OUTPUT = 'out';
-
-  /**
-   * Determine mode automatically. When the first attempt is made
-   * to use input-interpolation (eg `where(..., array(...))`) or
-   * output-interpolation (eg `param(...)`), the mode will be
-   * set. Subsequent calls will be validated using the same mode.
-   */
-  const INTERPOLATE_AUTO = 'auto';
-
-  private $mode = NULL;
   private $insertInto = NULL;
+  private $insertVerb = 'INSERT INTO ';
   private $insertIntoFields = array();
   private $selects = array();
   private $from;
@@ -96,10 +94,7 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   private $orderBys = array();
   private $limit = NULL;
   private $offset = NULL;
-  private $params = array();
-
-  // Public to work-around PHP 5.3 limit.
-  public $strict = NULL;
+  private $distinct = NULL;
 
   /**
    * Create a new SELECT query.
@@ -145,13 +140,22 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   }
 
   /**
-   * @param CRM_Utils_SQL_Select $other
+   * Merge something or other.
+   *
+   * @param array|CRM_Utils_SQL_Select $other
    * @param array|NULL $parts
    *   ex: 'joins', 'wheres'
-   * @return $this
+   * @return CRM_Utils_SQL_Select
    */
   public function merge($other, $parts = NULL) {
     if ($other === NULL) {
+      return $this;
+    }
+
+    if (is_array($other)) {
+      foreach ($other as $fragment) {
+        $this->merge($fragment, $parts);
+      }
       return $this;
     }
 
@@ -221,7 +225,20 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   public function select($exprs, $args = NULL) {
     $exprs = (array) $exprs;
     foreach ($exprs as $expr) {
-      $this->selects[$expr] = $this->interpolate($expr, $args);
+      $this->selects[] = $this->interpolate($expr, $args);
+    }
+    return $this;
+  }
+
+  /**
+   * Return only distinct values
+   *
+   * @param bool $isDistinct allow DISTINCT select or not
+   * @return CRM_Utils_SQL_Select
+   */
+  public function distinct($isDistinct = TRUE) {
+    if ($isDistinct) {
+      $this->distinct = 'DISTINCT ';
     }
     return $this;
   }
@@ -252,7 +269,8 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   public function groupBy($exprs, $args = NULL) {
     $exprs = (array) $exprs;
     foreach ($exprs as $expr) {
-      $this->groupBys[$expr] = $this->interpolate($expr, $args);
+      $evaluatedExpr = $this->interpolate($expr, $args);
+      $this->groupBys[$evaluatedExpr] = $evaluatedExpr;
     }
     return $this;
   }
@@ -267,7 +285,8 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   public function having($exprs, $args = NULL) {
     $exprs = (array) $exprs;
     foreach ($exprs as $expr) {
-      $this->havings[$expr] = $this->interpolate($expr, $args);
+      $evaluatedExpr = $this->interpolate($expr, $args);
+      $this->havings[$evaluatedExpr] = $evaluatedExpr;
     }
     return $this;
   }
@@ -277,12 +296,15 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
    *
    * @param string|array $exprs list of SQL expressions
    * @param null|array $args use NULL to disable interpolation; use an array of variables to enable
-   * @return CRM_Utils_SQL_Select
+   * @param int $weight
+   * @return \CRM_Utils_SQL_Select
    */
-  public function orderBy($exprs, $args = NULL) {
+  public function orderBy($exprs, $args = NULL, $weight = 0) {
+    static $guid = 0;
     $exprs = (array) $exprs;
     foreach ($exprs as $expr) {
-      $this->orderBys[$expr] = $this->interpolate($expr, $args);
+      $evaluatedExpr = $this->interpolate($expr, $args);
+      $this->orderBys[$evaluatedExpr] = array('value' => $evaluatedExpr, 'weight' => $weight, 'guid' => $guid++);
     }
     return $this;
   }
@@ -293,25 +315,14 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
    * @param array|string $keys
    *   Key name, or an array of key-value pairs.
    * @param null|mixed $value
-   * @return $this
+   *   The new value of the parameter.
+   *   Values may be strings, ints, or arrays thereof -- provided that the
+   *   SQL query uses appropriate prefix (e.g. "@", "!", "#").
+   * @return \CRM_Utils_SQL_Select
    */
   public function param($keys, $value = NULL) {
-    if ($this->mode === self::INTERPOLATE_AUTO) {
-      $this->mode = self::INTERPOLATE_OUTPUT;
-    }
-    elseif ($this->mode !== self::INTERPOLATE_OUTPUT) {
-      throw new RuntimeException("Select::param() only makes sense when interpolating on output.");
-    }
-
-    if (is_array($keys)) {
-      foreach ($keys as $k => $v) {
-        $this->params[$k] = $v;
-      }
-    }
-    else {
-      $this->params[$keys] = $value;
-    }
-    return $this;
+    // Why bother with an override? To provide bett er type-hinting in `@return`.
+    return parent::param($keys, $value);
   }
 
   /**
@@ -342,7 +353,7 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
    *   The name of the other table (which receives new data).
    * @param array $fields
    *   The fields to fill in the other table (in order).
-   * @return $this
+   * @return CRM_Utils_SQL_Select
    * @see insertIntoField
    */
   public function insertInto($table, $fields = array()) {
@@ -352,9 +363,37 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   }
 
   /**
+   * Wrapper function of insertInto fn but sets insertVerb = "INSERT IGNORE INTO "
+   *
+   * @param string $table
+   *   The name of the other table (which receives new data).
    * @param array $fields
    *   The fields to fill in the other table (in order).
-   * @return $this
+   * @return CRM_Utils_SQL_Select
+   */
+  public function insertIgnoreInto($table, $fields = array()) {
+    $this->insertVerb = "INSERT IGNORE INTO ";
+    return $this->insertInto($table, $fields);
+  }
+
+  /**
+   * Wrapper function of insertInto fn but sets insertVerb = "REPLACE INTO "
+   *
+   * @param string $table
+   *   The name of the other table (which receives new data).
+   * @param array $fields
+   *   The fields to fill in the other table (in order).
+   */
+  public function replaceInto($table, $fields = array()) {
+    $this->insertVerb = "REPLACE INTO ";
+    return $this->insertInto($table, $fields);
+  }
+
+
+  /**
+   * @param array $fields
+   *   The fields to fill in the other table (in order).
+   * @return CRM_Utils_SQL_Select
    */
   public function insertIntoField($fields) {
     $fields = (array) $fields;
@@ -397,112 +436,19 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
   }
 
   /**
-   * Enable (or disable) strict mode.
-   *
-   * In strict mode, unknown variables will generate exceptions.
-   *
-   * @param bool $strict
-   * @return $this
-   */
-  public function strict($strict = TRUE) {
-    $this->strict = $strict;
-    return $this;
-  }
-
-  /**
-   * Given a string like "field_name = @value", replace "@value" with an escaped SQL string
-   *
-   * @param $expr SQL expression
-   * @param null|array $args a list of values to insert into the SQL expression; keys are prefix-coded:
-   *   prefix '@' => escape SQL
-   *   prefix '#' => literal number, skip escaping but do validation
-   *   prefix '!' => literal, skip escaping and validation
-   *   if a value is an array, then it will be imploded
-   *
-   * PHP NULL's will be treated as SQL NULL's. The PHP string "null" will be treated as a string.
-   *
-   * @throws CRM_Core_Exception
-   * @return string
-   *   SQL expression
-   */
-  public function interpolate($expr, $args, $activeMode = self::INTERPOLATE_INPUT) {
-    if ($args === NULL) {
-      return $expr;
-    }
-    else {
-      if ($this->mode === self::INTERPOLATE_AUTO) {
-        $this->mode = $activeMode;
-      }
-      elseif ($activeMode !== $this->mode) {
-        throw new RuntimeException("Cannot mix interpolation modes.");
-      }
-
-      $select = $this;
-      return preg_replace_callback('/([#!@])([a-zA-Z0-9_]+)/', function($m) use ($select, $args) {
-        if (isset($args[$m[2]])) {
-          $values = $args[$m[2]];
-        }
-        elseif (isset($args[$m[1] . $m[2]])) {
-          // Backward compat. Keys in $args look like "#myNumber" or "@myString".
-          $values = $args[$m[1] . $m[2]];
-        }
-        elseif ($select->strict) {
-          throw new CRM_Core_Exception('Cannot build query. Variable "' . $m[1] . $m[2] . '" is unknown.');
-        }
-        else {
-          // Unrecognized variables are ignored. Mitigate risk of accidents.
-          return $m[0];
-        }
-        $values = is_array($values) ? $values : array($values);
-        switch ($m[1]) {
-          case '@':
-            $parts = array_map(array($select, 'escapeString'), $values);
-            return implode(', ', $parts);
-
-          case '!':
-            return implode(', ', $values);
-
-          case '#':
-            foreach ($values as $valueKey => $value) {
-              if ($value === NULL) {
-                $values[$valueKey] = 'NULL';
-              }
-              elseif (!is_numeric($value)) {
-                //throw new API_Exception("Failed encoding non-numeric value" . var_export(array($m[0] => $values), TRUE));
-                throw new CRM_Core_Exception("Failed encoding non-numeric value (" . $m[0] . ")");
-              }
-            }
-            return implode(', ', $values);
-
-          default:
-            throw new CRM_Core_Exception("Unrecognized prefix");
-        }
-      }, $expr);
-    }
-  }
-
-  /**
-   * @param string|NULL $value
-   * @return string
-   *   SQL expression, e.g. "it\'s great" (with-quotes) or NULL (without-quotes)
-   */
-  public function escapeString($value) {
-    return $value === NULL ? 'NULL' : '"' . CRM_Core_DAO::escapeString($value) . '"';
-  }
-
-  /**
    * @return string
    *   SQL statement
    */
   public function toSQL() {
     $sql = '';
     if ($this->insertInto) {
-      $sql .= 'INSERT INTO ' . $this->insertInto . ' (';
+      $sql .= $this->insertVerb . $this->insertInto . ' (';
       $sql .= implode(', ', $this->insertIntoFields);
       $sql .= ")\n";
     }
+
     if ($this->selects) {
-      $sql .= 'SELECT ' . implode(', ', $this->selects) . "\n";
+      $sql .= 'SELECT ' . $this->distinct . implode(', ', $this->selects) . "\n";
     }
     else {
       $sql .= 'SELECT *' . "\n";
@@ -523,7 +469,10 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
       $sql .= 'HAVING (' . implode(') AND (', $this->havings) . ")\n";
     }
     if ($this->orderBys) {
-      $sql .= 'ORDER BY ' . implode(', ', $this->orderBys) . "\n";
+      $orderBys = CRM_Utils_Array::crmArraySortByField($this->orderBys,
+        array('weight', 'guid'));
+      $orderBys = CRM_Utils_Array::collect('value', $orderBys);
+      $sql .= 'ORDER BY ' . implode(', ', $orderBys) . "\n";
     }
     if ($this->limit !== NULL) {
       $sql .= 'LIMIT ' . $this->limit . "\n";
@@ -537,20 +486,36 @@ class CRM_Utils_SQL_Select implements ArrayAccess {
     return $sql;
   }
 
-  public function offsetExists($offset) {
-    return isset($this->params[$offset]);
-  }
+  /**
+   * Execute the query.
+   *
+   * To examine the results, use a function like `fetch()`, `fetchAll()`,
+   * `fetchValue()`, or `fetchMap()`.
+   *
+   * @param string|NULL $daoName
+   *   The return object should be an instance of this class.
+   *   Ex: 'CRM_Contact_BAO_Contact'.
+   * @param bool $i18nRewrite
+   *   If the system has multilingual features, should the field/table
+   *   names be rewritten?
+   * @return CRM_Core_DAO
+   * @see CRM_Core_DAO::executeQuery
+   * @see CRM_Core_I18n_Schema::rewriteQuery
+   */
+  public function execute($daoName = NULL, $i18nRewrite = TRUE) {
+    // Don't pass through $params. toSQL() handles interpolation.
+    $params = array();
 
-  public function offsetGet($offset) {
-    return $this->params[$offset];
-  }
+    // Don't pass through $abort, $trapException. Just use straight-up exceptions.
+    $abort = TRUE;
+    $trapException = FALSE;
+    $errorScope = CRM_Core_TemporaryErrorScope::useException();
 
-  public function offsetSet($offset, $value) {
-    $this->param($offset, $value);
-  }
+    // Don't pass through freeDAO. You can do it yourself.
+    $freeDAO = FALSE;
 
-  public function offsetUnset($offset) {
-    unset($this->params[$offset]);
+    return CRM_Core_DAO::executeQuery($this->toSQL(), $params, $abort, $daoName,
+      $freeDAO, $i18nRewrite, $trapException);
   }
 
 }

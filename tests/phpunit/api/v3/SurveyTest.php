@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,17 +25,12 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
-
 /**
  *  Test APIv3 civicrm_survey_* functions
  *
  * @package CiviCRM_APIv3
  * @subpackage API_Campaign
  */
-
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * All API should contain at minimum a success test for each
@@ -47,6 +42,7 @@ require_once 'CiviTest/CiviUnitTestCase.php';
  *
  * @author eileen
  *
+ * @group headless
  */
 class api_v3_SurveyTest extends CiviUnitTestCase {
   protected $params;

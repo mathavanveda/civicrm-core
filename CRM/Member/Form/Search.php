@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,11 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- */
-
-/**
- * Files required
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -52,14 +48,14 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
   /**
    * Are we restricting ourselves to a single contact.
    *
-   * @var boolean
+   * @var bool
    */
   protected $_single = FALSE;
 
   /**
    * Are we restricting ourselves to a single contact.
    *
-   * @var boolean
+   * @var bool
    */
   protected $_limit = NULL;
 
@@ -88,17 +84,7 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
 
     $this->defaults = array();
 
-    /*
-     * we allow the controller to set force/reset externally, useful when we are being
-     * driven by the wizard framework
-     */
-
-    $this->_reset = CRM_Utils_Request::retrieve('reset', 'Boolean', CRM_Core_DAO::$_nullObject);
-    $this->_force = CRM_Utils_Request::retrieve('force', 'Boolean', $this, FALSE);
-    $this->_limit = CRM_Utils_Request::retrieve('limit', 'Positive', $this);
-    $this->_context = CRM_Utils_Request::retrieve('context', 'String', $this, FALSE, 'search');
-
-    $this->assign("context", $this->_context);
+    $this->loadStandardSearchOptionsFromUrl();
 
     // get user submitted values
     // get it from controller only if form has been submitted, else preProcess has set this
@@ -157,7 +143,7 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
    */
   public function buildQuickForm() {
     parent::buildQuickForm();
-    $this->addElement('text', 'sort_name', ts('Member Name or Email'), CRM_Core_DAO::getAttribute('CRM_Contact_DAO_Contact', 'sort_name'));
+    $this->addContactSearchFields();
 
     CRM_Member_BAO_Query::buildSearchForm($this);
 
@@ -167,11 +153,61 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
         $this->addRowSelectors($rows);
       }
 
-      $permission = CRM_Core_Permission::getPermission();
-
-      $this->addTaskMenu(CRM_Member_Task::permissionedTaskTitles($permission));
+      $this->addTaskMenu(CRM_Member_Task::permissionedTaskTitles(CRM_Core_Permission::getPermission()));
     }
 
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is on.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithEmail() {
+    return ts('Member Name or Email');
+  }
+
+  /**
+   * Get the label for the sortName field if email searching is off.
+   *
+   * (email searching is a setting under search preferences).
+   *
+   * @return string
+   */
+  protected function getSortNameLabelWithOutEmail() {
+    return ts('Member Name');
+  }
+
+  /**
+   * Get the label for the tag field.
+   *
+   * We do this in a function so the 'ts' wraps the whole string to allow
+   * better translation.
+   *
+   * @return string
+   */
+  protected function getTagLabel() {
+    return ts('Member Tag(s)');
+  }
+
+  /**
+   * Get the label for the group field.
+   *
+   * @return string
+   */
+  protected function getGroupLabel() {
+    return ts('Member Group(s)');
+  }
+
+  /**
+   * Get the label for the group field.
+   *
+   * @return string
+   */
+  protected function getContactTypeLabel() {
+    return ts('Member Contact Type');
   }
 
   /**
@@ -227,7 +263,7 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
       );
     }
 
-    $this->_queryParams = CRM_Contact_BAO_Query::convertFormValues($this->_formValues);
+    $this->_queryParams = CRM_Contact_BAO_Query::convertFormValues($this->_formValues, 0, FALSE, NULL, $this->entityReferenceFields);
 
     $selector = new CRM_Member_Selector_Search($this->_queryParams,
       $this->_action,
@@ -278,26 +314,20 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
       return;
     }
 
-    $status = CRM_Utils_Request::retrieve('status', 'String',
-      CRM_Core_DAO::$_nullObject
-    );
+    $status = CRM_Utils_Request::retrieve('status', 'String');
     if ($status) {
       $status = explode(',', $status);
-      $this->_formValues['status_id'] = $this->_defaults['status_id'] = (array) $status;
+      $this->_formValues['membership_status_id'] = $this->_defaults['membership_status_id'] = (array) $status;
     }
 
-    $membershipType = CRM_Utils_Request::retrieve('type', 'String',
-      CRM_Core_DAO::$_nullObject
-    );
+    $membershipType = CRM_Utils_Request::retrieve('type', 'String');
 
     if ($membershipType) {
       $this->_formValues['membership_type_id'] = array($membershipType);
       $this->_defaults['membership_type_id'] = array($membershipType);
     }
 
-    $cid = CRM_Utils_Request::retrieve('cid', 'Positive',
-      CRM_Core_DAO::$_nullObject
-    );
+    $cid = CRM_Utils_Request::retrieve('cid', 'Positive');
 
     if ($cid) {
       $cid = CRM_Utils_Type::escape($cid, 'Integer');
@@ -312,32 +342,24 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
       }
     }
 
-    $fromDate = CRM_Utils_Request::retrieve('start', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $fromDate = CRM_Utils_Request::retrieve('start', 'Date');
     if ($fromDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($fromDate);
       $this->_formValues['member_start_date_low'] = $this->_defaults['member_start_date_low'] = $date;
     }
 
-    $toDate = CRM_Utils_Request::retrieve('end', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $toDate = CRM_Utils_Request::retrieve('end', 'Date');
     if ($toDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($toDate);
       $this->_formValues['member_start_date_high'] = $this->_defaults['member_start_date_high'] = $date;
     }
-    $joinDate = CRM_Utils_Request::retrieve('join', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $joinDate = CRM_Utils_Request::retrieve('join', 'Date');
     if ($joinDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($joinDate);
       $this->_formValues['member_join_date_low'] = $this->_defaults['member_join_date_low'] = $date;
     }
 
-    $joinEndDate = CRM_Utils_Request::retrieve('joinEnd', 'Date',
-      CRM_Core_DAO::$_nullObject
-    );
+    $joinEndDate = CRM_Utils_Request::retrieve('joinEnd', 'Date');
     if ($joinEndDate) {
       list($date) = CRM_Utils_Date::setDateDefaults($joinEndDate);
       $this->_formValues['member_join_date_high'] = $this->_defaults['member_join_date_high'] = $date;
@@ -348,9 +370,9 @@ class CRM_Member_Form_Search extends CRM_Core_Form_Search {
     );
 
     //LCD also allow restrictions to membership owner via GET
-    $owner = CRM_Utils_Request::retrieve('owner', 'String', CRM_Core_DAO::$_nullObject);
-    if ($owner) {
-      $this->_formValues['member_is_primary'] = $this->_defaults['member_is_primary'] = 2;
+    $owner = CRM_Utils_Request::retrieve('owner', 'String');
+    if (in_array($owner, array('0', '1'))) {
+      $this->_formValues['member_is_primary'] = $this->_defaults['member_is_primary'] = $owner;
     }
   }
 

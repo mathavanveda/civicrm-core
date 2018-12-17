@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -42,6 +42,8 @@ class CRM_Admin_Form_Setting_Date extends CRM_Admin_Form_Setting {
     'dateformatPartial' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
     'dateformatYear' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
     'dateformatTime' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
+    'dateformatFinancialBatch' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
+    'dateformatshortdate' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
     'weekBegins' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
     'dateInputFormat' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,
     'timeInputFormat' => CRM_Core_BAO_Setting::LOCALIZATION_PREFERENCES_NAME,

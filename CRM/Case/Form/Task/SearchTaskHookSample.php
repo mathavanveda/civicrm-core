@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -44,7 +44,7 @@ class CRM_Case_Form_Task_SearchTaskHookSample extends CRM_Case_Form_Task {
     parent::preProcess();
     $rows = array();
     // display name and email of all contact ids
-    $caseIDs = implode(',', $this->_caseIds);
+    $caseIDs = implode(',', $this->_entityIds);
     $statusId = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_OptionGroup', 'case_status', 'id', 'name');
     $query = "
 SELECT ct.display_name as display_name,
@@ -57,7 +57,7 @@ INNER JOIN civicrm_contact ct ON ( cc.contact_id = ct.id)
 LEFT  JOIN civicrm_option_value ov ON (cs.status_id = ov.value AND ov.option_group_id = {$statusId} )
 WHERE cs.id IN ( {$caseIDs} )";
 
-    $dao = CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+    $dao = CRM_Core_DAO::executeQuery($query);
     while ($dao->fetch()) {
       $rows[] = array(
         'display_name' => $dao->display_name,

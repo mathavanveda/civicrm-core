@@ -1,10 +1,12 @@
-{contact.email_greeting},
-
+{assign var="greeting" value="{contact.email_greeting}"}{if $greeting}{$greeting},{/if}
 {if $event.confirm_email_text AND (not $isOnWaitlist AND not $isRequireApproval)}
 {$event.confirm_email_text}
 
 {else}
-Thank you for your participation.  This letter is a confirmation that your registration has been received and your status has been updated to {if $participant_status}{$participant_status}{else}{if $isOnWaitlist}waitlisted{else}registered{/if}{/if}.
+  {ts}Thank you for your participation.{/ts}
+  {if $participant_status}{ts 1=$participant_status}This letter is a confirmation that your registration has been received and your status has been updated to %1.{/ts}
+  {else}{if $isOnWaitlist}{ts}This letter is a confirmation that your registration has been received and your status has been updated to waitlisted.{/ts}{else}{ts}This letter is a confirmation that your registration has been received and your status has been updated to registered.{/ts}{/if}
+  {/if}.
 
 {/if}
 
@@ -73,19 +75,7 @@ Thank you for your participation.  This letter is a confirmation that your regis
 {/if}
 
 {if $isShowLocation}
-{if $location.address.1.name}
-
-{$location.address.1.name}
-{/if}
-{if $location.address.1.street_address}{$location.address.1.street_address}
-{/if}
-{if $location.address.1.supplemental_address_1}{$location.address.1.supplemental_address_1}
-{/if}
-{if $location.address.1.supplemental_address_2}{$location.address.1.supplemental_address_2}
-{/if}
-{if $location.address.1.city}{$location.address.1.city}, {$location.address.1.state_province} {$location.address.1.postal_code}{if $location.address.1.postal_code_suffix} - {$location.address.1.postal_code_suffix}{/if}
-{/if}
-
+{$location.address.1.display|strip_tags:false}
 {/if}{*End of isShowLocation condition*}
 
 {if $location.phone.1.phone || $location.email.1.email}
@@ -110,7 +100,7 @@ Thank you for your participation.  This letter is a confirmation that your regis
 {if $payer.name}
 You were registered by: {$payer.name}
 {/if}
-{if $event.is_monetary} {* This section for Paid events only.*}
+{if $event.is_monetary and not $isRequireApproval} {* This section for Paid events only.*}
 
 ==========================================================={if $pricesetFieldsCount }===================={/if}
 
@@ -201,8 +191,8 @@ You were registered by: {$payer.name}
 {if $receive_date}
 {ts}Transaction Date{/ts}: {$receive_date|crmDate}
 {/if}
-{if $contributionTypeName}
-{ts}Financial Type{/ts}: {$contributionTypeName}
+{if $financialTypeName}
+{ts}Financial Type{/ts}: {$financialTypeName}
 {/if}
 {if $trxn_id}
 {ts}Transaction #{/ts}: {$trxn_id}
@@ -302,4 +292,10 @@ You were registered by: {$payer.name}
 {$n}: {$v}
 {/foreach}
 {/foreach}
+{/if}
+
+{if $event.allow_selfcancelxfer }
+{ts 1=$event.selfcancelxfer_time}You may transfer your registration to another participant or cancel your registration up to %1 hours before the event.{/ts} {if $totalAmount}{ts}Cancellations are not refundable.{/ts}{/if}
+   {capture assign=selfService}{crmURL p='civicrm/event/selfsvcupdate' q="reset=1&pid=`$participant.id`&{contact.checksum}"  h=0 a=1 fe=1}{/capture}
+{ts}Transfer or cancel your registration:{/ts} {$selfService}
 {/if}

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -48,27 +48,36 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
    * Build the form object.
    */
   public function buildQuickForm() {
+    self::buildLabelForm($this);
+  }
+
+  /**
+   * Common Function to build Mailing Label Form.
+   *
+   * @param CRM_Core_Form $form
+   */
+  public static function buildLabelForm($form) {
     CRM_Utils_System::setTitle(ts('Make Mailing Labels'));
 
     //add select for label
     $label = CRM_Core_BAO_LabelFormat::getList(TRUE);
 
-    $this->add('select', 'label_name', ts('Select Label'), array('' => ts('- select label -')) + $label, TRUE);
+    $form->add('select', 'label_name', ts('Select Label'), array('' => ts('- select label -')) + $label, TRUE);
 
     // add select for Location Type
-    $this->addElement('select', 'location_type_id', ts('Select Location'),
+    $form->addElement('select', 'location_type_id', ts('Select Location'),
       array(
         '' => ts('Primary'),
       ) + CRM_Core_PseudoConstant::get('CRM_Core_DAO_Address', 'location_type_id'), TRUE
     );
 
     // checkbox for SKIP contacts with Do Not Mail privacy option
-    $this->addElement('checkbox', 'do_not_mail', ts('Do not print labels for contacts with "Do Not Mail" privacy option checked'));
+    $form->addElement('checkbox', 'do_not_mail', ts('Do not print labels for contacts with "Do Not Mail" privacy option checked'));
 
-    $this->add('checkbox', 'merge_same_address', ts('Merge labels for contacts with the same address'), NULL);
-    $this->add('checkbox', 'merge_same_household', ts('Merge labels for contacts belonging to the same household'), NULL);
+    $form->add('checkbox', 'merge_same_address', ts('Merge labels for contacts with the same address'), NULL);
+    $form->add('checkbox', 'merge_same_household', ts('Merge labels for contacts belonging to the same household'), NULL);
 
-    $this->addButtons(array(
+    $form->addButtons(array(
       array(
         'type' => 'submit',
         'name' => ts('Make Mailing Labels'),
@@ -104,9 +113,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
     $config = CRM_Core_Config::singleton();
     $locName = NULL;
     //get the address format sequence from the config file
-    $mailingFormat = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
-      'mailing_format'
-    );
+    $mailingFormat = Civi::settings()->get('mailing_format');
 
     $sequence = CRM_Utils_Address::sequence($mailingFormat);
 
@@ -120,9 +127,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
 
     //build the returnproperties
     $returnProperties = array('display_name' => 1, 'contact_type' => 1, 'prefix_id' => 1);
-    $mailingFormat = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::SYSTEM_PREFERENCES_NAME,
-      'mailing_format'
-    );
+    $mailingFormat = Civi::settings()->get('mailing_format');
 
     $mailingFormatProperties = array();
     if ($mailingFormat) {
@@ -173,7 +178,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
       $locName = $locType[$fv['location_type_id']];
       $location = array('location' => array("{$locName}" => $address));
       $returnProperties = array_merge($returnProperties, $location);
-      $params[] = array('location_type', '=', array($fv['location_type_id'] => 1), 0, 0);
+      $params[] = array('location_type', '=', array(1 => $fv['location_type_id']), 0, 0);
     }
     else {
       $returnProperties = array_merge($returnProperties, $address);
@@ -233,7 +238,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
     foreach ($this->_contactIds as $value) {
       foreach ($custom as $cfID) {
         if (isset($details[0][$value]["custom_{$cfID}"])) {
-          $details[0][$value]["custom_{$cfID}"] = CRM_Core_BAO_CustomField::getDisplayValue($details[0][$value]["custom_{$cfID}"], $cfID, $details[1]);
+          $details[0][$value]["custom_{$cfID}"] = CRM_Core_BAO_CustomField::displayValue($details[0][$value]["custom_{$cfID}"], $cfID);
         }
       }
       $contact = CRM_Utils_Array::value($value, $details['0']);
@@ -328,7 +333,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
         $row['preferred_communication_method'] = implode(', ', $temp);
       }
       $row['id'] = $id;
-      $formatted = CRM_Utils_Address::format($row, 'mailing_format', FALSE, TRUE, $individualFormat, $tokenFields);
+      $formatted = CRM_Utils_Address::format($row, 'mailing_format', FALSE, TRUE, $tokenFields);
 
       // CRM-2211: UFPDF doesn't have bidi support; use the PECL fribidi package to fix it.
       // On Ubuntu (possibly Debian?) be aware of http://pecl.php.net/bugs/bug.php?id=12366
@@ -346,7 +351,7 @@ class CRM_Contact_Form_Task_Label extends CRM_Contact_Form_Task {
 
     //call function to create labels
     self::createLabel($rows, $fv['label_name']);
-    CRM_Utils_System::civiExit(1);
+    CRM_Utils_System::civiExit();
   }
 
   /**

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Mailing_BAO_Query {
 
@@ -42,7 +42,7 @@ class CRM_Mailing_BAO_Query {
       self::$_mailingFields = array();
       $_mailingFields['mailing_id'] = array(
         'name' => 'mailing_id',
-        'title' => 'Mailing ID',
+        'title' => ts('Mailing ID'),
         'where' => 'civicrm_mailing.id',
       );
     }
@@ -189,6 +189,10 @@ class CRM_Mailing_BAO_Query {
       case 'recipient_email':
         $from = " $side JOIN civicrm_email recipient_email ON recipient_email.id = civicrm_mailing_recipients.email_id";
         break;
+
+      case 'civicrm_campaign':
+        $from = " $side JOIN civicrm_campaign ON civicrm_campaign.id = civicrm_mailing.campaign_id";
+        break;
     }
 
     return $from;
@@ -233,9 +237,6 @@ class CRM_Mailing_BAO_Query {
   public static function whereClauseSingle(&$values, &$query) {
     list($name, $op, $value, $grouping, $wildcard) = $values;
 
-    $fields = array();
-    $fields = self::getFields();
-
     switch ($name) {
       case 'mailing_id':
         $selectedMailings = array_flip($value);
@@ -255,12 +256,13 @@ class CRM_Mailing_BAO_Query {
         return;
 
       case 'mailing_name':
-        $value = strtolower(addslashes($value));
+        $value = addslashes($value);
         if ($wildcard) {
           $value = "%$value%";
           $op = 'LIKE';
         }
-        $query->_where[$grouping][] = "LOWER(civicrm_mailing.name) $op '$value'";
+
+        $query->_where[$grouping][] = "civicrm_mailing.name $op '$value'";
         $query->_qill[$grouping][] = "Mailing Namename $op \"$value\"";
         $query->_tables['civicrm_mailing'] = $query->_whereTables['civicrm_mailing'] = 1;
         $query->_tables['civicrm_mailing_recipients'] = $query->_whereTables['civicrm_mailing_recipients'] = 1;
@@ -381,7 +383,7 @@ class CRM_Mailing_BAO_Query {
 
       case 'mailing_campaign_id':
         $name = 'campaign_id';
-        CRM_Contact_BAO_Query::buildClause("civicrm_mailing.$name", $op, $value, 'Integer');
+        $query->_where[$grouping][] = CRM_Contact_BAO_Query::buildClause("civicrm_mailing.$name", $op, $value, 'Integer');
         list($op, $value) = CRM_Contact_BAO_Query::buildQillForFieldValue('CRM_Mailing_DAO_Mailing', $name, $value, $op);
         $query->_qill[$grouping][] = ts('Campaign %1 %2', array(1 => $op, 2 => $value));
         $query->_tables['civicrm_mailing'] = $query->_whereTables['civicrm_mailing'] = 1;
@@ -407,6 +409,8 @@ class CRM_Mailing_BAO_Query {
     }
 
     CRM_Core_Form_Date::buildDateRange($form, 'mailing_date', 1, '_low', '_high', ts('From'), FALSE);
+    $form->addElement('hidden', 'mailing_date_range_error');
+    $form->addFormRule(array('CRM_Mailing_BAO_Query', 'formRule'), $form);
 
     $mailingJobStatuses = array(
       '' => ts('- select -'),
@@ -492,6 +496,27 @@ class CRM_Mailing_BAO_Query {
     $query->_tables['civicrm_mailing_event_queue'] = $query->_whereTables['civicrm_mailing_event_queue'] = 1;
     $query->_tables['civicrm_mailing_recipients'] = $query->_whereTables['civicrm_mailing_recipients'] = 1;
     $query->_tables[$tableName] = $query->_whereTables[$tableName] = 1;
+  }
+
+  /**
+   * Check if the values in the date range are in correct chronological order.
+   *
+   * @param array $fields
+   * @param array $files
+   * @param CRM_Core_Form $form
+   *
+   * @return bool|array
+   */
+  public static function formRule($fields, $files, $form) {
+    $errors = array();
+
+    if (empty($fields['mailing_date_high']) || empty($fields['mailing_date_low'])) {
+      return TRUE;
+    }
+
+    CRM_Utils_Rule::validDateRange($fields, 'mailing_date', $errors, ts('Mailing Date'));
+
+    return empty($errors) ? TRUE : $errors;
   }
 
 }

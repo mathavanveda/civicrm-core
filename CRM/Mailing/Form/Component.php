@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -59,33 +59,33 @@ class CRM_Mailing_Form_Component extends CRM_Core_Form {
    * Build the form object.
    */
   public function buildQuickForm() {
-    $this->applyFilter('__ALL__', 'trim');
+    $this->applyFilter(array('name', 'subject', 'body_html'), 'trim');
 
     $this->add('text', 'name', ts('Name'),
-      CRM_Core_DAO::getAttribute('CRM_Mailing_DAO_Component', 'name'), TRUE
+      CRM_Core_DAO::getAttribute('CRM_Mailing_BAO_MailingComponent', 'name'), TRUE
     );
     $this->addRule('name', ts('Name already exists in Database.'), 'objectExists', array(
-        'CRM_Mailing_DAO_Component',
+        'CRM_Mailing_BAO_MailingComponent',
         $this->_id,
       ));
 
     $this->add('select', 'component_type', ts('Component Type'), CRM_Core_SelectValues::mailingComponents());
 
     $this->add('text', 'subject', ts('Subject'),
-      CRM_Core_DAO::getAttribute('CRM_Mailing_DAO_Component', 'subject'),
+      CRM_Core_DAO::getAttribute('CRM_Mailing_BAO_MailingComponent', 'subject'),
       TRUE
     );
     $this->add('textarea', 'body_text', ts('Body - TEXT Format'),
-      CRM_Core_DAO::getAttribute('CRM_Mailing_DAO_Component', 'body_text'),
-      TRUE
+      CRM_Core_DAO::getAttribute('CRM_Mailing_BAO_MailingComponent', 'body_text')
     );
     $this->add('textarea', 'body_html', ts('Body - HTML Format'),
-      CRM_Core_DAO::getAttribute('CRM_Mailing_DAO_Component', 'body_html')
+      CRM_Core_DAO::getAttribute('CRM_Mailing_BAO_MailingComponent', 'body_html')
     );
 
     $this->addYesNo('is_default', ts('Default?'));
     $this->addYesNo('is_active', ts('Enabled?'));
 
+    $this->addFormRule(array('CRM_Mailing_Form_Component', 'formRule'));
     $this->addFormRule(array('CRM_Mailing_Form_Component', 'dataRule'));
 
     $this->addButtons(array(
@@ -132,7 +132,7 @@ class CRM_Mailing_Form_Component extends CRM_Core_Form {
       $params['id'] = $this->_id;
     }
 
-    $component = CRM_Mailing_BAO_Component::add($params);
+    $component = CRM_Mailing_BAO_MailingComponent::add($params);
     CRM_Core_Session::setStatus(ts('The mailing component \'%1\' has been saved.', array(
         1 => $component->name,
       )
@@ -181,7 +181,26 @@ class CRM_Mailing_Form_Component extends CRM_Core_Form {
           )) . '<ul>' . implode('', $dataErrors) . '</ul><br /><a href="' . CRM_Utils_System::docURL2('Tokens', TRUE, NULL, NULL, NULL, "wiki") . '">' . ts('More information on tokens...') . '</a>';
       }
     }
+    return empty($errors) ? TRUE : $errors;
+  }
 
+  /**
+   * Validates that either body text or body html is required.
+   * @param array $params
+   *   (ref.) an assoc array of name/value pairs.
+   *
+   * @param $files
+   * @param $options
+   *
+   * @return bool|array
+   *   mixed true or array of errors
+   */
+  public static function formRule($params, $files, $options) {
+    $errors = array();
+    if (empty($params['body_text']) && empty($params['body_html'])) {
+      $errors['body_text'] = ts("Please provide either HTML or TEXT format for the Body.");
+      $errors['body_html'] = ts("Please provide either HTML or TEXT format for the Body.");
+    }
     return empty($errors) ? TRUE : $errors;
   }
 

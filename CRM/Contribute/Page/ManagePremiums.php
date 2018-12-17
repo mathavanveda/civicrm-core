@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -52,7 +52,7 @@ class CRM_Contribute_Page_ManagePremiums extends CRM_Core_Page_Basic {
    *   Classname of BAO.
    */
   public function getBAOName() {
-    return 'CRM_Contribute_BAO_ManagePremiums';
+    return 'CRM_Contribute_BAO_Product';
   }
 
   /**
@@ -105,28 +105,17 @@ class CRM_Contribute_Page_ManagePremiums extends CRM_Core_Page_Basic {
    * Finally it calls the parent's run method.
    */
   public function run() {
-
-    // get the requested action
-    $action = CRM_Utils_Request::retrieve('action', 'String',
-      // default to 'browse'
-      $this, FALSE, 'browse'
-    );
-
-    // assign vars to templates
-    $this->assign('action', $action);
-    $id = CRM_Utils_Request::retrieve('id', 'Positive',
-      $this, FALSE, 0
-    );
+    $id = $this->getIdAndAction();
 
     // what action to take ?
-    if ($action & (CRM_Core_Action::UPDATE | CRM_Core_Action::ADD | CRM_Core_Action::PREVIEW)) {
-      $this->edit($action, $id, TRUE);
+    if (!($this->_action & CRM_Core_Action::BROWSE)) {
+      $this->edit($this->_action, $id, TRUE);
     }
     // finally browse the custom groups
     $this->browse();
 
     // parent run
-    return parent::run();
+    return CRM_Core_Page::run();
   }
 
   /**
@@ -161,10 +150,9 @@ class CRM_Contribute_Page_ManagePremiums extends CRM_Core_Page_Basic {
         'Premium',
         $dao->id
       );
-      //Financial Type
+      // Financial Type
       if (!empty($dao->financial_type_id)) {
-        require_once 'CRM/Core/DAO.php';
-        $premiums[$dao->id]['financial_type_id'] = CRM_Core_DAO::getFieldValue('CRM_Financial_DAO_FinancialType', $dao->financial_type_id, 'name');
+        $premiums[$dao->id]['financial_type'] = CRM_Core_PseudoConstant::getLabel('CRM_Financial_BAO_FinancialType', 'financial_type', $dao->financial_type_id);
       }
     }
     $this->assign('rows', $premiums);

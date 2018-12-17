@@ -61,16 +61,15 @@
       <condition>parent_id IS NOT NULL</condition>
     </pseudoconstant>
     <html>
-      <type>Multi-Select</type>
+      <type>Select</type>
+      <multiple>1</multiple>
     </html>
+    <serialize>SEPARATOR_BOOKEND</serialize>
     <add>1.5</add>
   </field>
   <index>
     <name>index_contact_sub_type</name>
     <fieldName>contact_sub_type</fieldName>
-    <html>
-      <type>Multi-Select</type>
-    </html>
     <add>2.1</add>
   </index>
   <field>
@@ -266,8 +265,7 @@
   </field>
   <field>
     <name>image_URL</name>
-    <type>varchar</type>
-    <length>255</length>
+    <type>text</type>
     <import>true</import>
     <comment>optional URL for preferred image (photo, logo, etc.) to display for this contact.</comment>
     <add>1.1</add>
@@ -291,7 +289,9 @@
     </pseudoconstant>
     <html>
       <type>Select</type>
+      <multiple>1</multiple>
     </html>
+    <serialize>SEPARATOR_BOOKEND</serialize>
   </field>
   <index>
     <name>index_preferred_communication_method</name>
@@ -479,6 +479,9 @@
     <type>varchar</type>
     <length>64</length>
     <import>true</import>
+    <html>
+      <type>Text</type>
+    </html>
     <headerPattern>/^title/i</headerPattern>
     <comment>Formal (academic or similar) title in front of name. (Prof., Dr. etc.)</comment>
     <add>4.5</add>
@@ -532,8 +535,12 @@
     <name>email_greeting_id</name>
     <type>int unsigned</type>
     <title>Email Greeting ID</title>
+    <export>true</export>
     <comment>FK to civicrm_option_value.id, that has to be valid registered Email Greeting.</comment>
     <add>3.0</add>
+    <pseudoconstant>
+      <optionGroupName>email_greeting</optionGroupName>
+    </pseudoconstant>
   </field>
   <field>
     <name>email_greeting_custom</name>
@@ -562,11 +569,15 @@
     <name>postal_greeting_id</name>
     <type>int unsigned</type>
     <title>Postal Greeting ID</title>
+    <export>true</export>
     <comment>FK to civicrm_option_value.id, that has to be valid registered Postal Greeting.</comment>
     <add>3.0</add>
     <html>
       <type>Text</type>
     </html>
+    <pseudoconstant>
+      <optionGroupName>postal_greeting</optionGroupName>
+    </pseudoconstant>
   </field>
   <field>
     <name>postal_greeting_custom</name>
@@ -597,6 +608,10 @@
     <title>Addressee ID</title>
     <comment>FK to civicrm_option_value.id, that has to be valid registered Addressee.</comment>
     <add>3.0</add>
+    <export>true</export>
+    <pseudoconstant>
+      <optionGroupName>addressee</optionGroupName>
+    </pseudoconstant>
   </field>
   <field>
     <name>addressee_custom</name>
@@ -668,6 +683,7 @@
     <add>1.1</add>
     <html>
       <type>Select Date</type>
+      <formatType>birth</formatType>
     </html>
   </field>
   <field>
@@ -683,6 +699,11 @@
       <type>CheckBox</type>
     </html>
   </field>
+  <index>
+    <name>index_is_deceased</name>
+    <fieldName>is_deceased</fieldName>
+    <add>4.7</add>
+  </index>
   <field>
     <name>deceased_date</name>
     <type>date</type>
@@ -693,6 +714,7 @@
     <add>1.5</add>
     <html>
       <type>Select Date</type>
+      <formatType>birth</formatType>
     </html>
   </field>
   <field>
@@ -805,7 +827,7 @@
     <export>true</export>
     <add>2.1</add>
     <html>
-      <type>Autocomplete-Select</type>
+      <type>EntityRef</type>
     </html>
   </field>
   <foreignKey>

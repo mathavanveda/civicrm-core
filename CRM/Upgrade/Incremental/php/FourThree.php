@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -36,12 +36,12 @@ class CRM_Upgrade_Incremental_php_FourThree extends CRM_Upgrade_Incremental_Base
    * Note: This function is called iteratively for each upcoming
    * revision to the database.
    *
-   * @param $preUpgradeMessage
+   * @param string $preUpgradeMessage
    * @param string $rev
    *   a version number, e.g. '4.3.alpha1', '4.3.beta3', '4.3.0'.
    * @param null $currentVer
    *
-   * @return void|bool
+   * @return bool
    */
   public function setPreUpgradeMessage(&$preUpgradeMessage, $rev, $currentVer = NULL) {
     if ($rev == '4.3.beta3') {
@@ -255,7 +255,7 @@ WHERE ccp.financial_type_id IS NULL and cp.cost > 0');
     $maxId = CRM_Core_DAO::singleValueQuery('SELECT coalesce(max(id),0) FROM civicrm_contact');
     for ($startId = $minId; $startId <= $maxId; $startId += self::BATCH_SIZE) {
       $endId = $startId + self::BATCH_SIZE - 1;
-      $title = ts('Upgrade timestamps (%1 => %2)', array(1 => $startId, 2 => $endId));
+      $title = "Upgrade timestamps ($startId => $endId)";
       $this->addTask($title, 'convertTimestamps', $startId, $endId);
     }
 
@@ -277,7 +277,7 @@ WHERE ccp.financial_type_id IS NULL and cp.cost > 0');
    */
   public function upgrade_4_3_alpha2($rev) {
     //CRM-11847
-    $isColumnPresent = CRM_Core_DAO::checkFieldExists('civicrm_dedupe_rule_group', 'is_default');
+    $isColumnPresent = CRM_Core_BAO_SchemaHandler::checkIfFieldExists('civicrm_dedupe_rule_group', 'is_default');
     if ($isColumnPresent) {
       CRM_Core_DAO::executeQuery('ALTER TABLE civicrm_dedupe_rule_group DROP COLUMN is_default');
     }
@@ -300,7 +300,7 @@ WHERE ccp.financial_type_id IS NULL and cp.cost > 0');
     // CRM-12002
     if (
       CRM_Core_DAO::checkTableExists('log_civicrm_line_item') &&
-      CRM_Core_DAO::checkFieldExists('log_civicrm_line_item', 'label')
+      CRM_Core_BAO_SchemaHandler::checkIfFieldExists('log_civicrm_line_item', 'label')
     ) {
       CRM_Core_DAO::executeQuery('ALTER TABLE `log_civicrm_line_item` CHANGE `label` `label` VARCHAR(255) NULL DEFAULT NULL');
     }
@@ -335,7 +335,7 @@ WHERE ccp.financial_type_id IS NULL and cp.cost > 0');
     // CRM-12205
     if (
       CRM_Core_DAO::checkTableExists('log_civicrm_financial_trxn') &&
-      CRM_Core_DAO::checkFieldExists('log_civicrm_financial_trxn', 'trxn_id')
+      CRM_Core_BAO_SchemaHandler::checkIfFieldExists('log_civicrm_financial_trxn', 'trxn_id')
     ) {
       CRM_Core_DAO::executeQuery('ALTER TABLE `log_civicrm_financial_trxn` CHANGE `trxn_id` `trxn_id` VARCHAR(255) NULL DEFAULT NULL');
     }
@@ -343,7 +343,7 @@ WHERE ccp.financial_type_id IS NULL and cp.cost > 0');
     // CRM-12367 - add this column to single lingual sites only
     $upgrade = new CRM_Upgrade_Form();
     if (!$upgrade->multilingual &&
-      !CRM_Core_DAO::checkFieldExists('civicrm_premiums', 'premiums_nothankyou_label')
+      !CRM_Core_BAO_SchemaHandler::checkIfFieldExists('civicrm_premiums', 'premiums_nothankyou_label')
     ) {
       $query = "
 ALTER TABLE civicrm_premiums
@@ -762,7 +762,7 @@ INSERT INTO civicrm_financial_trxn
             (contribution_id, payment_instrument_id, currency, total_amount, net_amount, fee_amount, trxn_id, status_id, check_number,
              to_financial_account_id, from_financial_account_id, trxn_date, payment_processor_id, is_fee)
 
-SELECT con.id, ft.payment_instrument_id, ft.currency, ft.fee_amount, NULL, NULL, ft.trxn_id, %1 as status_id,
+SELECT DISTINCT con.id, ft.payment_instrument_id, ft.currency, ft.fee_amount, NULL, NULL, ft.trxn_id, %1 as status_id,
        ft.check_number, efaFT.financial_account_id as to_financial_account_id, CASE
          WHEN efaPP.financial_account_id IS NOT NULL THEN
               efaPP.financial_account_id
@@ -782,8 +782,7 @@ FROM   civicrm_contribution con
                    AND efaPP.account_relationship = {$assetAccountIs})
        LEFT  JOIN {$tempTableName1} tpi
                ON ft.payment_instrument_id = tpi.instrument_id
-WHERE  ft.fee_amount IS NOT NULL AND ft.fee_amount != 0 AND (con.contribution_status_id IN (%1, %3) OR (con.contribution_status_id =%2 AND con.is_pay_later = 1))
-GROUP  BY con.id";
+WHERE  ft.fee_amount IS NOT NULL AND ft.fee_amount != 0 AND (con.contribution_status_id IN (%1, %3) OR (con.contribution_status_id =%2 AND con.is_pay_later = 1))";
     CRM_Core_DAO::executeQuery($sql, $queryParams);
 
     //link financial_trxn to contribution
@@ -926,7 +925,7 @@ AND TABLE_SCHEMA = %1
       }
     }
     // check if column contact_id is present or not in civicrm_financial_account
-    $fieldExists = CRM_Core_DAO::checkFieldExists('civicrm_financial_account', 'contact_id', FALSE);
+    $fieldExists = CRM_Core_BAO_SchemaHandler::checkIfFieldExists('civicrm_financial_account', 'contact_id', FALSE);
     if (!$fieldExists) {
       $query = "
 ALTER TABLE civicrm_financial_account
@@ -938,8 +937,13 @@ ALTER TABLE civicrm_financial_account
   }
 
   /**
-   * Read creation and modification times from civicrm_log; add
-   * them to civicrm_contact.
+   * Read creation and modification times from civicrm_log; add them to civicrm_contact.
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   * @param int $startId
+   * @param int $endId
+   *
+   * @return bool
    */
   public function convertTimestamps(CRM_Queue_TaskContext $ctx, $startId, $endId) {
     $sql = "
@@ -971,6 +975,10 @@ ALTER TABLE civicrm_financial_account
 
   /**
    * Change index and add missing constraints for civicrm_contribution_recur.
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   *
+   * @return bool
    */
   public function addMissingConstraints(CRM_Queue_TaskContext $ctx) {
     $query = "SHOW KEYS FROM `civicrm_contribution_recur` WHERE key_name = 'UI_contrib_payment_instrument_id'";
@@ -1002,6 +1010,10 @@ ALTER TABLE civicrm_financial_account
   /**
    * Update financial_account_id for bad data in financial_trxn table.
    * CRM-12844
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   *
+   * @return bool
    */
   public function updateFinancialTrxnData(CRM_Queue_TaskContext $ctx) {
     $upgrade = new CRM_Upgrade_Form();
@@ -1064,6 +1076,10 @@ id IN (' . implode(',', $val) . ')';
   /**
    * Update financial_account_id for bad data in financial_trxn table.
    * CRM-12844
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   *
+   * @return bool
    */
   public function updateLineItemData(CRM_Queue_TaskContext $ctx) {
     $sql = "SELECT cc.id contribution_id, cc.contribution_recur_id,
@@ -1127,7 +1143,14 @@ AND cli.entity_table = 'civicrm_contribution' AND cli.id IN (" . implode(',', $v
 
   /**
    * Replace contribution_type to financial_type in table.
-   * civicrm_saved_search and Structure civicrm_report_instance
+   *
+   * Civicrm_saved_search and Structure civicrm_report_instance
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   * @param string $query
+   * @param string $table
+   *
+   * @return bool
    */
   public function replaceContributionTypeId(CRM_Queue_TaskContext $ctx, $query, $table) {
     $dao = CRM_Core_DAO::executeQuery($query);

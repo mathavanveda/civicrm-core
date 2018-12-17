@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -171,7 +171,9 @@ ORDER BY civicrm_phone.is_primary DESC,  phone_id ASC ";
   }
 
   /**
-   * Get all the phone numbers for a specified location_block id, with the primary phone being first
+   * Get all the phone numbers for a specified location_block id, with the primary phone being first.
+   *
+   * This is called from CRM_Core_BAO_Block as a calculated function.
    *
    * @param array $entityElements
    *   The array containing entity_id and.
@@ -260,6 +262,10 @@ ORDER BY ph.is_primary DESC, phone_id ASC ";
 
   /**
    * Call common delete function.
+   *
+   * @param int $id
+   *
+   * @return bool
    */
   public static function del($id) {
     // Ensure mysql phone function exists

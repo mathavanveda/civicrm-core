@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -75,10 +75,22 @@ abstract class Mapping implements MappingInterface {
     'entity_date_end',
   );
 
+  /**
+   * Create mapping.
+   *
+   * @param array $params
+   *
+   * @return static
+   */
   public static function create($params) {
     return new static($params);
   }
 
+  /**
+   * Class constructor.
+   *
+   * @param array $params
+   */
   public function __construct($params) {
     foreach (self::$fields as $field) {
       if (isset($params[$field])) {
@@ -274,7 +286,8 @@ abstract class Mapping implements MappingInterface {
   protected static function getValueLabelMap($name) {
     static $valueLabelMap = NULL;
     if ($valueLabelMap === NULL) {
-      $valueLabelMap['activity_type'] = \CRM_Core_PseudoConstant::activityType(TRUE, TRUE);
+      // CRM-20510: Include CiviCampaign activity types along with CiviCase IF component is enabled
+      $valueLabelMap['activity_type'] = \CRM_Core_PseudoConstant::activityType(TRUE, TRUE, FALSE, 'label', TRUE);
       asort($valueLabelMap['activity_type']);
 
       $valueLabelMap['activity_status'] = \CRM_Core_PseudoConstant::activityStatus();

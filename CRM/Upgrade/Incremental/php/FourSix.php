@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7.alpha1                                         |
+ | CiviCRM version 5  .alpha1                                         |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -37,7 +37,6 @@ class CRM_Upgrade_Incremental_php_FourSix extends CRM_Upgrade_Incremental_Base {
    *   alterable.
    * @param string $rev
    *   an intermediate version; note that setPostUpgradeMessage is called repeatedly with different $revs.
-   * @return void
    */
   public function setPostUpgradeMessage(&$postUpgradeMessage, $rev) {
     if ($rev == '4.6.alpha1') {
@@ -59,7 +58,7 @@ class CRM_Upgrade_Incremental_php_FourSix extends CRM_Upgrade_Incremental_Base {
    */
   public function upgrade_4_6_alpha3($rev) {
     // Task to process sql.
-    $this->addTask(ts('Add and update reference_date column for Schedule Reminders'), 'updateReferenceDate');
+    $this->addTask('Add and update reference_date column for Schedule Reminders', 'updateReferenceDate');
   }
 
   /**
@@ -130,7 +129,7 @@ class CRM_Upgrade_Incremental_php_FourSix extends CRM_Upgrade_Incremental_Base {
    */
   public function upgrade_4_6_1($rev) {
     // CRM-16289 - Fix invalid data in log_civicrm_case.case_type_id.
-    $this->addTask(ts('Cleanup case type id data in log table.'), 'fixCaseLog');
+    $this->addTask('Cleanup case type id data in log table.', 'fixCaseLog');
   }
 
   /**
@@ -181,6 +180,11 @@ class CRM_Upgrade_Incremental_php_FourSix extends CRM_Upgrade_Incremental_Base {
    * Queue Task Callback for CRM-16846
    *
    * Run a sql file without resetting locale to that version
+   *
+   * @param \CRM_Queue_TaskContext $ctx
+   * @param string $rev
+   *
+   * @return bool
    */
   public static function task_4_6_x_runOnlySql(CRM_Queue_TaskContext $ctx, $rev) {
     $upgrade = new CRM_Upgrade_Form();

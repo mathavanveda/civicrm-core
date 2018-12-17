@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -35,9 +35,7 @@
  * escaping scheme and consequently remove HTMLInputCoder.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_API_HTMLInputCoder extends CRM_Utils_API_AbstractFieldCoder {
   private $skipFields = NULL;
@@ -58,7 +56,10 @@ class CRM_Utils_API_HTMLInputCoder extends CRM_Utils_API_AbstractFieldCoder {
   }
 
   /**
-   * @return array<string> list of field names
+   * Get skipped fields.
+   *
+   * @return array<string>
+   *   list of field names
    */
   public function getSkipFields() {
     if ($this->skipFields === NULL) {
@@ -107,7 +108,13 @@ class CRM_Utils_API_HTMLInputCoder extends CRM_Utils_API_AbstractFieldCoder {
         'pcp_intro_text',
         'new', // The 'new' text in word replacements
         'replyto_email', // e.g. '"Full Name" <user@example.org>'
+        'operator',
+        'content', // CRM-20468
       );
+      $custom = CRM_Core_DAO::executeQuery('SELECT id FROM civicrm_custom_field WHERE html_type = "RichTextEditor"');
+      while ($custom->fetch()) {
+        $this->skipFields[] = 'custom_' . $custom->id;
+      }
     }
     return $this->skipFields;
   }

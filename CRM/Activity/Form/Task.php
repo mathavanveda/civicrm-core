@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,41 +28,14 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * Class for activity task actions.
+ * Class for activity form task actions.
+ * FIXME: This needs refactoring to properly inherit from CRM_Core_Form_Task and share more functions.
  */
-class CRM_Activity_Form_Task extends CRM_Core_Form {
-
-  /**
-   * The task being performed.
-   *
-   * @var int
-   */
-  protected $_task;
-
-  /**
-   * The additional clause that we restrict the search with.
-   *
-   * @var string
-   */
-  protected $_componentClause = NULL;
-
-  /**
-   * The array that holds all the component ids.
-   *
-   * @var array
-   */
-  protected $_componentIds;
-
-  /**
-   * The array that holds all the contact ids.
-   *
-   * @var array
-   */
-  public $_contactIds;
+class CRM_Activity_Form_Task extends CRM_Core_Form_Task {
 
   /**
    * The array that holds all the member ids.
@@ -82,9 +55,8 @@ class CRM_Activity_Form_Task extends CRM_Core_Form {
    * Common pre-process function.
    *
    * @param CRM_Core_Form $form
-   * @param bool $useTable
    */
-  public static function preProcessCommon(&$form, $useTable = FALSE) {
+  public static function preProcessCommon(&$form) {
     $form->_activityHolderIds = array();
 
     $values = $form->controller->exportValues($form->get('searchFormName'));
@@ -115,7 +87,7 @@ class CRM_Activity_Form_Task extends CRM_Core_Form {
       $components = CRM_Core_Component::getNames();
       $componentClause = array();
       foreach ($components as $componentID => $componentName) {
-        if (!CRM_Core_Permission::check("access $componentName")) {
+        if ($componentName != 'CiviCase' && !CRM_Core_Permission::check("access $componentName")) {
           $componentClause[] = " (activity_type.component_id IS NULL OR activity_type.component_id <> {$componentID}) ";
         }
       }
@@ -138,7 +110,7 @@ class CRM_Activity_Form_Task extends CRM_Core_Form {
 
     $form->_activityHolderIds = $form->_componentIds = $ids;
 
-    //set the context for redirection for any task actions
+    // Set the context for redirection for any task actions.
     $qfKey = CRM_Utils_Request::retrieve('qfKey', 'String', $form);
     $urlParams = 'force=1';
     if (CRM_Utils_Rule::qfKey($qfKey)) {
@@ -159,12 +131,12 @@ class CRM_Activity_Form_Task extends CRM_Core_Form {
 
   /**
    * Given the membership id, compute the contact id
-   * since its used for things like send email
+   * since it's used for things like send email.
    */
   public function setContactIDs() {
     $IDs = implode(',', $this->_activityHolderIds);
 
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
     $query = "
 SELECT contact_id
@@ -192,17 +164,16 @@ WHERE  activity_id IN ( $IDs ) AND
    */
   public function addDefaultButtons($title, $nextType = 'next', $backType = 'back', $submitOnce = FALSE) {
     $this->addButtons(array(
-        array(
-          'type' => $nextType,
-          'name' => $title,
-          'isDefault' => TRUE,
-        ),
-        array(
-          'type' => $backType,
-          'name' => ts('Cancel'),
-        ),
-      )
-    );
+      array(
+        'type' => $nextType,
+        'name' => $title,
+        'isDefault' => TRUE,
+      ),
+      array(
+        'type' => $backType,
+        'name' => ts('Cancel'),
+      ),
+    ));
   }
 
 }

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -45,6 +45,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
  *   3. Implement the evaluateToken() method.
  *   4. Optionally, override others:
  *      + checkActive()
+ *      + getActiveTokens()
  *      + prefetch()
  *      + alterActionScheduleMailing()
  *   5. Register the new class with the event-dispatcher.
@@ -141,18 +142,40 @@ abstract class AbstractTokenSubscriber implements EventSubscriberInterface {
     if (!$this->checkActive($e->getTokenProcessor())) {
       return;
     }
-    // TODO: check if any tokens for $entity are actually used; short-circuit.
+
+    $activeTokens = $this->getActiveTokens($e);
+    if (!$activeTokens) {
+      return;
+    }
     $prefetch = $this->prefetch($e);
+
     foreach ($e->getRows() as $row) {
-      foreach ($this->tokenNames as $field => $label) {
+      foreach ((array) $activeTokens as $field) {
         $this->evaluateToken($row, $this->entity, $field, $prefetch);
       }
     }
   }
 
   /**
+   * To handle variable tokens, override this function and return the active tokens.
+   *
+   * @param \Civi\Token\Event\TokenValueEvent $e
+   *
+   * @return mixed
+   */
+  public function getActiveTokens(TokenValueEvent $e) {
+    $messageTokens = $e->getTokenProcessor()->getMessageTokens();
+    if (!isset($messageTokens[$this->entity])) {
+      return FALSE;
+    }
+    return array_intersect($messageTokens[$this->entity], array_keys($this->tokenNames));
+  }
+
+  /**
    * To perform a bulk lookup before rendering tokens, override this
    * function and return the prefetched data.
+   *
+   * @param \Civi\Token\Event\TokenValueEvent $e
    *
    * @return mixed
    */

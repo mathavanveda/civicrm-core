@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -99,7 +99,7 @@ class SettingsManager {
    * Ensure that all defaults values are included with
    * all current and future bags.
    *
-   * @return $this
+   * @return SettingsManager
    */
   public function useDefaults() {
     if (!$this->useDefaults) {
@@ -130,7 +130,7 @@ class SettingsManager {
    * If you call useMandatory multiple times, it will
    * re-scan the global $civicrm_setting.
    *
-   * @return $this
+   * @return SettingsManager
    */
   public function useMandatory() {
     $this->mandatory = NULL;
@@ -171,12 +171,23 @@ class SettingsManager {
 
   /**
    * @param int|NULL $domainId
+   *   For the default domain, leave $domainID as NULL.
    * @param int|NULL $contactId
+   *   For the default/active user's contact, leave $domainID as NULL.
    * @return SettingsBag
+   * @throws \CRM_Core_Exception
+   *   If there is no contact, then there's no SettingsBag, and we'll throw
+   *   an exception.
    */
   public function getBagByContact($domainId, $contactId) {
     if ($domainId === NULL) {
       $domainId = \CRM_Core_Config::domainID();
+    }
+    if ($contactId === NULL) {
+      $contactId = \CRM_Core_Session::getLoggedInContactID();
+      if (!$contactId) {
+        throw new \CRM_Core_Exception("Cannot access settings subsystem - user or domain is unavailable");
+      }
     }
 
     $key = "$domainId:$contactId";
@@ -205,7 +216,7 @@ class SettingsManager {
       return self::getSystemDefaults($entity);
     }
 
-    $cacheKey = 'defaults:' . $entity;
+    $cacheKey = 'defaults_' . $entity;
     $defaults = $this->cache->get($cacheKey);
     if (!is_array($defaults)) {
       $specs = SettingsMetadata::getMetadata(array(
@@ -293,7 +304,7 @@ class SettingsManager {
   /**
    * Flush all in-memory and persistent caches related to settings.
    *
-   * @return $this
+   * @return SettingsManager
    */
   public function flush() {
     $this->mandatory = NULL;
@@ -325,6 +336,8 @@ class SettingsManager {
    * during bootstrap -- in particular, defaults cannot be loaded. For a very small number of settings,
    * we must define defaults before the system bootstraps.
    *
+   * @param string $entity
+   *
    * @return array
    */
   private static function getSystemDefaults($entity) {
@@ -332,11 +345,14 @@ class SettingsManager {
     switch ($entity) {
       case 'domain':
         $defaults = array(
+          'installed' => FALSE,
           'enable_components' => array('CiviEvent', 'CiviContribute', 'CiviMember', 'CiviMail', 'CiviReport', 'CiviPledge'),
           'customFileUploadDir' => '[civicrm.files]/custom/',
           'imageUploadDir' => '[civicrm.files]/persist/contribute/',
           'uploadDir' => '[civicrm.files]/upload/',
           'imageUploadURL' => '[civicrm.files]/persist/contribute/',
+          'extensionsDir' => '[civicrm.files]/ext/',
+          'extensionsURL' => '[civicrm.files]/ext/',
           'resourceBase' => '[civicrm.root]/',
           'userFrameworkResourceURL' => '[civicrm.root]/',
         );

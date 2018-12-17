@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -202,6 +202,7 @@ class WebTest_Contact_CreateCmsUserFromContactTest extends CiviSeleniumTestCase 
 
     //submit with matching passwords
     $this->_fillCMSUserForm($firstName, $password, $password);
+    $this->waitForAjaxContent();
     $this->click("_qf_Useradd_next-bottom");
     $this->waitForPageToLoad($this->getTimeoutMsec());
 

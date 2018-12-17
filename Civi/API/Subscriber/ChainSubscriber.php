@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -67,10 +67,12 @@ class ChainSubscriber implements EventSubscriberInterface {
    */
   public function onApiRespond(\Civi\API\Event\RespondEvent $event) {
     $apiRequest = $event->getApiRequest();
-    $result = $event->getResponse();
-    if (\CRM_Utils_Array::value('is_error', $result, 0) == 0) {
-      $this->callNestedApi($event->getApiKernel(), $apiRequest['params'], $result, $apiRequest['action'], $apiRequest['entity'], $apiRequest['version']);
-      $event->setResponse($result);
+    if ($apiRequest['version'] < 4) {
+      $result = $event->getResponse();
+      if (\CRM_Utils_Array::value('is_error', $result, 0) == 0) {
+        $this->callNestedApi($event->getApiKernel(), $apiRequest['params'], $result, $apiRequest['action'], $apiRequest['entity'], $apiRequest['version']);
+        $event->setResponse($result);
+      }
     }
   }
 
@@ -123,6 +125,17 @@ class ChainSubscriber implements EventSubscriberInterface {
         );
         $subEntity = _civicrm_api_get_entity_name_from_camel($subAPI[1]);
 
+        // Hard coded list of entitys that have fields starting api_ and shouldn't be automatically
+        // deemed to be chained API calls
+        $skipList = array(
+          'SmsProvider' => array('type', 'url', 'params'),
+          'Job' => array('prefix', 'entity', 'action'),
+          'Contact' => array('key'),
+        );
+        if (isset($skipList[$entity]) && in_array($subEntity, $skipList[$entity])) {
+          continue;
+        }
+
         foreach ($result['values'] as $idIndex => $parentAPIValues) {
 
           if ($subEntity != 'contact') {
@@ -132,10 +145,12 @@ class ChainSubscriber implements EventSubscriberInterface {
             //'entity_table' will be set to 'contact' & 'id' to the contact id
             //from the parent call. in this case 'contact_id' will also be
             //set to the parent's id
-            $subParams["entity_id"] = $parentAPIValues['id'];
-            $subParams['entity_table'] = 'civicrm_' . $lowercase_entity;
+            if (!($subEntity == 'line_item' && $lowercase_entity == 'contribution' && $action != 'create')) {
+              $subParams["entity_id"] = $parentAPIValues['id'];
+              $subParams['entity_table'] = 'civicrm_' . $lowercase_entity;
+            }
 
-            $crm16084 = FALSE;
+            $addEntityId = TRUE;
             if ($subEntity == 'relationship' && $lowercase_entity == 'contact') {
               // if a relationship call is chained to a contact call, we need
               // to check whether contact_id_a or contact_id_b for the
@@ -144,12 +159,12 @@ class ChainSubscriber implements EventSubscriberInterface {
               // See CRM-16084.
               foreach (array_keys($newparams) as $key) {
                 if (substr($key, 0, 11) == 'contact_id_') {
-                  $crm16084 = TRUE;
+                  $addEntityId = FALSE;
                   break;
                 }
               }
             }
-            if (!$crm16084) {
+            if ($addEntityId) {
               $subParams[$lowercase_entity . "_id"] = $parentAPIValues['id'];
             }
           }

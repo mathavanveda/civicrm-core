@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -99,7 +97,8 @@ class CRM_Utils_Signer {
           $params[$paramName] = (string) $params[$paramName];
         }
       }
-      else {// $paramName is not included or ===NULL
+      else {
+        // $paramName is not included or ===NULL
         $params[$paramName] = '';
       }
       $message['payload'][$paramName] = $params[$paramName];
@@ -122,7 +121,7 @@ class CRM_Utils_Signer {
   public function validate($token, $params) {
     list ($salt, $signature) = explode($this->signDelim, $token);
     if (strlen($salt) != self::SALT_LEN) {
-      throw new Exception("Invalid salt [$token]=[$salt][$signature]");
+      throw new Exception("Token contains invalid salt [" . urlencode($token) . "]");
     }
     $newToken = $this->sign($params, $salt);
     return ($token == $newToken);

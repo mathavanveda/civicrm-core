@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Contact_BAO_Contact_Utils {
 
@@ -49,7 +49,7 @@ class CRM_Contact_BAO_Contact_Utils {
   public static function getImage($contactType, $urlOnly = FALSE, $contactId = NULL, $addProfileOverlay = TRUE) {
     static $imageInfo = array();
 
-    $contactType = explode(CRM_Core_DAO::VALUE_SEPARATOR, trim($contactType, CRM_Core_DAO::VALUE_SEPARATOR));
+    $contactType = CRM_Utils_Array::explodePadded($contactType);
     $contactType = $contactType[0];
 
     if (!array_key_exists($contactType, $imageInfo)) {
@@ -266,7 +266,7 @@ UNION
 UNION
 ( SELECT location_type_id FROM civicrm_address WHERE contact_id = {$contactId} )
 ";
-    $dao = CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+    $dao = CRM_Core_DAO::executeQuery($query);
     return $dao->N;
   }
 
@@ -284,11 +284,7 @@ UNION
   public static function createCurrentEmployerRelationship($contactID, $organization, $previousEmployerID = NULL, $newContact = FALSE) {
     //if organization name is passed. CRM-15368,CRM-15547
     if ($organization && !is_numeric($organization)) {
-      $organizationParams['organization_name'] = $organization;
-      $dedupeParams = CRM_Dedupe_Finder::formatParams($organizationParams, 'Organization');
-
-      $dedupeParams['check_permission'] = FALSE;
-      $dupeIDs = CRM_Dedupe_Finder::dupesByParams($dedupeParams, 'Organization', 'Unsupervised');
+      $dupeIDs = CRM_Contact_BAO_Contact::getDuplicateContacts(array('organization_name' => $organization), 'Organization', 'Unsupervised', array(), FALSE);
 
       if (is_array($dupeIDs) && !empty($dupeIDs)) {
         // we should create relationship only w/ first org CRM-4193
@@ -555,7 +551,7 @@ UPDATE civicrm_contact
    SET organization_name=NULL, employer_id = NULL
  WHERE employer_id={$employerId}; ";
 
-    $dao = CRM_Core_DAO::executeQuery($query, CRM_Core_DAO::$_nullArray);
+    $dao = CRM_Core_DAO::executeQuery($query);
   }
 
   /**
@@ -683,7 +679,7 @@ LEFT JOIN  civicrm_email ce ON ( ce.contact_id=c.id AND ce.is_primary = 1 )
   public static function contactDetails($componentIds, $componentName, $returnProperties = array()) {
     $contactDetails = array();
     if (empty($componentIds) ||
-      !in_array($componentName, array('CiviContribute', 'CiviMember', 'CiviEvent', 'Activity'))
+      !in_array($componentName, array('CiviContribute', 'CiviMember', 'CiviEvent', 'Activity', 'CiviCase'))
     ) {
       return $contactDetails;
     }
@@ -706,7 +702,10 @@ LEFT JOIN  civicrm_email ce ON ( ce.contact_id=c.id AND ce.is_primary = 1 )
     }
     elseif ($componentName == 'Activity') {
       $compTable = 'civicrm_activity';
-      $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+      $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
+    }
+    elseif ($componentName == 'CiviCase') {
+      $compTable = 'civicrm_case';
     }
     else {
       $compTable = 'civicrm_participant';
@@ -717,6 +716,7 @@ LEFT JOIN  civicrm_email ce ON ( ce.contact_id=c.id AND ce.is_primary = 1 )
       $value = (in_array($property, array(
         'city',
         'street_address',
+        'postal_code',
       ))) ? 'address' : $property;
       switch ($property) {
         case 'sort_name':
@@ -726,6 +726,12 @@ LEFT JOIN  civicrm_email ce ON ( ce.contact_id=c.id AND ce.is_primary = 1 )
             $from[$value] = "
 INNER JOIN civicrm_activity_contact acs ON (acs.activity_id = {$compTable}.id AND acs.record_type_id = {$sourceID})
 INNER JOIN civicrm_contact contact ON ( contact.id = acs.contact_id )";
+          }
+          elseif ($componentName == 'CiviCase') {
+            $select[] = "contact.$property as $property";
+            $from[$value] = "
+INNER JOIN civicrm_case_contact ccs ON (ccs.case_id = {$compTable}.id)
+INNER JOIN civicrm_contact contact ON ( contact.id = ccs.contact_id )";
           }
           else {
             $select[] = "$property as $property";
@@ -745,6 +751,7 @@ INNER JOIN civicrm_contact contact_target ON ( contact_target.id = act.contact_i
         case 'phone':
         case 'city':
         case 'street_address':
+        case 'postal_code':
           $select[] = "$property as $property";
           // Grab target contact properties if this is for activity
           if ($componentName == 'Activity') {
@@ -777,12 +784,13 @@ INNER JOIN civicrm_contact contact_target ON ( contact_target.id = act.contact_i
       $fromClause = implode(' ', $from);
       $selectClause = implode(', ', $select);
       $whereClause = "{$compTable}.id IN (" . implode(',', $componentIds) . ')';
+      $groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($select, array("{$compTable}.id", 'contact.id'));
 
       $query = "
   SELECT  contact.id as contactId, $compTable.id as componentId, $selectClause
     FROM  $compTable as $compTable $fromClause
    WHERE  $whereClause
-Group By  componentId";
+   {$groupBy}";
 
       $contact = CRM_Core_DAO::executeQuery($query);
       while ($contact->fetch()) {
@@ -801,7 +809,7 @@ Group By  componentId";
    * Function handles shared contact address processing.
    * In this function we just modify submitted values so that new address created for the user
    * has same address as shared contact address. We copy the address so that search etc will be
-   * much efficient.
+   * much more efficient.
    *
    * @param array $address
    *   This is associated array which contains submitted form values.
@@ -811,20 +819,20 @@ Group By  componentId";
       return;
     }
 
-    // Sharing contact address during create mode is pretty straight forward.
-    // In update mode we should check following:
-    // - We should check if user has uncheck shared contact address
-    // - If yes then unset the master_id or may be just delete the address that copied master
-    //    Normal update process will automatically create new address with submitted values
+    // In create mode sharing a contact's address is pretty straight forward.
+    // In update mode we should check if the user stops sharing. If yes:
+    // - Set the master_id to an empty value
+    // Normal update process will automatically create new address with submitted values
 
-    // 1. loop through entire subnitted address array
-    $masterAddress = array();
+    // 1. loop through entire submitted address array
     $skipFields = array('is_primary', 'location_type_id', 'is_billing', 'master_id');
     foreach ($address as & $values) {
-      // 2. check if master id exists, if not continue
-      if (empty($values['master_id']) || empty($values['use_shared_address'])) {
-        // we should unset master id when use uncheck share address for existing address
-        $values['master_id'] = 'null';
+      // 2. check if "Use another contact's address" is checked, if not continue
+      // Additionally, if master_id is set (address was shared), set master_id to empty value.
+      if (empty($values['use_shared_address'])) {
+        if (!empty($values['master_id'])) {
+          $values['master_id'] = '';
+        }
         continue;
       }
 
@@ -898,20 +906,25 @@ Group By  componentId";
    * caches, but are backing off from this with every release. Compromise between ease of coding versus
    * performance versus being accurate at that very instant
    *
-   * @param $contactID
-   *   The contactID that was edited / deleted.
+   * @param bool $isEmptyPrevNextTable
+   *   Should the civicrm_prev_next table be cleared of any contact entries.
+   *   This is currently done from import but not other places and would
+   *   likely affect user experience in unexpected ways. Existing behaviour retained
+   *   ... reluctantly.
    */
-  public static function clearContactCaches($contactID = NULL) {
-    // clear acl cache if any.
-    CRM_ACL_BAO_Cache::resetCache();
-
-    if (empty($contactID)) {
-      // also clear prev/next dedupe cache - if no contactID passed in
+  public static function clearContactCaches($isEmptyPrevNextTable = FALSE) {
+    if (!CRM_Core_Config::isPermitCacheFlushMode()) {
+      return;
+    }
+    if ($isEmptyPrevNextTable) {
+      // These two calls are redundant in default deployments, but they're
+      // meaningful if "prevnext" is memory-backed.
+      Civi::service('prevnext')->deleteItem();
       CRM_Core_BAO_PrevNextCache::deleteItem();
     }
-
-    // reset the group contact cache for this group
-    CRM_Contact_BAO_GroupContactCache::remove();
+    // clear acl cache if any.
+    CRM_ACL_BAO_Cache::resetCache();
+    CRM_Contact_BAO_GroupContactCache::opportunisticCacheFlush();
   }
 
   /**
@@ -1093,6 +1106,34 @@ WHERE id IN (" . implode(',', $contactIds) . ")";
     if (!empty($id)) {
       return current($id);
     }
+  }
+
+  /**
+   * Get the tokens that will need to be resolved to populate the contact's greetings.
+   *
+   * @param array $contactParams
+   *
+   * @return array
+   *   Array of tokens. The ALL ke
+   */
+  public static function getTokensRequiredForContactGreetings($contactParams) {
+    $tokens = array();
+    foreach (array('addressee', 'email_greeting', 'postal_greeting') as $greeting) {
+      $string = '';
+      if (!empty($contactParams[$greeting . '_id'])) {
+        $string = CRM_Core_PseudoConstant::getLabel('CRM_Contact_BAO_Contact', $greeting . '_id', $contactParams[$greeting . '_id']);
+      }
+      $string = isset($contactParams[$greeting . '_custom']) ? $contactParams[$greeting . '_custom'] : $string;
+      if (empty($string)) {
+        $tokens[$greeting] = array();
+      }
+      else {
+        $tokens[$greeting] = CRM_Utils_Token::getTokens($string);
+      }
+    }
+    $allTokens = array_merge_recursive($tokens['addressee'], $tokens['email_greeting'], $tokens['postal_greeting']);
+    $tokens['all'] = $allTokens;
+    return $tokens;
   }
 
   /**

@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -203,6 +203,7 @@ class WebTest_Campaign_ActivityTest extends CiviSeleniumTestCase {
     $this->waitForElementPresent("xpath=//button//span[contains(text(),'Done')]");
 
     // verify Activity created
+    $this->waitForAjaxContent();
     $this->verifyText("xpath=//form[@id='Activity']/div[2]/table/tbody/tr[5]/td[2]/span", $campaignTitle);
   }
 

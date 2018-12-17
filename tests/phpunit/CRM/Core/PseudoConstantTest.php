@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,10 +25,9 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Tests for pseudoconstant retrieval
+ * @group headless
  */
 class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
 
@@ -88,7 +87,7 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
     $pp_name = md5(microtime());
     $api_params = array(
       'domain_id' => 1,
-      'payment_processor_type_id' => 10,
+      'payment_processor_type_id' => 'Dummy',
       'name' => $pp_name,
       'user_name' => $pp_name,
       'class_name' => 'Payment_Dummy',
@@ -117,6 +116,7 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
       'member_of_contact_id' => 1,
       'duration_unit' => 'day',
       'duration_interval' => 1,
+      'period_type' => 'rolling',
     );
     $result = civicrm_api3('membership_type', 'create', $api_params);
 
@@ -422,7 +422,7 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
         ),
         array(
           'fieldName' => 'visibility',
-          'sample' => 'Public Pages',
+          'sample' => 'Expose Publicly',
         ),
       ),
       'CRM_Core_DAO_UFJoin' => array(
@@ -694,10 +694,6 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
       ),
       'CRM_Core_DAO_MappingField' => array(
         array(
-          'fieldName' => 'contact_type',
-          'sample' => 'Individual',
-        ),
-        array(
           'fieldName' => 'website_type_id',
           'sample' => 'Facebook',
         ),
@@ -916,7 +912,7 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
           'sample' => $campaign_name,
         ),
       ),
-      'CRM_Mailing_DAO_Component' => array(
+      'CRM_Mailing_DAO_MailingComponent' => array(
         array(
           'fieldName' => 'component_type',
           'sample' => 'Header',
@@ -1093,6 +1089,36 @@ class CRM_Core_PseudoConstantTest extends CiviUnitTestCase {
         'flip' => TRUE,
       ));
     $this->assertEquals(array_flip($byId), $result);
+  }
+
+  public function testGetTaxRates() {
+    $contact = $this->createLoggedInUser();
+    $financialType = $this->callAPISuccess('financial_type', 'create', array(
+      'name' => 'Test taxable financial Type',
+      'is_reserved' => 0,
+      'is_active' => 1,
+    ));
+    $financialAccount = $this->callAPISuccess('financial_account', 'create', array(
+       'name' => 'Test Tax financial account ',
+       'contact_id' => $contact,
+       'financial_account_type_id' => 2,
+       'is_tax' => 1,
+       'tax_rate' => 5.00,
+       'is_reserved' => 0,
+       'is_active' => 1,
+       'is_default' => 0,
+    ));
+    $financialTypeId = $financialType['id'];
+    $financialAccountId = $financialAccount['id'];
+    $financialAccountParams = array(
+      'entity_table' => 'civicrm_financial_type',
+      'entity_id' => $financialTypeId,
+      'account_relationship' => 10,
+      'financial_account_id' => $financialAccountId,
+    );
+    CRM_Financial_BAO_FinancialTypeAccount::add($financialAccountParams);
+    $taxRates = CRM_Core_PseudoConstant::getTaxRates();
+    $this->assertEquals('5.00', $taxRates[$financialType['id']]);
   }
 
 }

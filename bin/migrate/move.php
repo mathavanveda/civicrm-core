@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 function run() {
   session_start();
@@ -40,6 +40,9 @@ function run() {
 
   // this does not return on failure
   CRM_Utils_System::authenticateScript(TRUE);
+  if (!CRM_Core_Permission::check('administer CiviCRM')) {
+    CRM_Utils_System::authenticateAbort("User does not have required permission (administer CiviCRM).\n", TRUE);
+  }
 
   require_once 'CRM/Core/BAO/ConfigSetting.php';
   $moveStatus = CRM_Core_BAO_ConfigSetting::doSiteMove();

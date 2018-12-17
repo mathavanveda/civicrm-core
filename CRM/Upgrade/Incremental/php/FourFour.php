@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -40,9 +40,7 @@ class CRM_Upgrade_Incremental_php_FourFour extends CRM_Upgrade_Incremental_Base 
    * @param $preUpgradeMessage
    * @param string $rev
    *   a version number, e.g. '4.4.alpha1', '4.4.beta3', '4.4.0'.
-   * @param null $currentVer
-   *
-   * @return void
+   * @param string $currentVer
    */
   public function setPreUpgradeMessage(&$preUpgradeMessage, $rev, $currentVer = NULL) {
     if ($rev == '4.4.beta1') {
@@ -68,7 +66,6 @@ class CRM_Upgrade_Incremental_php_FourFour extends CRM_Upgrade_Incremental_Base 
    *   alterable.
    * @param string $rev
    *   an intermediate version; note that setPostUpgradeMessage is called repeatedly with different $revs.
-   * @return void
    */
   public function setPostUpgradeMessage(&$postUpgradeMessage, $rev) {
     if ($rev == '4.4.1') {
@@ -100,7 +97,9 @@ WHERE ceft.entity_table = 'civicrm_contribution' AND cft.payment_instrument_id I
   }
 
   /**
-   * @param $rev
+   * Upgrade 4.4.alpha1.
+   *
+   * @param string $rev
    *
    * @return bool
    */
@@ -217,11 +216,11 @@ WHERE ceft.entity_table = 'civicrm_contribution' AND cft.payment_instrument_id I
     // CRM-13698 - add 'Available' and 'No-show' activity statuses
     $insertStatus = array();
     $nsinc = $avinc = $inc = 0;
-    if (!CRM_Core_OptionGroup::getValue('activity_status', 'Available', 'name')) {
+    if (!CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'status_id', 'Available')) {
       $insertStatus[] = "(%1, 'Available', %2, 'Available',  NULL, 0, NULL, %3, 0, 0, 1, NULL, NULL)";
       $avinc = $inc = 1;
     }
-    if (!CRM_Core_OptionGroup::getValue('activity_status', 'No_show', 'name')) {
+    if (!CRM_Core_PseudoConstant::getKey('CRM_Activity_BAO_Activity', 'status_id', 'No_show')) {
       $insertStatus[] = "(%1, 'No-show', %4, 'No_show',  NULL, 0, NULL, %5, 0, 0, 1, NULL, NULL)";
       $nsinc = $inc + 1;
     }
@@ -346,17 +345,17 @@ ALTER TABLE civicrm_dashboard
     $maxId = CRM_Core_DAO::singleValueQuery('SELECT coalesce(max(id),0) FROM civicrm_contact WHERE image_URL IS NOT NULL');
     for ($startId = $minId; $startId <= $maxId; $startId += self::BATCH_SIZE) {
       $endId = $startId + self::BATCH_SIZE - 1;
-      $title = ts('Upgrade image_urls (%1 => %2)', array(1 => $startId, 2 => $endId));
+      $title = "Upgrade image_urls ($startId => $endId)";
       $this->addTask($title, 'upgradeImageUrls', $startId, $endId);
     }
   }
 
   /**
-   * @param $rev
-   * @param $originalVer
-   * @param $latestVer
+   * Upgrade script for 4.4.7.
    *
-   * @return void
+   * @param string $rev
+   * @param string $originalVer
+   * @param string $latestVer
    */
   public function upgrade_4_4_7($rev, $originalVer, $latestVer) {
     // For WordPress/Joomla(?), cleanup broken image_URL from 4.4.6 upgrades - https://issues.civicrm.org/jira/browse/CRM-14971
@@ -367,7 +366,7 @@ ALTER TABLE civicrm_dashboard
       $maxId = CRM_Core_DAO::singleValueQuery('SELECT coalesce(max(id),0) FROM civicrm_contact WHERE image_URL IS NOT NULL');
       for ($startId = $minId; $startId <= $maxId; $startId += self::BATCH_SIZE) {
         $endId = $startId + self::BATCH_SIZE - 1;
-        $title = ts('Upgrade image_urls (%1 => %2)', array(1 => $startId, 2 => $endId));
+        $title = "Upgrade image_urls ($startId => $endId)";
         $this->addTask($title, 'cleanupBackendImageUrls', $startId, $endId);
       }
     }
@@ -429,7 +428,10 @@ ALTER TABLE civicrm_dashboard
     $dao = new CRM_Contact_DAO_SavedSearch();
     $dao->find();
     while ($dao->fetch()) {
-      $formValues = CRM_Contact_BAO_SavedSearch::getFormValues($dao->id);
+      $formValues = NULL;
+      if (!empty($dao->form_values)) {
+        $formValues = unserialize($dao->form_values);
+      }
       if (!empty($formValues['mapper'])) {
         foreach ($formValues['mapper'] as $key => $value) {
           foreach ($value as $k => $v) {
@@ -541,7 +543,7 @@ AND image_URL IS NOT NULL
   public static function activityContacts(CRM_Queue_TaskContext $ctx) {
     $upgrade = new CRM_Upgrade_Form();
 
-    $activityContacts = CRM_Core_OptionGroup::values('activity_contacts', FALSE, FALSE, FALSE, NULL, 'name');
+    $activityContacts = CRM_Activity_BAO_ActivityContact::buildOptions('record_type_id', 'validate');
     $ovValue[] = $sourceID = CRM_Utils_Array::key('Activity Source', $activityContacts);
     $ovValue[] = $assigneeID = CRM_Utils_Array::key('Activity Assignees', $activityContacts);
     $ovValue[] = $targetID = CRM_Utils_Array::key('Activity Targets', $activityContacts);
@@ -692,30 +694,6 @@ CREATE TABLE IF NOT EXISTS `civicrm_word_replacement` (
       CRM_Core_DAO::executeQuery("ALTER TABLE civicrm_word_replacement ADD CONSTRAINT FK_civicrm_word_replacement_domain_id FOREIGN KEY (`domain_id`) REFERENCES `civicrm_domain` (`id`);");
     }
     return TRUE;
-  }
-
-  /**
-   * Syntatic sugar for adding a task which (a) is in this class and (b) has
-   * a high priority.
-   *
-   * After passing the $funcName, you can also pass parameters that will go to
-   * the function. Note that all params must be serializable.
-   */
-  protected function addTask($title, $funcName) {
-    $queue = CRM_Queue_Service::singleton()->load(array(
-      'type' => 'Sql',
-      'name' => CRM_Upgrade_Form::QUEUE_NAME,
-    ));
-
-    $args = func_get_args();
-    $title = array_shift($args);
-    $funcName = array_shift($args);
-    $task = new CRM_Queue_Task(
-      array(get_class($this), $funcName),
-      $args,
-      $title
-    );
-    $queue->createItem($task, array('weight' => -1));
   }
 
   /**

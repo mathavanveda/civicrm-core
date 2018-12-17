@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,9 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_ReCAPTCHA {
 
@@ -43,16 +41,17 @@ class CRM_Utils_ReCAPTCHA {
   protected $_phrase = NULL;
 
   /**
+   * Singleton.
+   *
    * We only need one instance of this object. So we use the singleton
    * pattern and cache the instance in this variable
    *
-   * @var object
+   * @var CRM_Utils_ReCAPTCHA
    */
   static private $_singleton = NULL;
 
   /**
    * Singleton function used to manage this object.
-   *
    *
    * @return object
    */
@@ -63,13 +62,33 @@ class CRM_Utils_ReCAPTCHA {
     return self::$_singleton;
   }
 
+
   /**
+   * Check if reCaptcha settings is avilable to add on form.
    */
-  public function __construct() {
+  public static function hasSettingsAvailable() {
+    $config = CRM_Core_Config::singleton();
+    if ($config->recaptchaPublicKey == NULL || $config->recaptchaPublicKey == "") {
+      return FALSE;
+    }
+    return TRUE;
+  }
+
+  /**
+   * Check if reCaptcha has to be added on form forcefully.
+   */
+  public static function hasToAddForcefully() {
+    $config = CRM_Core_Config::singleton();
+    if (!$config->forceRecaptcha) {
+      return FALSE;
+    }
+    return TRUE;
   }
 
   /**
    * Add element to form.
+   *
+   * @param CRM_Core_Form $form
    */
   public static function add(&$form) {
     $error = NULL;
@@ -98,7 +117,7 @@ class CRM_Utils_ReCAPTCHA {
     if ($form->isSubmitted() && empty($form->_submitValues['g-recaptcha-response'])) {
       $form->setElementError(
         'g-recaptcha-response',
-        ts('Input text must match the phrase in the image. Please review the image and re-enter matching text.')
+        ts('Please go back and complete the CAPTCHA at the bottom of this form.')
       );
     }
   }

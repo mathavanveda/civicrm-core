@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,13 +28,13 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
  * This class generates form components for search-result tasks.
  */
-class CRM_Contact_Form_Task extends CRM_Core_Form {
+class CRM_Contact_Form_Task extends CRM_Core_Form_Task {
 
   /**
    * The task being performed
@@ -94,12 +94,27 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
    * Common pre-processing function.
    *
    * @param CRM_Core_Form $form
-   * @param bool $useTable
+   *
+   * @throws \CRM_Core_Exception
    */
-  public static function preProcessCommon(&$form, $useTable = FALSE) {
-
+  public static function preProcessCommon(&$form) {
     $form->_contactIds = array();
     $form->_contactTypes = array();
+
+    $useTable = (CRM_Utils_System::getClassName($form->controller->getStateMachine()) == 'CRM_Export_StateMachine_Standalone');
+
+    $isStandAlone = in_array('task', $form->urlPath) || in_array('standalone', $form->urlPath);
+    if ($isStandAlone) {
+      list($form->_task, $title) = CRM_Contact_Task::getTaskAndTitleByClass(get_class($form));
+      if (!array_key_exists($form->_task, CRM_Contact_Task::permissionedTaskTitles(CRM_Core_Permission::getPermission()))) {
+        CRM_Core_Error::statusBounce(ts('You do not have permission to access this page.'));
+      }
+      $form->_contactIds = explode(',', CRM_Utils_Request::retrieve('cids', 'CommaSeparatedIntegers', $form, TRUE));
+      if (empty($form->_contactIds)) {
+        CRM_Core_Error::statusBounce(ts('No Contacts Selected'));
+      }
+      $form->setTitle($title);
+    }
 
     // get the submitted values of the search form
     // we'll need to get fv from either search or adv search in the future
@@ -116,7 +131,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
       self::$_searchFormValues = $form->controller->exportValues('Custom');
       $fragment .= '/custom';
     }
-    else {
+    elseif (!$isStandAlone) {
       self::$_searchFormValues = $form->controller->exportValues('Basic');
     }
 
@@ -138,11 +153,11 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
     $form->assign('taskName', CRM_Utils_Array::value($form->_task, $crmContactTaskTasks));
 
     if ($useTable) {
-      $form->_componentTable = CRM_Core_DAO::createTempTableName('civicrm_task_action', TRUE, $qfKey);
+      $form->_componentTable = CRM_Utils_SQL_TempTable::build()->setCategory('tskact')->setDurable()->setId($qfKey)->getName();
       $sql = " DROP TABLE IF EXISTS {$form->_componentTable}";
       CRM_Core_DAO::executeQuery($sql);
 
-      $sql = "CREATE TABLE {$form->_componentTable} ( contact_id int primary key) ENGINE=MyISAM DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci";
+      $sql = "CREATE TABLE {$form->_componentTable} ( contact_id int primary key) ENGINE=InnoDB DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci";
       CRM_Core_DAO::executeQuery($sql);
     }
 
@@ -150,17 +165,14 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
     if ((CRM_Utils_Array::value('radio_ts', self::$_searchFormValues) == 'ts_all') ||
       ($form->_task == CRM_Contact_Task::SAVE_SEARCH)
     ) {
-      $sortByCharacter = $form->get('sortByCharacter');
-      $cacheKey = ($sortByCharacter && $sortByCharacter != 'all') ? "{$cacheKey}_alphabet" : $cacheKey;
-
       // since we don't store all contacts in prevnextcache, when user selects "all" use query to retrieve contacts
       // rather than prevnext cache table for most of the task actions except export where we rebuild query to fetch
       // final result set
       if ($useTable) {
-        $allCids = CRM_Core_BAO_PrevNextCache::getSelection($cacheKey, "getall");
+        $allCids = Civi::service('prevnext')->getSelection($cacheKey, "getall");
       }
       else {
-        $allCids[$cacheKey] = $form->getContactIds();
+        $allCids[$cacheKey] = self::getContactIds($form);
       }
 
       $form->_contactIds = array();
@@ -183,7 +195,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
           CRM_Core_DAO::executeQuery($sql);
         }
       }
-      else {
+      elseif (empty($form->_contactIds)) {
         // filter duplicates here
         // CRM-7058
         // might be better to do this in the query, but that logic is a bit complex
@@ -218,7 +230,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
       }
       else {
         // fetching selected contact ids of passed cache key
-        $selectedCids = CRM_Core_BAO_PrevNextCache::getSelection($cacheKey);
+        $selectedCids = Civi::service('prevnext')->getSelection($cacheKey);
         foreach ($selectedCids[$cacheKey] as $selectedCid => $ignore) {
           if ($useTable) {
             $insertString[] = " ( {$selectedCid} ) ";
@@ -258,7 +270,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
     ) {
       $sel = CRM_Utils_Array::value('radio_ts', self::$_searchFormValues);
       $form->assign('searchtype', $sel);
-      $result = CRM_Core_BAO_PrevNextCache::getSelectedContacts();
+      $result = self::getSelectedContactNames();
       $form->assign("value", $result);
     }
 
@@ -271,42 +283,45 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
   }
 
   /**
-   * Get the contact id for custom search.
+   * Get the contact ids for:
+   *   - "Select Records: All xx records"
+   *   - custom search (FIXME: does this still apply to custom search?).
+   * When we call this function we are not using the prev/next cache
    *
-   * we are not using prev/next table in case of custom search
+   * @param $form CRM_Core_Form
+   *
+   * @return array $contactIds
    */
-  public function getContactIds() {
+  public static function getContactIds($form) {
     // need to perform action on all contacts
     // fire the query again and get the contact id's + display name
     $sortID = NULL;
-    if ($this->get(CRM_Utils_Sort::SORT_ID)) {
-      $sortID = CRM_Utils_Sort::sortIDValue($this->get(CRM_Utils_Sort::SORT_ID),
-        $this->get(CRM_Utils_Sort::SORT_DIRECTION)
+    if ($form->get(CRM_Utils_Sort::SORT_ID)) {
+      $sortID = CRM_Utils_Sort::sortIDValue($form->get(CRM_Utils_Sort::SORT_ID),
+        $form->get(CRM_Utils_Sort::SORT_DIRECTION)
       );
     }
 
-    $selectorName = $this->controller->selectorName();
-    require_once str_replace('_', DIRECTORY_SEPARATOR, $selectorName) . '.php';
+    $selectorName = $form->controller->selectorName();
 
-    $fv = $this->get('formValues');
-    $customClass = $this->get('customSearchClass');
-    require_once 'CRM/Core/BAO/Mapping.php';
+    $fv = $form->get('formValues');
+    $customClass = $form->get('customSearchClass');
     $returnProperties = CRM_Core_BAO_Mapping::returnProperties(self::$_searchFormValues);
 
     $selector = new $selectorName($customClass, $fv, NULL, $returnProperties);
 
-    $params = $this->get('queryParams');
+    $params = $form->get('queryParams');
 
     // fix for CRM-5165
-    $sortByCharacter = $this->get('sortByCharacter');
+    $sortByCharacter = $form->get('sortByCharacter');
     if ($sortByCharacter && $sortByCharacter != 1) {
       $params[] = array('sortByCharacter', '=', $sortByCharacter, 0, 0);
     }
-    $queryOperator = $this->get('queryOperator');
+    $queryOperator = $form->get('queryOperator');
     if (!$queryOperator) {
       $queryOperator = 'AND';
     }
-    $dao = $selector->contactIDQuery($params, $this->_action, $sortID,
+    $dao = $selector->contactIDQuery($params, $sortID,
       CRM_Utils_Array::value('display_relationship_type', $fv),
       $queryOperator
     );
@@ -373,7 +388,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
         array(
           'type' => $backType,
           'name' => ts('Cancel'),
-          'icon' => 'close',
+          'icon' => 'fa-times',
         ),
       )
     );
@@ -428,7 +443,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
       $today = date('Ymd');
       $relationActive = " AND (crel.is_active = 1 AND ( crel.end_date is NULL OR crel.end_date >= {$today} ) )";
       $relationWhere = " WHERE contact_household.is_deleted = 0  AND crel.{$contactA} IN ( {$relID} ) {$relationActive}";
-      $relationGroupBy = " GROUP BY crel.{$contactA}";
+      $relationGroupBy = " GROUP BY crel.{$contactA}, contact_household.id";
       $relationQueryString = "$relationSelect $relationFrom $relationWhere $relationGroupBy";
 
       $householdsDAO = CRM_Core_DAO::executeQuery($relationQueryString);
@@ -443,6 +458,43 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
       }
       $householdsDAO->free();
     }
+
+    // If contact list has changed, households will probably be at the end of
+    // the list. Sort it again by sort_name.
+    if (implode(',', $this->_contactIds) != $relID) {
+      $result = civicrm_api3('Contact', 'get', array(
+        'return' => array('id'),
+        'id' => array('IN' => $this->_contactIds),
+        'options' => array(
+          'limit' => 0,
+          'sort' => "sort_name",
+        ),
+      ));
+      $this->_contactIds = array_keys($result['values']);
+    }
+  }
+
+  /**
+   * @return array
+   *   List of contact names.
+   *   NOTE: These are raw values from the DB. In current data-model, that means
+   *   they are pre-encoded HTML.
+   */
+  private static function getSelectedContactNames() {
+    $qfKey = CRM_Utils_Request::retrieve('qfKey', 'String');
+    $cacheKey = "civicrm search {$qfKey}";
+
+    $cids = array();
+    // Gymanstic time!
+    foreach (Civi::service('prevnext')->getSelection($cacheKey) as $cacheKey => $values) {
+      $cids = array_unique(array_merge($cids, array_keys($values)));
+    }
+
+    $result = CRM_Utils_SQL_Select::from('civicrm_contact')
+      ->where('id IN (#cids)', ['cids' => $cids])
+      ->execute()
+      ->fetchMap('id', 'sort_name');
+    return $result;
   }
 
   /**
@@ -457,7 +509,6 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
     $searchParams = $this->controller->exportValues();
     if ($searchParams['radio_ts'] == 'ts_sel') {
       // Create a static group.
-
       $randID = md5(time() . rand(1, 1000)); // groups require a unique name
       $grpTitle = "Hidden Group {$randID}";
       $grpID = CRM_Core_DAO::getFieldValue('CRM_Contact_DAO_Group', $grpTitle, 'id', 'title');
@@ -482,7 +533,7 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
           'title' => $newGroupTitle,
           'group_type' => array('2' => 1),
         );
-        $group = CRM_Contact_BAO_Group::create($groupParams);
+        CRM_Contact_BAO_Group::create($groupParams);
       }
 
       // note at this point its a static group
@@ -490,7 +541,6 @@ class CRM_Contact_Form_Task extends CRM_Core_Form {
     }
     else {
       // Create a smart group.
-
       $ssId = $this->get('ssID');
       $hiddenSmartParams = array(
         'group_type' => array('2' => 1),

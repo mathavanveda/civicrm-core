@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,21 +28,16 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
-
-  protected $_addressField = FALSE;
 
   protected $_customGroupExtends = array('Grant');
 
   protected $_add2groupSupported = FALSE;
 
   /**
-   */
-  /**
+   * Class constructor.
    */
   public function __construct() {
     $this->_columns = array(
@@ -109,6 +104,7 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
           'status_id' => array(
             'name' => 'status_id',
             'title' => ts('Grant Status'),
+            'type' => CRM_Utils_Type::T_INT,
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_PseudoConstant::get('CRM_Grant_DAO_Grant', 'status_id'),
           ),
@@ -165,7 +161,7 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
         ),
         'grouping' => 'contact-fields',
       ),
-      'civicrm_world_region' => array(
+      'civicrm_worldregion' => array(
         'dao' => 'CRM_Core_DAO_Worldregion',
         'fields' => array(
           'id' => array(
@@ -180,6 +176,7 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
           'region_id' => array(
             'name' => 'id',
             'title' => ts('World Region'),
+            'type' => CRM_Utils_Type::T_INT,
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_PseudoConstant::worldRegion(),
           ),
@@ -196,6 +193,7 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
         'filters' => array(
           'country_id' => array(
             'title' => ts('Country'),
+            'type' => CRM_Utils_Type::T_INT,
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_PseudoConstant::country(),
           ),
@@ -210,13 +208,6 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
 
     $this->_columnHeaders = array();
     foreach ($this->_columns as $tableName => $table) {
-      if (in_array($tableName, array(
-        'civicrm_address',
-        'civicrm_world_region',
-      ))) {
-        $this->_addressField = TRUE;
-      }
-
       if (array_key_exists('fields', $table)) {
         foreach ($table['fields'] as $fieldName => $field) {
           if (!empty($field['required']) ||
@@ -231,6 +222,7 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
         }
       }
     }
+    $this->_selectClauses = $select;
 
     $this->_select = "SELECT " . implode(', ', $select) . " ";
   }
@@ -240,18 +232,14 @@ class CRM_Report_Form_Grant_Statistics extends CRM_Report_Form {
         FROM civicrm_grant {$this->_aliases['civicrm_grant']}
                         LEFT JOIN civicrm_contact {$this->_aliases['civicrm_contact']}
                     ON ({$this->_aliases['civicrm_grant']}.contact_id  = {$this->_aliases['civicrm_contact']}.id  ) ";
-    if ($this->_addressField) {
+
+    $this->joinAddressFromContact();
+    $this->joinCountryFromAddress();
+    if ($this->isTableSelected('civicrm_worldregion')) {
       $this->_from .= "
-                  LEFT JOIN civicrm_address {$this->_aliases['civicrm_address']}
-                         ON {$this->_aliases['civicrm_contact']}.id =
-                            {$this->_aliases['civicrm_address']}.contact_id AND
-                            {$this->_aliases['civicrm_address']}.is_primary = 1\n
-                  LEFT JOIN civicrm_country country
-                         ON {$this->_aliases['civicrm_address']}.country_id =
-                            country.id
-                  LEFT JOIN civicrm_worldregion {$this->_aliases['civicrm_world_region']}
-                         ON country.region_id =
-                            {$this->_aliases['civicrm_world_region']}.id";
+                  LEFT JOIN civicrm_worldregion {$this->_aliases['civicrm_worldregion']}
+                         ON {$this->_aliases['civicrm_country']}.region_id =
+                            {$this->_aliases['civicrm_worldregion']}.id";
     }
   }
 
@@ -295,12 +283,13 @@ WHERE {$this->_aliases['civicrm_grant']}.amount_total IS NOT NULL
           }
           if (!empty($clause)) {
             $clauses[] = $clause;
-            $this->_where .= " AND " . implode(' AND ', $clauses);
-            $this->_whereClause = $whereClause . " AND " .
-              implode(' AND ', $clauses);
           }
         }
       }
+    }
+    if (!empty($clauses)) {
+      $this->_where = "WHERE " . implode(' AND ', $clauses);
+      $this->_whereClause = $whereClause . " AND " . implode(' AND ', $clauses);
     }
   }
 
@@ -315,14 +304,14 @@ WHERE {$this->_aliases['civicrm_grant']}.amount_total IS NOT NULL
         if (array_key_exists('fields', $table)) {
           foreach ($table['fields'] as $fieldName => $field) {
             if (!empty($this->_params['fields'][$fieldName])) {
-              $this->_groupBy[] = $field['dbAlias'];
+              $groupBy[] = $field['dbAlias'];
             }
           }
         }
       }
     }
-    if (!empty($this->_groupBy)) {
-      $this->_groupBy = " GROUP BY " . implode(', ', $this->_groupBy);
+    if (!empty($groupBy)) {
+      $this->_groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($this->_selectClauses, $groupBy);
     }
   }
 
@@ -414,11 +403,11 @@ SELECT COUNT({$this->_aliases['civicrm_grant']}.id) as count ,
         );
       }
 
-      if (array_key_exists('civicrm_world_region_name', $values)) {
-        $region = CRM_Utils_Array::value('civicrm_world_region_name', $values);
+      if (array_key_exists('civicrm_worldregion_name', $values)) {
+        $region = CRM_Utils_Array::value('civicrm_worldregion_name', $values);
         $region = ($region) ? $region : 'Unassigned';
-        $grantStatistics['civicrm_world_region_name']['title'] = ts('By Region');
-        self::getStatistics($grantStatistics['civicrm_world_region_name'], $region, $values,
+        $grantStatistics['civicrm_worldregion_name']['title'] = ts('By Region');
+        self::getStatistics($grantStatistics['civicrm_worldregion_name'], $region, $values,
           $awardedGrants, $awardedGrantsAmount
         );
       }

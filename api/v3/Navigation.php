@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -60,9 +60,9 @@ function _civicrm_api3_navigation_reset_spec(&$params) {
  */
 function civicrm_api3_navigation_reset($params) {
   if ($params['for'] == 'report') {
-    CRM_Core_BAO_Navigation::resetNavigation();
+    CRM_Core_BAO_Navigation::rebuildReportsNavigation($params['domain_id']);
   }
-  CRM_Core_BAO_Navigation::rebuildReportsNavigation($params['domain_id']);
+  CRM_Core_BAO_Navigation::resetNavigation();
   return civicrm_api3_create_success(1, $params, 'navigation', 'reset');
 }
 
@@ -88,14 +88,6 @@ function civicrm_api3_navigation_get($params) {
 }
 
 /**
- * Adjust metadata for navigation create action.
- *
- * @param array $params
- */
-function _civicrm_api3_navigation_create_spec(&$params) {
-}
-
-/**
  * Create navigation item.
  *
  * @param array $params
@@ -105,7 +97,8 @@ function _civicrm_api3_navigation_create_spec(&$params) {
  *   API result array.
  */
 function civicrm_api3_navigation_create($params) {
-  return _civicrm_api3_basic_create(_civicrm_api3_get_BAO(__FUNCTION__), $params);
+  civicrm_api3_verify_one_mandatory($params, NULL, array('name', 'label'));
+  return _civicrm_api3_basic_create(_civicrm_api3_get_BAO(__FUNCTION__), $params, 'Navigation');
 }
 
 /**

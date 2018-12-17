@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -78,13 +78,15 @@
   <td class="label">{$form.target_contact_id.label}</td>
     <td class="view-value">
       {$form.target_contact_id.html}
-      {if $action eq 1 or $single eq false}
-      <div class="crm-is-multi-activity-wrapper">
-        {$form.is_multi_activity.html}&nbsp;{$form.is_multi_activity.label} {help id="id-is_multi_activity"}
-      </div>
-      {/if}
     </td>
   </tr>
+
+  {if $form.separation }
+    <tr class="crm-activity-form-block-separation crm-is-multi-activity-wrapper">
+      <td class="label">{$form.separation.label}</td>
+      <td>{$form.separation.html} {help id="separation"}</td>
+    </tr>
+  {/if}
 
   <tr class="crm-activity-form-block-assignee_contact_id">
       <td class="label">
@@ -96,12 +98,12 @@
         {if $action neq 4}
           {if !$form.target_contact_id.frozen}
             <a href="#" class="crm-hover-button" id="swap_target_assignee" title="{ts}Swap Target and Assignee Contacts{/ts}" style="position:relative; bottom: 1em;">
-              <span class="icon ui-icon-shuffle"></span>
+              <i class="crm-i fa-random"></i>
             </a>
           {/if}
           {if $activityAssigneeNotification}
             <br />
-            <span class="description"><span class="icon ui-icon-mail-closed"></span>{ts}A copy of this activity will be emailed to each Assignee.{/ts}</span>
+            <span id="notify_assignee_msg" class="description"><i class="crm-i fa-paper-plane"></i> {ts}A copy of this activity will be emailed to each Assignee.{/ts} {help id="sent_copy_email"}</span>
           {/if}
         {/if}
       </td>
@@ -154,7 +156,11 @@
       <td class="view-value">
       {$form.details.html}
       </td>
-      {else}
+    {elseif $activityTypeName eq "Inbound Email"}
+      <td class="view-value">
+       {$form.details.html|crmStripAlternatives|nl2br}
+      </td>
+    {else}
       <td class="view-value">
        {$form.details.html|crmStripAlternatives}
       </td>
@@ -245,7 +251,7 @@
   {/if} {* End Delete vs. Add / Edit action *}
   </table>
   <div class="crm-submit-buttons">
-  {if $action eq 4 && $activityTName neq 'Inbound Email'}
+  {if $action eq 4 && ($activityTName neq 'Inbound Email' || $allow_edit_inbound_emails == 1)}
     {if !$context }
       {assign var="context" value='activity'}
     {/if}
@@ -254,7 +260,7 @@
       {if ($context eq 'fulltext' || $context eq 'search') && $searchKey}
         {assign var='urlParams' value="reset=1&atype=$atype&action=update&reset=1&id=$entityID&cid=$contactId&context=$context&key=$searchKey"}
       {/if}
-      <a href="{crmURL p='civicrm/activity/add' q=$urlParams}" class="edit button" title="{ts}Edit{/ts}"><span><div class="icon ui-icon-pencil"></div>{ts}Edit{/ts}</span></a>
+      <a href="{crmURL p='civicrm/activity/add' q=$urlParams}" class="edit button" title="{ts}Edit{/ts}"><span><i class="crm-i fa-pencil"></i> {ts}Edit{/ts}</span></a>
     {/if}
 
     {if call_user_func(array('CRM_Core_Permission','check'), 'delete activities')}
@@ -262,30 +268,40 @@
       {if ($context eq 'fulltext' || $context eq 'search') && $searchKey}
         {assign var='urlParams' value="reset=1&atype=$atype&action=delete&reset=1&id=$entityID&cid=$contactId&context=$context&key=$searchKey"}
       {/if}
-      <a href="{crmURL p='civicrm/contact/view/activity' q=$urlParams}" class="delete button" title="{ts}Delete{/ts}"><span><div class="icon delete-icon"></div>{ts}Delete{/ts}</span></a>
+      <a href="{crmURL p='civicrm/contact/view/activity' q=$urlParams}" class="delete button" title="{ts}Delete{/ts}"><span><i class="crm-i fa-trash"></i> {ts}Delete{/ts}</span></a>
     {/if}
   {/if}
-  {if $action eq 4 and call_user_func(array('CRM_Case_BAO_Case','checkPermission'), $activityId, 'File On Case', $atype)}
-    <a href="#" onclick="fileOnCase('file', {$activityId}, null, this); return false;" class="cancel button" title="{ts}File On Case{/ts}"><span><div class="icon ui-icon-clipboard"></div>{ts}File on Case{/ts}</span></a>
+  {if $action eq 4 and $context != 'case' and call_user_func(array('CRM_Case_BAO_Case','checkPermission'), $activityId, 'File On Case', $atype)}
+    <a href="#" onclick="fileOnCase('file', {$activityId}, null, this); return false;" class="cancel button" title="{ts}File On Case{/ts}"><span><i class="crm-i fa-clipboard"></i> {ts}File on Case{/ts}</span></a>
+    {include file="CRM/Case/Form/ActivityToCase.tpl"}
   {/if}
   {include file="CRM/common/formButtons.tpl" location="bottom"}
   </div>
 
-  {include file="CRM/Case/Form/ActivityToCase.tpl"}
 
   {if $action eq 1 or $action eq 2 or $context eq 'search' or $context eq 'smog'}
-  {*include custom data js file*}
-  {include file="CRM/common/customData.tpl"}
+    {*include custom data js file*}
+    {include file="CRM/common/customData.tpl"}
     {literal}
     <script type="text/javascript">
     CRM.$(function($) {
-    {/literal}
-    {if $customDataSubType}
-      CRM.buildCustomData( '{$customDataType}', {$customDataSubType} );
-      {else}
-      CRM.buildCustomData( '{$customDataType}' );
-    {/if}
-    {literal}
+      var doNotNotifyAssigneeFor = {/literal}{$doNotNotifyAssigneeFor|@json_encode}{literal};
+      $('#activity_type_id').change(function() {
+        if ($.inArray($(this).val(), doNotNotifyAssigneeFor) != -1) {
+          $('#notify_assignee_msg').hide();
+        }
+        else {
+          $('#notify_assignee_msg').show();
+        }
+      });
+
+      {/literal}
+      {if $customDataSubType}
+        CRM.buildCustomData( '{$customDataType}', {$customDataSubType} );
+        {else}
+        CRM.buildCustomData( '{$customDataType}' );
+      {/if}
+      {literal}
     });
     </script>
     {/literal}

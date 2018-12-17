@@ -88,7 +88,7 @@ class TokenProcessor {
    *   Ex: '<p>Hello {contact.name}</p>'.
    * @param string $format
    *   Ex: 'text/html'.
-   * @return $this
+   * @return TokenProcessor
    */
   public function addMessage($name, $value, $format) {
     $this->messages[$name] = array(
@@ -121,7 +121,7 @@ class TokenProcessor {
    *    - entity: string, e.g. "profile".
    *    - field: string, e.g. "viewUrl".
    *    - label: string, e.g. "Default Profile URL (View Mode)".
-   * @return $this
+   * @return TokenProcessor
    */
   public function addToken($params) {
     $key = $params['entity'] . '.' . $params['field'];
@@ -166,6 +166,43 @@ class TokenProcessor {
    */
   public function getRows() {
     return new TokenRowIterator($this, new \ArrayIterator($this->rowContexts));
+  }
+
+  /**
+   * Get a list of all unique values for a given context field,
+   * whether defined at the processor or row level.
+   *
+   * @param string $field
+   *   Ex: 'contactId'.
+   * @return array
+   *   Ex: [12, 34, 56].
+   */
+  public function getContextValues($field, $subfield = NULL) {
+    $values = [];
+    if (isset($this->context[$field])) {
+      if ($subfield) {
+        if (isset($this->context[$field]->$subfield)) {
+          $values[] = $this->context[$field]->$subfield;
+        }
+      }
+      else {
+        $values[] = $this->context[$field];
+      }
+    }
+    foreach ($this->getRows() as $row) {
+      if (isset($row->context[$field])) {
+        if ($subfield) {
+          if (isset($row->context[$field]->$subfield)) {
+            $values[] = $row->context[$field]->$subfield;
+          }
+        }
+        else {
+          $values[] = $row->context[$field];
+        }
+      }
+    }
+    $values = array_unique($values);
+    return $values;
   }
 
   /**

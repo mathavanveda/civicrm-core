@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -38,7 +38,7 @@
 
   {if $action eq 8 or $action eq 32768 }
   <div class="messages status no-popup">
-    <div class="icon inform-icon"></div> &nbsp;
+    <i class="crm-i fa-info-circle"></i> &nbsp;
     {if $action eq 8}
       {ts 1=$activityTypeName}Click Delete to move this &quot;%1&quot; activity to the Trash.{/ts}
     {else}
@@ -49,7 +49,7 @@
   <table class="form-layout">
     {if $activityTypeDescription }
       <tr>
-        <div id="help">{$activityTypeDescription}</div>
+        <div class="help">{$activityTypeDescription}</div>
       </tr>
     {/if}
     {* Block for change status, case type and start date. *}
@@ -127,7 +127,7 @@
                   <td>{$form.assignee_contact_id.html}
                     {if $activityAssigneeNotification}
                       <br />
-                      <span class="description"><span class="icon ui-icon-mail-closed"></span>{ts}A copy of this activity will be emailed to each Assignee.{/ts}</span>
+                      <span id="notify_assignee_msg" class="description"><i class="crm-i fa-paper-plane"></i> {ts}A copy of this activity will be emailed to each Assignee.{/ts}</span>
                     {/if}
                   </td>
                 </tr>
@@ -216,7 +216,7 @@
                   {foreach from=$searchRows item=row key=id}
                     {foreach from=$searchRows.$id item=row1 key=id1}
                       <tr class="{cycle values="odd-row,even-row"}">
-                        <td class="crm-case-activity-form-block-contact_{$id}">{$form.contact_check[$id].html}</td>
+                        <td class="crm-case-activity-form-block-contact_{$id1}">{$form.contact_check[$id1].html}</td>
                         <td class="crm-case-activity-form-block-role">{$row1.role}</td>
                         <td class="crm-case-activity-form-block-display_name">{$row1.display_name}</td>
                         <td class="crm-case-activity-form-block-email">{$row1.email}</td>
@@ -271,18 +271,28 @@
 <div class="crm-submit-buttons">{include file="CRM/common/formButtons.tpl" location="bottom"}</div>
 
   {if $action eq 1 or $action eq 2}
-  {*include custom data js file*}
-  {include file="CRM/common/customData.tpl"}
+    {*include custom data js file*}
+    {include file="CRM/common/customData.tpl"}
     {literal}
     <script type="text/javascript">
     CRM.$(function($) {
-    {/literal}
-    {if $customDataSubType}
-      CRM.buildCustomData( '{$customDataType}', {$customDataSubType} );
-      {else}
-      CRM.buildCustomData( '{$customDataType}' );
-    {/if}
-    {literal}
+      var doNotNotifyAssigneeFor = {/literal}{$doNotNotifyAssigneeFor|@json_encode}{literal};
+      $('#activity_type_id').change(function() {
+        if ($.inArray($(this).val(), doNotNotifyAssigneeFor) != -1) {
+          $('#notify_assignee_msg').hide();
+        }
+        else {
+          $('#notify_assignee_msg').show();
+        }
+      });
+
+      {/literal}
+      {if $customDataSubType}
+        CRM.buildCustomData( '{$customDataType}', {$customDataSubType} );
+        {else}
+        CRM.buildCustomData( '{$customDataType}' );
+      {/if}
+      {literal}
     });
     </script>
     {/literal}

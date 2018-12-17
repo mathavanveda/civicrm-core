@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -27,12 +27,6 @@
 
 /**
  *
- * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- */
-
-/**
- *
  * Base class to provide generic sort functionality.
  *
  * Note that some ideas have been borrowed from the drupal tablesort.inc code.
@@ -41,9 +35,7 @@
  * if introducing additional functionality
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Utils_Sort {
 
@@ -129,7 +121,7 @@ class CRM_Utils_Sort {
 
     foreach ($vars as $weight => $value) {
       $this->_vars[$weight] = array(
-        'name' => $value['sort'],
+        'name' => CRM_Utils_Type::validate($value['sort'], 'MysqlColumnNameOrAlias'),
         'direction' => CRM_Utils_Array::value('direction', $value),
         'title' => $value['name'],
       );
@@ -160,11 +152,11 @@ class CRM_Utils_Sort {
       $this->_vars[$this->_currentSortID]['direction'] == self::DONTCARE
     ) {
       $this->_vars[$this->_currentSortID]['name'] = str_replace(' ', '_', $this->_vars[$this->_currentSortID]['name']);
-      return $this->_vars[$this->_currentSortID]['name'] . ' asc';
+      return CRM_Utils_Type::escape($this->_vars[$this->_currentSortID]['name'], 'MysqlColumnNameOrAlias') . ' asc';
     }
     else {
       $this->_vars[$this->_currentSortID]['name'] = str_replace(' ', '_', $this->_vars[$this->_currentSortID]['name']);
-      return $this->_vars[$this->_currentSortID]['name'] . ' desc';
+      return CRM_Utils_Type::escape($this->_vars[$this->_currentSortID]['name'], 'MysqlColumnNameOrAlias') . ' desc';
     }
   }
 
@@ -257,7 +249,6 @@ class CRM_Utils_Sort {
    *
    * @return int
    *   returns of the current sort id
-   * @acccess public
    */
   public function getCurrentSortID() {
     return $this->_currentSortID;
@@ -268,7 +259,6 @@ class CRM_Utils_Sort {
    *
    * @return int
    *   returns of the current sort direction
-   * @acccess public
    */
   public function getCurrentSortDirection() {
     return $this->_currentSortDirection;
@@ -295,7 +285,7 @@ class CRM_Utils_Sort {
         } // else: $a and $b are equal wrt to this attribute, try next...
       }
     }
-    // if we get here, $a and $b es equal for all we know
+    // if we get here, $a and $b are equal for all we know
     // however, as I understand we don't want equality here:
     return -1;
   }

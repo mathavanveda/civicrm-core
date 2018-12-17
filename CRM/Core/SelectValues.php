@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,7 +31,7 @@
  * smart caching scheme on a per domain basis
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -203,7 +203,6 @@ class CRM_Core_SelectValues {
       'RichTextEditor' => ts('Rich Text Editor'),
       'Autocomplete-Select' => ts('Autocomplete-Select'),
       'Multi-Select' => ts('Multi-Select'),
-      'AdvMulti-Select' => ts('AdvMulti-Select'),
       'Link' => ts('Link'),
       'ContactReference' => ts('Autocomplete-Select'),
     );
@@ -220,6 +219,7 @@ class CRM_Core_SelectValues {
       'Activity' => ts('Activities'),
       'Relationship' => ts('Relationships'),
       'Contribution' => ts('Contributions'),
+      'ContributionRecur' => ts('Recurring Contributions'),
       'Group' => ts('Groups'),
       'Membership' => ts('Memberships'),
       'Event' => ts('Events'),
@@ -310,7 +310,8 @@ class CRM_Core_SelectValues {
    * @return array
    *   the date array
    */
-  public static function date($type = NULL, $format = NULL, $minOffset = NULL, $maxOffset = NULL) {
+  public static function date($type = NULL, $format = NULL, $minOffset = NULL, $maxOffset = NULL, $context = 'display') {
+    // These options are deprecated. Definitely not used in datepicker. Possibly not even in jcalendar+addDateTime.
     $date = array(
       'addEmptyOption' => TRUE,
       'emptyOptionText' => ts('- select -'),
@@ -327,25 +328,35 @@ class CRM_Core_SelectValues {
         if (!$dao->find(TRUE)) {
           CRM_Core_Error::fatal();
         }
-      }
+        if (!$maxOffset) {
+          $maxOffset = $dao->end;
+        }
+        if (!$minOffset) {
+          $minOffset = $dao->start;
+        }
 
-      if ($type == 'creditCard') {
-        $minOffset = $dao->start;
-        $maxOffset = $dao->end;
         $date['format'] = $dao->date_format;
-        $date['addEmptyOption'] = TRUE;
-        $date['emptyOptionText'] = ts('- select -');
-        $date['emptyOptionValue'] = '';
+        $date['time'] = (bool) $dao->time_format;
       }
 
       if (empty($date['format'])) {
-        $date['format'] = 'M d';
+        if ($context == 'Input') {
+          $date['format'] = Civi::settings()->get('dateInputFormat');
+        }
+        else {
+          $date['format'] = 'M d';
+        }
       }
     }
 
+    $date['smarty_view_format'] = CRM_Utils_Date::getDateFieldViewFormat($date['format']);
+    if (!isset($date['time'])) {
+      $date['time'] = FALSE;
+    }
+
     $year = date('Y');
-    $date['minYear'] = $year - $minOffset;
-    $date['maxYear'] = $year + $maxOffset;
+    $date['minYear'] = $year - (int) $minOffset;
+    $date['maxYear'] = $year + (int) $maxOffset;
     return $date;
   }
 
@@ -357,8 +368,8 @@ class CRM_Core_SelectValues {
   public static function ufVisibility() {
     return array(
       'User and User Admin Only' => ts('User and User Admin Only'),
-      'Public Pages' => ts('Public Pages'),
-      'Public Pages and Listings' => ts('Public Pages and Listings'),
+      'Public Pages' => ts('Expose Publicly'),
+      'Public Pages and Listings' => ts('Expose Publicly and for Listings'),
     );
   }
 
@@ -455,7 +466,7 @@ class CRM_Core_SelectValues {
   public static function addressProvider() {
     static $addr = NULL;
     if (!$addr) {
-      $addr = CRM_Utils_System::getPluginList('CRM/Utils/Address', '.php', array('BatchUpdate'));
+      $addr = array_merge(['' => '- select -'], CRM_Utils_System::getPluginList('CRM/Utils/Address', '.php', array('BatchUpdate')));
     }
     return $addr;
   }
@@ -547,7 +558,7 @@ class CRM_Core_SelectValues {
    * @return array
    */
   public static function contributionTokens() {
-    return array(
+    return array_merge(array(
       '{contribution.contribution_id}' => ts('Contribution ID'),
       '{contribution.total_amount}' => ts('Total Amount'),
       '{contribution.fee_amount}' => ts('Fee Amount'),
@@ -571,7 +582,7 @@ class CRM_Core_SelectValues {
       //'{contribution.address_id}' => ts('Address ID'),
       '{contribution.check_number}' => ts('Check Number'),
       '{contribution.campaign}' => ts('Contribution Campaign'),
-    );
+    ), CRM_Utils_Token::getCustomFieldTokens('contribution', TRUE));
   }
 
   /**
@@ -693,6 +704,25 @@ class CRM_Core_SelectValues {
   }
 
   /**
+   * @param int $caseTypeId
+   * @return array
+   */
+  public static function caseTokens($caseTypeId = NULL) {
+    static $tokens = NULL;
+    if (!$tokens) {
+      foreach (CRM_Case_BAO_Case::fields() as $field) {
+        $tokens["{case.{$field['name']}}"] = $field['title'];
+      }
+
+      $customFields = CRM_Core_BAO_CustomField::getFields('Case', FALSE, FALSE, $caseTypeId);
+      foreach ($customFields as $id => $field) {
+        $tokens["{case.custom_$id}"] = "{$field['label']} :: {$field['groupTitle']}";
+      }
+    }
+    return $tokens;
+  }
+
+  /**
    * CiviCRM supported date input formats.
    *
    * @return array
@@ -729,32 +759,6 @@ class CRM_Core_SelectValues {
     gives proper result
      */
 
-    return $dateInputFormats;
-  }
-
-  /**
-   * Map date plugin and actual format that is used by PHP.
-   *
-   * @return array
-   */
-  public static function datePluginToPHPFormats() {
-    $dateInputFormats = array(
-      "mm/dd/yy" => 'm/d/Y',
-      "dd/mm/yy" => 'd/m/Y',
-      "yy-mm-dd" => 'Y-m-d',
-      "dd-mm-yy" => 'd-m-Y',
-      "dd.mm.yy" => 'd.m.Y',
-      "M d, yy" => 'M j, Y',
-      "d M yy" => 'j M Y',
-      "MM d, yy" => 'F j, Y',
-      "d MM yy" => 'j F Y',
-      "DD, d MM yy" => 'l, j F Y',
-      "mm/dd" => 'm/d',
-      "dd-mm" => 'd-m',
-      "yy-mm" => 'Y-m',
-      "M yy" => 'M Y',
-      "yy" => 'Y',
-    );
     return $dateInputFormats;
   }
 
@@ -873,9 +877,12 @@ class CRM_Core_SelectValues {
    */
   public static function getJobFrequency() {
     return array(
-      '1stOfQtr' => ts('1st day of every quarter'),
-      '1stOfMth' => ts('1st day of every month'),
-      'Mondays' => ts('Monday of every week'),
+      // CRM-17669
+      'Yearly' => ts('Yearly'),
+      'Quarter' => ts('Quarterly'),
+      'Monthly' => ts('Monthly'),
+      'Weekly' => ts('Weekly'),
+
       'Daily' => ts('Daily'),
       'Hourly' => ts('Hourly'),
       'Always' => ts('Every time cron job is run'),
@@ -887,8 +894,8 @@ class CRM_Core_SelectValues {
    *
    * @return array
    */
-  public static function getSearchBuilderOperators() {
-    return array(
+  public static function getSearchBuilderOperators($fieldType = NULL) {
+    return [
       '=' => '=',
       '!=' => '≠',
       '>' => '>',
@@ -904,7 +911,7 @@ class CRM_Core_SelectValues {
       'IS NOT EMPTY' => ts('Not Empty'),
       'IS NULL' => ts('Is Null'),
       'IS NOT NULL' => ts('Not Null'),
-    );
+    ];
   }
 
   /**
@@ -979,6 +986,17 @@ class CRM_Core_SelectValues {
   }
 
   /**
+   * @return array
+   */
+  public static function contributeMode() {
+    return array(
+      CRM_Core_Payment::BILLING_MODE_FORM => 'direct',
+      CRM_Core_Payment::BILLING_MODE_BUTTON => 'directIPN',
+      CRM_Core_Payment::BILLING_MODE_NOTIFY => 'notify',
+    );
+  }
+
+  /**
    * Frequency unit for schedule reminders.
    *
    * @param int $count
@@ -1037,6 +1055,108 @@ class CRM_Core_SelectValues {
       'week' => ts('Weeks'),
       'day' => ts('Days'),
     );
+  }
+
+  /**
+   * Exportable document formats.
+   *
+   * @return array
+   */
+  public static function documentFormat() {
+    return array(
+      'pdf' => ts('Portable Document Format (.pdf)'),
+      'docx' => ts('MS Word (.docx)'),
+      'odt' => ts('Open Office (.odt)'),
+      'html' => ts('Webpage (.html)'),
+    );
+  }
+
+  /**
+   * Application type of document.
+   *
+   * @return array
+   */
+  public static function documentApplicationType() {
+    return array(
+      'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'odt' => 'application/vnd.oasis.opendocument.text',
+    );
+  }
+
+  /**
+   * Activity Text options.
+   *
+   * @return array
+   */
+  public static function activityTextOptions() {
+    return array(
+      2 => ts('Details Only'),
+      3 => ts('Subject Only'),
+      6 => ts('Both'),
+    );
+  }
+
+  /**
+   * Relationship permissions
+   *
+   * @return array
+   */
+  public static function getPermissionedRelationshipOptions() {
+    return array(
+      CRM_Contact_BAO_Relationship::NONE => ts('None'),
+      CRM_Contact_BAO_Relationship::VIEW => ts('View only'),
+      CRM_Contact_BAO_Relationship::EDIT => ts('View and update'),
+    );
+  }
+
+  /**
+   * Get option values for dashboard entries (used for 'how many events to display on dashboard').
+   *
+   * @return array
+   *   Dashboard entries options - in practice [-1 => 'Show All', 10 => 10, 20 => 20, ... 100 => 100].
+   */
+  public static function getDashboardEntriesCount() {
+    $optionValues = [];
+    $optionValues[-1] = ts('show all');
+    for ($i = 10; $i <= 100; $i += 10) {
+      $optionValues[$i] = $i;
+    }
+    return $optionValues;
+  }
+
+  /**
+   * Dropdown options for quicksearch in the menu
+   *
+   * @return array
+   */
+  public static function quicksearchOptions() {
+    $includeEmail = civicrm_api3('setting', 'getvalue', array('name' => 'includeEmailInName', 'group' => 'Search Preferences'));
+    $options = [
+      'sort_name' => $includeEmail ? ts('Name/Email') : ts('Name'),
+      'contact_id' => ts('Contact ID'),
+      'external_identifier' => ts('External ID'),
+      'first_name' => ts('First Name'),
+      'last_name' => ts('Last Name'),
+      'email' => ts('Email'),
+      'phone_numeric' => ts('Phone'),
+      'street_address' => ts('Street Address'),
+      'city' => ts('City'),
+      'postal_code' => ts('Postal Code'),
+      'job_title' => ts('Job Title'),
+    ];
+    $custom = civicrm_api3('CustomField', 'get', [
+      'return' => ['name', 'label', 'custom_group_id.title'],
+      'custom_group_id.extends' => ['IN' => ['Contact', 'Individual', 'Organization', 'Household']],
+      'data_type' => ['NOT IN' => ['ContactReference', 'Date', 'File']],
+      'custom_group_id.is_active' => 1,
+      'is_active' => 1,
+      'is_searchable' => 1,
+      'options' => ['sort' => ['custom_group_id.weight', 'weight'], 'limit' => 0],
+    ]);
+    foreach ($custom['values'] as $field) {
+      $options['custom_' . $field['name']] = $field['custom_group_id.title'] . ': ' . $field['label'];
+    }
+    return $options;
   }
 
 }

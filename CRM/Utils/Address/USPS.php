@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -26,24 +26,42 @@
  */
 
 /**
- *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
- * Address utilties
+ * Address utilities.
  */
 class CRM_Utils_Address_USPS {
 
   /**
-   * @param $values
+   * Whether USPS validation should be disabled during import.
+   *
+   * @var bool
+   */
+  protected static $_disabled = FALSE;
+
+  /**
+   * Disable the USPS validation.
+   *
+   * @param bool $disable
+   */
+  public static function disable($disable = TRUE) {
+    self::$_disabled = $disable;
+  }
+
+  /**
+   * Check address against USPS.
+   *
+   * @param array $values
    *
    * @return bool
    */
   public static function checkAddress(&$values) {
+    if (self::$_disabled) {
+      return FALSE;
+    }
     if (!isset($values['street_address']) ||
       (!isset($values['city']) &&
         !isset($values['state_province']) &&
@@ -53,12 +71,8 @@ class CRM_Utils_Address_USPS {
       return FALSE;
     }
 
-    $userID = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::ADDRESS_STANDARDIZATION_PREFERENCES_NAME,
-      'address_standardization_userid'
-    );
-    $url = CRM_Core_BAO_Setting::getItem(CRM_Core_BAO_Setting::ADDRESS_STANDARDIZATION_PREFERENCES_NAME,
-      'address_standardization_url'
-    );
+    $userID = Civi::settings()->get('address_standardization_userid');
+    $url = Civi::settings()->get('address_standardization_url');
 
     if (empty($userID) ||
       empty($url)

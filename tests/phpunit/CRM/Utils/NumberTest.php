@@ -1,8 +1,8 @@
 <?php
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * Class CRM_Utils_NumberTest
+ * @group headless
  */
 class CRM_Utils_NumberTest extends CiviUnitTestCase {
 
@@ -65,6 +65,22 @@ class CRM_Utils_NumberTest extends CiviUnitTestCase {
     $this->assertEquals($expectedValue, CRM_Utils_Number::createTruncatedDecimal($value, $precision),
       "assert createTruncatedValue($value, ($sigFigs,$decFigs)) == $expectedValue"
     );
+  }
+
+  public function sizeCases() {
+    $cases = [];
+    $cases[] = ['20M', '20971520'];
+    $cases[] = ['40G', '42949672960'];
+    return $cases;
+  }
+
+  /**
+   * @param $size
+   * @param $expectedValue
+   * @dataProvider sizeCases
+   */
+  public function testFormatUnitSize($size, $expectedValue) {
+    $this->assertEquals($expectedValue, CRM_Utils_Number::formatUnitSize($size));
   }
 
 }

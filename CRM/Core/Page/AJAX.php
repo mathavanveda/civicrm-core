@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -98,9 +98,8 @@ class CRM_Core_Page_AJAX {
       $id = CRM_Utils_Type::escape($_REQUEST['id'], 'Integer');
     }
 
-    if (!empty($_REQUEST['context'])) {
-      $context = CRM_Utils_Type::escape($_REQUEST['context'], 'String');
-    }
+    $context = CRM_Utils_Request::retrieve('context', 'Alphanumeric');
+
     // return false if $id is null and
     // $context is not civicrm_event or civicrm_contribution_page
     if (!$id || !in_array($context, array('civicrm_event', 'civicrm_contribution_page'))) {
@@ -108,21 +107,19 @@ class CRM_Core_Page_AJAX {
     }
     $priceSetId = CRM_Price_BAO_PriceSet::getFor($context, $id, NULL);
     if ($priceSetId) {
-      $result = CRM_Price_BAO_PriceSet::setIsQuickConfig($priceSetId, 0);
+      $sql = "UPDATE
+       civicrm_price_set cps
+       INNER JOIN civicrm_price_set_entity cpse ON cps.id = cpse.price_set_id
+       INNER JOIN {$context} ce ON cpse.entity_id = ce.id AND ce.id = %1
+       SET cps.is_quick_config = 0, cps.financial_type_id = IF(cps.financial_type_id IS NULL, ce.financial_type_id, cps.financial_type_id)
+      ";
+      CRM_Core_DAO::executeQuery($sql, array(1 => array($id, 'Integer')));
+
       if ($context == 'civicrm_event') {
-        $sql = "UPDATE
-          civicrm_price_set cps
-          INNER JOIN civicrm_discount cd ON cd.price_set_id = cps.id
-          SET cps.is_quick_config = 0
-          WHERE cd.entity_id = (%1) AND cd.entity_table = 'civicrm_event' ";
-        $params = array(1 => array($id, 'Integer'));
-        CRM_Core_DAO::executeQuery($sql, $params);
         CRM_Core_BAO_Discount::del($id, $context);
       }
     }
-    if (!$result) {
-      $priceSetId = NULL;
-    }
+
     CRM_Utils_JSON::output($priceSetId);
   }
 
@@ -212,6 +209,73 @@ class CRM_Core_Page_AJAX {
     CRM_Utils_System::setHttpHeader('Expires', gmdate('D, d M Y H:i:s \G\M\T', time() + $ttl));
     CRM_Utils_System::setHttpHeader('Content-Type', 'application/javascript');
     CRM_Utils_System::setHttpHeader('Cache-Control', "max-age=$ttl, public");
+  }
+
+  /**
+   * Set defaults for sort and pager.
+   *
+   * @param int $defaultOffset
+   * @param int $defaultRowCount
+   * @param string $defaultSort
+   * @param string $defaultsortOrder
+   *
+   * @return array
+   */
+  public static function defaultSortAndPagerParams($defaultOffset = 0, $defaultRowCount = 25, $defaultSort = NULL, $defaultsortOrder = 'asc') {
+    $params = array(
+      '_raw_values' => array(),
+    );
+
+    $sortMapper = array();
+    if (isset($_GET['columns'])) {
+      foreach ($_GET['columns'] as $key => $value) {
+        $sortMapper[$key] = CRM_Utils_Type::validate($value['data'], 'MysqlColumnNameOrAlias');
+      };
+    }
+
+    $offset = isset($_GET['start']) ? CRM_Utils_Type::validate($_GET['start'], 'Integer') : $defaultOffset;
+    $rowCount = isset($_GET['length']) ? CRM_Utils_Type::validate($_GET['length'], 'Integer') : $defaultRowCount;
+    // Why is the number of order by columns limited to 1?
+    $sort = isset($_GET['order'][0]['column']) ? CRM_Utils_Array::value(CRM_Utils_Type::validate($_GET['order'][0]['column'], 'Integer'), $sortMapper) : $defaultSort;
+    $sortOrder = isset($_GET['order'][0]['dir']) ? CRM_Utils_Type::validate($_GET['order'][0]['dir'], 'MysqlOrderByDirection') : $defaultsortOrder;
+
+    if ($sort) {
+      $params['sortBy'] = "{$sort} {$sortOrder}";
+
+      $params['_raw_values']['sort'][0] = $sort;
+      $params['_raw_values']['order'][0] = $sortOrder;
+    }
+
+    $params['offset'] = $offset;
+    $params['rp'] = $rowCount;
+    $params['page'] = ($offset / $rowCount) + 1;
+
+    return $params;
+  }
+
+  /**
+   * Validate ajax input parameters.
+   *
+   * @param array $requiredParams
+   * @param array $optionalParams
+   *
+   * @return array
+   */
+  public static function validateParams($requiredParams = array(), $optionalParams = array()) {
+    $params = array();
+
+    foreach ($requiredParams as $param => $type) {
+      $params[$param] = CRM_Utils_Type::validate(CRM_Utils_Array::value($param, $_GET), $type);
+    }
+
+    foreach ($optionalParams as $param => $type) {
+      if (CRM_Utils_Array::value($param, $_GET)) {
+        $params[$param] = CRM_Utils_Type::validate(CRM_Utils_Array::value($param, $_GET), $type);
+      }
+    }
+
+    return $params;
+
   }
 
 }

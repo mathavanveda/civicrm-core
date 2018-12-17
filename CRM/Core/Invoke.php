@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,9 +31,7 @@
  * Serves as a wrapper between the UserFrameWork and Core CRM
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Core_Invoke {
 
@@ -134,10 +132,6 @@ class CRM_Core_Invoke {
   static public function init($args) {
     // first fire up IDS and check for bad stuff
     $config = CRM_Core_Config::singleton();
-    if (!CRM_Core_Permission::check('skip IDS check')) {
-      $ids = new CRM_Core_IDS();
-      $ids->check($args);
-    }
 
     // also initialize the i18n framework
     require_once 'CRM/Core/I18n.php';
@@ -199,6 +193,9 @@ class CRM_Core_Invoke {
    * @return string, HTML
    */
   static public function runItem($item) {
+    $ids = new CRM_Core_IDS();
+    $ids->check($item);
+
     $config = CRM_Core_Config::singleton();
     if ($config->userFramework == 'Joomla' && $item) {
       $config->userFrameworkURLVar = 'task';
@@ -344,19 +341,18 @@ class CRM_Core_Invoke {
   }
 
   /**
-   * Show status in the footer
+   * Show status in the footer (admin only)
    *
    * @param CRM_Core_Smarty $template
    */
   public static function statusCheck($template) {
-    if (CRM_Core_Config::isUpgradeMode()) {
+    if (CRM_Core_Config::isUpgradeMode() || !CRM_Core_Permission::check('administer CiviCRM')) {
       return;
     }
-    $statusSeverity = 0;
-    $statusMessage = ts('System status OK');
-    // TODO: get status from CRM_Utils_Check, if cached
-    $template->assign('footer_status_severity', $statusSeverity);
-    $template->assign('footer_status_message', $statusMessage);
+    // always use cached results - they will be refreshed by the session timer
+    $status = Civi::cache('checks')->get('systemStatusCheckResult');
+    $template->assign('footer_status_severity', $status);
+    $template->assign('footer_status_message', CRM_Utils_Check::toStatusLabel($status));
   }
 
   /**
@@ -397,9 +393,6 @@ class CRM_Core_Invoke {
     }
     CRM_Core_DAO_AllCoreTables::reinitializeCache(TRUE);
     CRM_Core_ManagedEntities::singleton(TRUE)->reconcile();
-
-    //CRM-16257 update Config.IDS.ini might be an old copy
-    CRM_Core_IDS::createConfigFile(TRUE);
   }
 
 }

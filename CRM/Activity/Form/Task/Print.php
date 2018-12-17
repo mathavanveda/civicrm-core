@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -69,29 +69,20 @@ class CRM_Activity_Form_Task_Print extends CRM_Activity_Form_Task {
    *    - displaying elements for saving the search
    */
   public function buildQuickForm() {
-    //
-    // just need to add a javacript to popup the window for printing
-    //
-    $this->addButtons(array(
-        array(
-          'type' => 'next',
-          'name' => ts('Print Activities'),
-          'js' => array('onclick' => 'window.print()'),
-          'isDefault' => TRUE,
-        ),
-        array(
-          'type' => 'back',
-          'name' => ts('Done'),
-        ),
-      )
-    );
-  }
 
-  /**
-   * Process the form after the input has been submitted and validated.
-   */
-  public function postProcess() {
-    // redirect to the main search page after printing is over
+    // just need to add a javacript to popup the window for printing
+    $this->addButtons(array(
+      array(
+        'type' => 'next',
+        'name' => ts('Print Activities'),
+        'js' => array('onclick' => 'window.print()'),
+        'isDefault' => TRUE,
+      ),
+      array(
+        'type' => 'back',
+        'name' => ts('Done'),
+      ),
+    ));
   }
 
 }

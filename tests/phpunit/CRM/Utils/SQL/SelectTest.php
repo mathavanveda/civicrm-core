@@ -1,13 +1,53 @@
 <?php
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * Class CRM_Utils_SQL_SelectTest
+ * @group headless
  */
 class CRM_Utils_SQL_SelectTest extends CiviUnitTestCase {
   public function testGetDefault() {
     $select = CRM_Utils_SQL_Select::from('foo bar');
     $this->assertLike('SELECT * FROM foo bar', $select->toSQL());
+  }
+
+  public function testExecute_OK_fetch() {
+    $select = CRM_Utils_SQL_Select::from('civicrm_contact')->select('count(*) as cnt');
+    $this->assertLike('SELECT count(*) as cnt FROM civicrm_contact', $select->toSQL());
+
+    $select = CRM_Utils_SQL_Select::from('civicrm_contact')
+      ->select('count(*) as cnt');
+    $rows = 0;
+    $dao = $select->execute();
+    while ($dao->fetch()) {
+      $rows++;
+      $this->assertTrue(is_numeric($dao->cnt), "Expect query to execute");
+    }
+    $this->assertEquals(1, $rows);
+  }
+
+  public function testExecute_OK_fetchValue() {
+    $select = CRM_Utils_SQL_Select::from('civicrm_contact')->select('count(*) as cnt');
+    $this->assertLike('SELECT count(*) as cnt FROM civicrm_contact', $select->toSQL());
+    $this->assertTrue(is_numeric($select->execute()->fetchValue()));
+  }
+
+  public function testExecute_OK_fetchAll() {
+    $select = CRM_Utils_SQL_Select::from('civicrm_contact')->select('count(*) as cnt');
+    $this->assertLike('SELECT count(*) as cnt FROM civicrm_contact', $select->toSQL());
+    $records = $select->execute()->fetchAll();
+    $this->assertTrue(is_numeric($records[0]['cnt']));
+  }
+
+  public function testExecute_Error() {
+    $select = CRM_Utils_SQL_Select::from('civicrm_contact')->select('snarb;barg');
+
+    try {
+      $select->execute();
+      $this->fail('Expected an exception');
+    }
+    catch (PEAR_Exception $e) {
+      $this->assertTrue(TRUE, "Received expected exception");
+    }
   }
 
   public function testGetFields() {
@@ -257,6 +297,22 @@ class CRM_Utils_SQL_SelectTest extends CiviUnitTestCase {
     $select = CRM_Utils_SQL_Select::from("foo")
       ->param('hello', 'world');
     $this->assertEquals('world', $select['hello']);
+  }
+
+  public function testInsertInto_WithDupes() {
+    $select = CRM_Utils_SQL_Select::from('foo')
+      ->insertInto('bar', array('first', 'second', 'third', 'fourth'))
+      ->select('fid')
+      ->select('1')
+      ->select('fid')
+      ->select('1')
+      ->where('!field = #value', array('field' => 'zoo', 'value' => 3))
+      ->where('!field = #value', array('field' => 'aviary', 'value' => 3))
+      ->where('!field = #value', array('field' => 'zoo', 'value' => 3))
+      ->groupBy('!colName', array('colName' => 'noodle'))
+      ->groupBy('!colName', array('colName' => 'sauce'))
+      ->groupBy('!colName', array('colName' => 'noodle'));
+    $this->assertLike('INSERT INTO bar (first, second, third, fourth) SELECT fid, 1, fid, 1 FROM foo WHERE (zoo = 3) AND (aviary = 3) GROUP BY noodle, sauce', $select->toSQL());
   }
 
   /**

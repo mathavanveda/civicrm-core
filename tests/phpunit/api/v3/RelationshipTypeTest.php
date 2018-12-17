@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
-| CiviCRM version 4.7                                                |
+| CiviCRM version 5                                                  |
 +--------------------------------------------------------------------+
-| Copyright CiviCRM LLC (c) 2004-2015                                |
+| Copyright CiviCRM LLC (c) 2004-2019                                |
 +--------------------------------------------------------------------+
 | This file is a part of CiviCRM.                                    |
 |                                                                    |
@@ -27,9 +27,9 @@
 
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -51,11 +51,10 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Class contains api test cases for "civicrm_relationship_type"
  *
+ * @group headless
  */
 class api_v3_RelationshipTypeTest extends CiviUnitTestCase {
   protected $_cId_a;
@@ -91,19 +90,6 @@ class api_v3_RelationshipTypeTest extends CiviUnitTestCase {
     );
     $result = $this->callAPIFailure('relationship_type', 'create', $relTypeParams,
       'Mandatory key(s) missing from params array: name_a_b, name_b_a'
-    );
-  }
-
-  /**
-   * Check with no contact type.
-   */
-  public function testRelationshipTypeCreateWithoutContactType() {
-    $relTypeParams = array(
-      'name_a_b' => 'Relation 1 without contact type',
-      'name_b_a' => 'Relation 2 without contact type',
-    );
-    $result = $this->callAPIFailure('relationship_type', 'create', $relTypeParams,
-      'Mandatory key(s) missing from params array: contact_type_a, contact_type_b'
     );
   }
 
@@ -166,7 +152,7 @@ class api_v3_RelationshipTypeTest extends CiviUnitTestCase {
       'is_active' => 0,
     );
     $result = $this->callAPIFailure('relationship_type', 'delete', $params,
-      'Invalid value for relationship type ID'
+      'id is not a valid integer'
     );
   }
 
@@ -191,7 +177,7 @@ class api_v3_RelationshipTypeTest extends CiviUnitTestCase {
   public function testRelationshipTypeUpdateEmpty() {
     $params = array();
     $result = $this->callAPIFailure('relationship_type', 'create', $params);
-    $this->assertEquals($result['error_message'], 'Mandatory key(s) missing from params array: name_a_b, name_b_a, contact_type_a, contact_type_b');
+    $this->assertEquals($result['error_message'], 'Mandatory key(s) missing from params array: name_a_b, name_b_a');
   }
 
   /**

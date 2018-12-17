@@ -122,6 +122,7 @@
     <add>1.7</add>
     <html>
       <type>Select Date</type>
+      <formatType>activityDateTime</formatType>
     </html>
   </field>
   <field>
@@ -135,6 +136,7 @@
     <add>1.7</add>
     <html>
       <type>Select Date</type>
+      <formatType>activityDateTime</formatType>
     </html>
   </field>
   <field>
@@ -167,6 +169,7 @@
     <add>1.8</add>
     <html>
       <type>Select Date</type>
+      <formatType>activityDateTime</formatType>
     </html>
   </field>
   <field>
@@ -176,6 +179,7 @@
     <add>1.8</add>
     <html>
       <type>Select Date</type>
+      <formatType>activityDateTime</formatType>
     </html>
   </field>
   <field>
@@ -328,7 +332,7 @@
   <field>
     <name>default_role_id</name>
     <uniqueName>default_role_id</uniqueName>
-    <title>Default Role ID</title>
+    <title>Default Role</title>
     <import>true</import>
     <type>int unsigned</type>
     <default>1</default>
@@ -615,6 +619,14 @@
     </html>
   </field>
   <field>
+    <name>max_additional_participants</name>
+    <type>int unsigned</type>
+    <title>Maximum number of additional participants per registration</title>
+    <default>0</default>
+    <comment>Maximum number of additional participants that can be registered on a single booking</comment>
+    <add>4.7</add>
+  </field>
+  <field>
     <name>allow_same_participant_emails</name>
     <type>boolean</type>
     <title>Does Event allow multiple registrations from same email address?</title>
@@ -649,6 +661,28 @@
     <type>int unsigned</type>
     <comment>Expire pending but unconfirmed registrations after this many hours.</comment>
     <add>3.0</add>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+  <field>
+    <name>allow_selfcancelxfer</name>
+    <type>boolean</type>
+    <default>0</default>
+    <title>Allow Self-service Cancellation or Transfer</title>
+    <comment>Allow self service cancellation or transfer for event?</comment>
+    <add>4.7</add>
+    <html>
+      <type>CheckBox</type>
+    </html>
+  </field>
+  <field>
+    <name>selfcancelxfer_time</name>
+    <type>int unsigned</type>
+    <default>0</default>
+    <title>Self-service Cancellation or Transfer Time</title>
+    <comment>Number of hours prior to event start date to allow self-service cancellation or transfer.</comment>
+    <add>4.7</add>
     <html>
       <type>Text</type>
     </html>
@@ -738,7 +772,7 @@
       <table>civicrm_currency</table>
       <keyColumn>name</keyColumn>
       <labelColumn>full_name</labelColumn>
-      <nameColumn>numeric_code</nameColumn>
+      <nameColumn>name</nameColumn>
     </pseudoconstant>
     <html>
       <type>Select</type>
@@ -756,7 +790,7 @@
     </pseudoconstant>
     <add>3.4</add>
     <html>
-       <type>Autocomplete-Select</type>
+       <type>EntityRef</type>
      </html>
   </field>
   <foreignKey>
@@ -794,7 +828,7 @@
     <default>NULL</default>
     <comment>Implicit FK to civicrm_event: parent event</comment>
     <html>
-       <type>Autocomplete-Select</type>
+       <type>EntityRef</type>
      </html>
     <add>4.1</add>
   </field>

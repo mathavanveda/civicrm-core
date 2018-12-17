@@ -30,7 +30,7 @@
 /**
  *  Include parent class definition
  */
-require_once 'CiviTest/CiviUnitTestCase.php';
+
 
 /**
  *  Include class under test
@@ -52,6 +52,7 @@ require_once 'CiviTest/CiviUnitTestCase.php';
  *  Test contact custom search functions
  *
  * @package CiviCRM
+ * @group headless
  */
 class CRM_Contact_Form_Search_Custom_GroupTest extends CiviUnitTestCase {
   protected $_tablesToTruncate = array(
@@ -89,19 +90,18 @@ class CRM_Contact_Form_Search_Custom_GroupTest extends CiviUnitTestCase {
    * @throws \Exception
    */
   public function testCount($fv, $count, $ids, $full) {
-    $this->foreignKeyChecksOff();
-
     $this->quickCleanup($this->_tablesToTruncate);
 
     // echo "testCount\n";
     $op = new PHPUnit_Extensions_Database_Operation_Insert();
     $op->execute($this->_dbconn,
       $this->createFlatXMLDataSet(
-        dirname(__FILE__) . '/dataset.xml'
+        dirname(__FILE__) . '/datasets/group-dataset.xml'
       )
     );
 
     $obj = new CRM_Contact_Form_Search_Custom_Group($fv);
+
     $sql = $obj->all();
     $dao = CRM_Core_DAO::executeQuery($sql);
 
@@ -133,7 +133,7 @@ class CRM_Contact_Form_Search_Custom_GroupTest extends CiviUnitTestCase {
     $op = new PHPUnit_Extensions_Database_Operation_Insert();
     $op->execute($this->_dbconn,
       $this->createFlatXMLDataSet(
-        dirname(__FILE__) . '/dataset.xml'
+        dirname(__FILE__) . '/datasets/group-dataset.xml'
       )
     );
     $obj = new CRM_Contact_Form_Search_Custom_Group($fv);
@@ -169,7 +169,7 @@ class CRM_Contact_Form_Search_Custom_GroupTest extends CiviUnitTestCase {
     $op = new PHPUnit_Extensions_Database_Operation_Insert();
     $op->execute($this->_dbconn,
       $this->createFlatXMLDataSet(
-        dirname(__FILE__) . '/dataset.xml'
+        dirname(__FILE__) . '/datasets/group-dataset.xml'
       )
     );
     $obj = new CRM_Contact_Form_Search_Custom_Group($fv);

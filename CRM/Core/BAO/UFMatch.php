@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -51,10 +51,12 @@ class CRM_Core_BAO_UFMatch extends CRM_Core_DAO_UFMatch {
     }
     $dao = new CRM_Core_DAO_UFMatch();
     $dao->copyValues($params);
+    // Fixme: this function cannot update records
     if (!$dao->find(TRUE)) {
       $dao->save();
+      Civi::$statics[__CLASS__][$params['domain_id']][(int) $dao->contact_id] = (int) $dao->uf_id;
+      CRM_Utils_Hook::post($hook, 'UFMatch', $dao->id, $dao);
     }
-    CRM_Utils_Hook::post($hook, 'UFMatch', $dao->id, $dao);
     return $dao;
   }
 
@@ -205,16 +207,9 @@ class CRM_Core_BAO_UFMatch extends CRM_Core_DAO_UFMatch {
         $params = $_POST;
         $params['email'] = $uniqId;
 
-        $dedupeParams = CRM_Dedupe_Finder::formatParams($params, 'Individual');
-        $dedupeParams['check_permission'] = FALSE;
-        $ids = CRM_Dedupe_Finder::dupesByParams($dedupeParams, 'Individual');
+        $ids = CRM_Contact_BAO_Contact::getDuplicateContacts($params, 'Individual', 'Unsupervised', array(), FALSE);
 
-        if (!empty($ids) &&
-          CRM_Core_BAO_Setting::getItem(
-            CRM_Core_BAO_Setting::MULTISITE_PREFERENCES_NAME,
-            'uniq_email_per_site'
-          )
-        ) {
+        if (!empty($ids) && Civi::settings()->get('uniq_email_per_site')) {
           // restrict dupeIds to ones that belong to current domain/site.
           $siteContacts = CRM_Core_BAO_Domain::getContactList();
           foreach ($ids as $index => $dupeId) {
@@ -259,18 +254,19 @@ AND    domain_id = %2
       }
 
       if (!$found) {
-        if ($config->userSystem->is_drupal) {
-          $mail = 'mail';
-        }
-        elseif ($uf == 'WordPress') {
-          $mail = 'user_email';
-        }
-        else {
-          $mail = 'email';
-        }
-
+        // Not sure why we're testing for this. Is there ever a case
+        // in which $user is not an object?
         if (is_object($user)) {
-          $params = array('email-Primary' => $user->$mail);
+          if ($config->userSystem->is_drupal) {
+            $primary_email = $uniqId;
+          }
+          elseif ($uf == 'WordPress') {
+            $primary_email = $user->user_email;
+          }
+          else {
+            $primary_email = $user->email;
+          }
+          $params = array('email-Primary' => $primary_email);
         }
 
         if ($ctype == 'Organization') {
@@ -360,9 +356,10 @@ AND    domain_id    = %4
    *   Id of the contact to update.
    */
   public static function updateUFName($contactId) {
-    if (!$contactId) {
+    if (!Civi::settings()->get('syncCMSEmail') || !$contactId) {
       return;
     }
+
     $config = CRM_Core_Config::singleton();
     $ufName = CRM_Contact_BAO_Contact::getPrimaryEmail($contactId);
 
@@ -424,6 +421,11 @@ AND    domain_id    = %4
       $ufmatch->uf_name = $emailAddress;
       CRM_Core_BAO_UFMatch::create((array) $ufmatch);
 
+      // If CMS integration is disabled skip Civi email update if CMS user email is changed
+      if (Civi::settings()->get('syncCMSEmail') == FALSE) {
+        return;
+      }
+
       //check if the primary email for the contact exists
       //$contactDetails[1] - email
       //$contactDetails[3] - email id
@@ -468,8 +470,11 @@ AND    domain_id    = %4
     $ufmatch = new CRM_Core_DAO_UFMatch();
 
     $ufmatch->uf_id = $ufID;
-    $ufmatch->domain_id = CRM_Core_Config::domainID();
+    $ufmatch->domain_id = $domainId = CRM_Core_Config::domainID();
     $ufmatch->delete();
+
+    // Flush cache
+    Civi::$statics[__CLASS__][$domainId] = [];
   }
 
   /**
@@ -478,20 +483,29 @@ AND    domain_id    = %4
    * @param int $ufID
    *   Id of UF for which related contact_id is required.
    *
-   * @return int
+   * @return int|NULL
    *   contact_id on success, null otherwise
    */
   public static function getContactId($ufID) {
-    if (!isset($ufID)) {
+    if (!$ufID) {
       return NULL;
     }
+    $domainId = CRM_Core_Config::domainID();
 
+    if (!isset(Civi::$statics[__CLASS__][$domainId])) {
+      Civi::$statics[__CLASS__][$domainId] = [];
+    }
+    $contactId = array_search($ufID, Civi::$statics[__CLASS__][$domainId]);
+    if ($contactId) {
+      return $contactId;
+    }
     $ufmatch = new CRM_Core_DAO_UFMatch();
-
     $ufmatch->uf_id = $ufID;
-    $ufmatch->domain_id = CRM_Core_Config::domainID();
+    $ufmatch->domain_id = $domainId;
     if ($ufmatch->find(TRUE)) {
-      return (int ) $ufmatch->contact_id;
+      $contactId = (int) $ufmatch->contact_id;
+      Civi::$statics[__CLASS__][$domainId][$contactId] = (int) $ufID;
+      return $contactId;
     }
     return NULL;
   }
@@ -502,22 +516,26 @@ AND    domain_id    = %4
    * @param int $contactID
    *   ID of the contact for which related uf_id is required.
    *
-   * @return int
+   * @return int|NULL
    *   uf_id of the given contact_id on success, null otherwise
    */
   public static function getUFId($contactID) {
-    if (!isset($contactID)) {
+    if (!$contactID) {
       return NULL;
     }
-    $domain = CRM_Core_BAO_Domain::getDomain();
-    $ufmatch = new CRM_Core_DAO_UFMatch();
+    $domainId = CRM_Core_Config::domainID();
+    $contactID = (int) $contactID;
 
-    $ufmatch->contact_id = $contactID;
-    $ufmatch->domain_id = $domain->id;
-    if ($ufmatch->find(TRUE)) {
-      return $ufmatch->uf_id;
+    if (empty(Civi::$statics[__CLASS__][$domainId]) || !array_key_exists($contactID, Civi::$statics[__CLASS__][$domainId])) {
+      Civi::$statics[__CLASS__][$domainId][$contactID] = NULL;
+      $ufmatch = new CRM_Core_DAO_UFMatch();
+      $ufmatch->contact_id = $contactID;
+      $ufmatch->domain_id = $domainId;
+      if ($ufmatch->find(TRUE)) {
+        Civi::$statics[__CLASS__][$domainId][$contactID] = (int) $ufmatch->uf_id;
+      }
     }
-    return NULL;
+    return Civi::$statics[__CLASS__][$domainId][$contactID];
   }
 
   /**
@@ -636,6 +654,16 @@ AND    domain_id    = %4
       }
     }
     return $ufValues[$ufID];
+  }
+
+  /**
+   * @inheritDoc
+   */
+  public function addSelectWhereClause() {
+    // Prevent default behavior of joining ACLs onto the contact_id field
+    $clauses = array();
+    CRM_Utils_Hook::selectWhereClause($this, $clauses);
+    return $clauses;
   }
 
 }

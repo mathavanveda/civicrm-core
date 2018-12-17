@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id: Selector.php 11510 2007-09-18 09:21:34Z lobo $
  */
 
@@ -227,11 +227,14 @@ class CRM_Contact_Selector_Custom extends CRM_Contact_Selector {
    */
   public function &getColumnHeaders($action = NULL, $output = NULL) {
     $columns = $this->_search->columns();
-    if ($output == CRM_Core_Selector_Controller::EXPORT) {
-      return array_keys($columns);
+    $headers = array();
+    if ($output == CRM_Core_Selector_Controller::EXPORT || $output == CRM_Core_Selector_Controller::SCREEN) {
+      foreach ($columns as $name => $key) {
+        $headers[$key] = $name;
+      }
+      return $headers;
     }
     else {
-      $headers = array();
       foreach ($columns as $name => $key) {
         if (!empty($name)) {
           $headers[] = array(
@@ -297,7 +300,7 @@ class CRM_Contact_Selector_Custom extends CRM_Contact_Selector {
       $contactQueryObj = $this->_search->getQueryObj();
     }
 
-    $dao = CRM_Core_DAO::executeQuery($sql, CRM_Core_DAO::$_nullArray);
+    $dao = CRM_Core_DAO::executeQuery($sql);
 
     $columns = $this->_search->columns();
     $columnNames = array_values($columns);
@@ -333,8 +336,10 @@ class CRM_Contact_Selector_Custom extends CRM_Contact_Selector {
 
       // the columns we are interested in
       foreach ($columnNames as $property) {
-        $row[$property] = $dao->$property;
-        if (!empty($dao->$property)) {
+        // Get part of name after last . (if any)
+        $unqualified_property = CRM_Utils_Array::First(array_slice(explode('.', $property), -1));
+        $row[$property] = $dao->$unqualified_property;
+        if (!empty($dao->$unqualified_property)) {
           $empty = FALSE;
         }
       }
@@ -422,11 +427,25 @@ class CRM_Contact_Selector_Custom extends CRM_Contact_Selector {
    *
    * @return Object
    */
-  public function contactIDQuery($params, $action, $sortID, $displayRelationshipType = NULL, $queryOperator = 'AND') {
-    $params = array();
-    $sql = $this->_search->contactIDs($params);
+  public function contactIDQuery($params, $sortID, $displayRelationshipType = NULL, $queryOperator = 'AND') {
+    // $action, $displayRelationshipType and $queryOperator are unused. I have
+    // no idea why they are there.
 
-    return CRM_Core_DAO::executeQuery($sql, $params);
+    // I wonder whether there is some helper function for this:
+    $matches = array();
+    if (preg_match('/([0-9]*)(_(u|d))?/', $sortID, $matches)) {
+      $columns = array_values($this->_search->columns());
+      $sort = $columns[$matches[1] - 1];
+      if (array_key_exists(3, $matches) && $matches[3] == 'd') {
+        $sort .= " DESC";
+      }
+    }
+    else {
+      $sort = NULL;
+    }
+
+    $sql = $this->_search->contactIDs(0, 0, $sort);
+    return CRM_Core_DAO::executeQuery($sql);
   }
 
   /**

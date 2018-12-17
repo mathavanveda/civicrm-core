@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
@@ -54,21 +54,8 @@ class CRM_Member_Form_MembershipConfig extends CRM_Core_Form {
   protected $_BAOName;
 
   /**
-   * Explicitly declare the entity api name.
-   */
-  public function getDefaultEntity() {
-    return 'MembershipType';
-  }
-
-  public function preProcess() {
-    $this->_id = $this->get('id');
-    $this->_BAOName = $this->get('BAOName');
-  }
-
-  /**
    * Set default values for the form. MobileProvider that in edit/view mode
    * the default values are retrieved from the database
-   *
    *
    * @return array
    *   defaults
@@ -112,50 +99,47 @@ class CRM_Member_Form_MembershipConfig extends CRM_Core_Form {
   public function buildQuickForm() {
     if ($this->_action & CRM_Core_Action::RENEW) {
       $this->addButtons(array(
-          array(
-            'type' => 'upload',
-            'name' => ts('Renew'),
-            'isDefault' => TRUE,
-          ),
-          array(
-            'type' => 'cancel',
-            'name' => ts('Cancel'),
-          ),
-        )
-      );
+        array(
+          'type' => 'upload',
+          'name' => ts('Renew'),
+          'isDefault' => TRUE,
+        ),
+        array(
+          'type' => 'cancel',
+          'name' => ts('Cancel'),
+        ),
+      ));
     }
     elseif ($this->_action & CRM_Core_Action::DELETE) {
       $this->addButtons(array(
-          array(
-            'type' => 'next',
-            'name' => ts('Delete'),
-            'isDefault' => TRUE,
-          ),
-          array(
-            'type' => 'cancel',
-            'name' => ts('Cancel'),
-          ),
-        )
-      );
+        array(
+          'type' => 'next',
+          'name' => ts('Delete'),
+          'isDefault' => TRUE,
+        ),
+        array(
+          'type' => 'cancel',
+          'name' => ts('Cancel'),
+        ),
+      ));
     }
     else {
       $this->addButtons(array(
-          array(
-            'type' => 'upload',
-            'name' => ts('Save'),
-            'isDefault' => TRUE,
-          ),
-          array(
-            'type' => 'upload',
-            'name' => ts('Save and New'),
-            'subName' => 'new',
-          ),
-          array(
-            'type' => 'cancel',
-            'name' => ts('Cancel'),
-          ),
-        )
-      );
+        array(
+          'type' => 'upload',
+          'name' => ts('Save'),
+          'isDefault' => TRUE,
+        ),
+        array(
+          'type' => 'upload',
+          'name' => ts('Save and New'),
+          'subName' => 'new',
+        ),
+        array(
+          'type' => 'cancel',
+          'name' => ts('Cancel'),
+        ),
+      ));
     }
   }
 

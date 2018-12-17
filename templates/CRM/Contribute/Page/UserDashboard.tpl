@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -23,6 +23,8 @@
  | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
  +--------------------------------------------------------------------+
 *}
+{crmRegion name="crm-contribute-userdashboard-pre"}
+{/crmRegion}
 <div class="view-content">
     {if $contribute_rows}
         {strip}
@@ -34,7 +36,10 @@
                     <th>{ts}Receipt Sent{/ts}</th>
                     <th>{ts}Status{/ts}</th>
                     {if $invoicing && $invoices}
-                        <th></th>
+                      <th></th>
+                    {/if}
+                    {if $invoicing && $defaultInvoicePage}
+                      <th></th>
                     {/if}
                 </tr>
 
@@ -57,16 +62,27 @@
                             {assign var='contact_id' value=$row.contact_id}
                             {assign var='urlParams' value="reset=1&id=$id&cid=$contact_id"}
                             {if call_user_func(array('CRM_Core_Permission','check'), 'view my invoices') OR call_user_func(array('CRM_Core_Permission','check'), 'access CiviContribute')}
-                                <a class="button no-popup "
+                                <a class="button no-popup nowrap"
                                    href="{crmURL p='civicrm/contribute/invoice' q=$urlParams}">
-                                    <span class="icon ui-icon-print"></span>
-                                    {if $row.contribution_status != 'Refunded' && $row.contribution_status != 'Cancelled' }
+                                    <i class="crm-i fa-print"></i>
+                                    {if $row.contribution_status_name != 'Refunded' && $row.contribution_status_name != 'Cancelled' }
                                         <span>{ts}Print Invoice{/ts}</span>
                                     {else}
                                         <span>{ts}Print Invoice and Credit Note{/ts}</span>
                                     {/if}
                                 </a>
                             {/if}
+                          </td>
+                        {/if}
+                        {if $defaultInvoicePage && $row.contribution_status_name == 'Pending' }
+                          <td>
+                            {assign var='checksum_url' value=""}
+                            {if $userChecksum}
+                              {assign var='checksum_url' value="&cid=$contactId&cs=$userChecksum"}
+                            {/if}
+                            {assign var='id' value=$row.contribution_id}
+                            {capture assign=payNowLink}{crmURL p='civicrm/contribute/transact' q="reset=1&id=`$defaultInvoicePage`&ccid=`$id`$checksum_url"}{/capture}
+                            <a class="button" href="{$payNowLink}"><span class='nowrap'>{ts}Pay Now{/ts}</span></a>
                           </td>
                         {/if}
                     </tr>
@@ -87,7 +103,7 @@
     {if $honor}
         {if $honorRows}
             {strip}
-                <div id="help">
+                <div class="help">
                     {ts}Contributions made in your honor{/ts}:
                 </div>
                 <table class="selector">
@@ -148,4 +164,5 @@
         {/if}
     {/if}
 </div>
-
+{crmRegion name="crm-contribute-userdashboard-post"}
+{/crmRegion}

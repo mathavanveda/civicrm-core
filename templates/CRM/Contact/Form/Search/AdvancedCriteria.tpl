@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -56,14 +56,7 @@ CRM.$(function($) {
     return false;
   });
   // TODO: Why are the modes numeric? If they used the string there would be no need for this map
-  var modes = {
-    '2': 'CiviContribute',
-    '3': 'CiviEvent',
-    '4': 'activity',
-    '5': 'CiviMember',
-    '6': 'CiviCase',
-    '8': 'CiviMail'
-  };
+  var modes = {/literal}{$component_mappings}{literal};
   // Handle change of results mode
   $('#component_mode').change(function() {
     // Reset task dropdown
@@ -73,7 +66,7 @@ CRM.$(function($) {
       $('.crm-' + mode + '-accordion.collapsed').crmAccordionToggle();
       loadPanes(mode);
     }
-    if ($('#component_mode').val() == '7') {
+    if ('related_contact' === modes[$('#component_mode').val()]) {
       $('#crm-display_relationship_type').show();
     }
     else {
@@ -90,7 +83,7 @@ CRM.$(function($) {
     var body = $('.crm-accordion-body.' + id);
     if (header.length > 0 && body.length > 0 && !body.html()) {
       body.html('<div class="crm-loading-element"><span class="loading-text">{/literal}{ts escape='js'}Loading{/ts}{literal}...</span></div>');
-      header.append('{/literal}<a href="#" class="crm-close-accordion crm-hover-button css_right" title="{ts escape='js'}Remove from search criteria{/ts}"><span class="icon ui-icon-close"></span></a>{literal}');
+      header.append('{/literal}<a href="#" class="crm-close-accordion crm-hover-button css_right" title="{ts escape='js'}Remove from search criteria{/ts}"><i class="crm-i fa-times"></i></a>{literal}');
       header.addClass('active');
       CRM.loadPage(url, {target: body, block: false});
     }
@@ -99,38 +92,61 @@ CRM.$(function($) {
 </script>
 {/literal}
 
-    {if $context EQ 'smog' || $context EQ 'amtg' || $savedSearch}
-          <h3>
-          {if $context EQ 'smog'}{ts}Find Contacts within this Group{/ts}
-          {elseif $context EQ 'amtg'}{ts}Find Contacts to Add to this Group{/ts}
-          {elseif $savedSearch}{ts 1=$savedSearch.name}%1 Smart Group Criteria{/ts} &nbsp; {help id='id-advanced-smart'}
-          {/if}
-          </h3>
-        {/if}
+{if $context EQ 'smog' || $context EQ 'amtg' || $savedSearch}
+  <h3>
+    {if $context EQ 'smog'}{ts}Find Contacts within this Group{/ts}
+    {elseif $context EQ 'amtg'}{ts}Find Contacts to Add to this Group{/ts}
+    {elseif $savedSearch}{ts 1=$savedSearch.name}%1 Smart Group Criteria{/ts} &nbsp; {help id='id-advanced-smart'}
+    {/if}
+  </h3>
+{/if}
 
 {strip}
-<div class="crm-accordion-wrapper crm-search_criteria_basic-accordion ">
-  <div class="crm-accordion-header">
-    {ts}Basic Criteria{/ts}
-  </div><!-- /.crm-accordion-header -->
- <div class="crm-accordion-body">
+  <div class="crm-accordion-wrapper crm-search_criteria_basic-accordion ">
+    <div class="crm-accordion-header">
+      {ts}Display Settings For Results{/ts}
+    </div>
+    <div class="crm-accordion-body">
+      {include file="CRM/Contact/Form/Search/Criteria/DisplaySettings.tpl"}
+    </div>
+  </div>
+  <div class="crm-accordion-wrapper crm-search_criteria_basic-accordion ">
+    <div class="crm-accordion-header">
+      {ts}Search Settings{/ts}
+    </div>
+    <div class="crm-accordion-body">
+      {include file="CRM/Contact/Form/Search/Criteria/SearchSettings.tpl"}
+    </div>
+  </div>
+  <div class="crm-accordion-wrapper crm-search_criteria_basic-accordion ">
+    <div class="crm-accordion-header">
+      {ts}Basic Criteria{/ts}
+    </div>
+    <div class="crm-accordion-body">
       {include file="CRM/Contact/Form/Search/Criteria/Basic.tpl"}
-  </div><!-- /.crm-accordion-body -->
-</div><!-- /.crm-accordion-wrapper -->
+    </div>
+  </div>
+  {foreach from=$allPanes key=paneName item=paneValue}
+    <div class="crm-accordion-wrapper crm-ajax-accordion crm-{$paneValue.id}-accordion {if $paneValue.open eq 'true' || $openedPanes.$paneName} {else}collapsed{/if}">
+      <div class="crm-accordion-header" id="{$paneValue.id}">
+        {$paneName}
+      </div>
+    <div class="crm-accordion-body {$paneValue.id}"></div>
+    </div><!-- Surplus /div is required (not sure why but breakage is obvious when you remove it) -->
+  {/foreach}
+  <div class="spacer"></div>
 
-    {foreach from=$allPanes key=paneName item=paneValue}
-      <div class="crm-accordion-wrapper crm-ajax-accordion crm-{$paneValue.id}-accordion {if $paneValue.open eq 'true' and $openedPanes.$paneName} {else}collapsed{/if}">
-       <div class="crm-accordion-header" id="{$paneValue.id}">
-         {$paneName}
-       </div>
-       <div class="crm-accordion-body {$paneValue.id}"></div>
-       </div>
-    {/foreach}
-    <div class="spacer"></div>
-
-    <table class="form-layout">
-        <tr>
-            <td>{include file="CRM/common/formButtons.tpl" location="botton"}</td>
-        </tr>
-    </table>
+  <table class="form-layout">
+    <tr>
+      <td>
+        {include file="CRM/common/formButtons.tpl" location="bottom"}
+        <div class="crm-submit-buttons reset-advanced-search">
+          <a href="{crmURL p='civicrm/contact/search/advanced' q='reset=1'}" id="resetAdvancedSearch" class="crm-hover-button" title="{ts}Clear all search criteria{/ts}">
+            <i class="crm-i fa-undo"></i>
+            &nbsp;{ts}Reset Form{/ts}
+          </a>
+        </div>
+      </td>
+    </tr>
+  </table>
 {/strip}

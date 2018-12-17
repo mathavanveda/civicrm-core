@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -92,7 +92,7 @@ class CRM_Activity_Form_Task_AddToTag extends CRM_Activity_Form_Task {
    * Process the form after the input has been submitted and validated.
    */
   public function postProcess() {
-    //get the submitted values in an array
+    // Get the submitted values in an array.
     $params = $this->controller->exportValues($this->_name);
     $activityTags = $tagList = array();
 
@@ -135,7 +135,8 @@ class CRM_Activity_Form_Task_AddToTag extends CRM_Activity_Form_Task {
     foreach ($allTags as $key => $dnc) {
       $this->_name[] = $this->_tags[$key];
 
-      list($total, $added, $notAdded) = CRM_Core_BAO_EntityTag::addEntitiesToTag($this->_activityHolderIds, $key, 'civicrm_activity');
+      list($total, $added, $notAdded) = CRM_Core_BAO_EntityTag::addEntitiesToTag($this->_activityHolderIds, $key,
+        'civicrm_activity', FALSE);
 
       $status = array(ts('Activity tagged', array('count' => $added, 'plural' => '%count activities tagged')));
       if ($notAdded) {

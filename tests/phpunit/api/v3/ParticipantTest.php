@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -25,18 +25,15 @@
  +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
 /**
  * Test class for Batch API - civicrm_participant_*
  *
  * @package CiviCRM_APIv3
  */
-require_once 'CRM/Utils/DeprecatedUtils.php';
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * Class api_v3_ParticipantTest
+ * @group headless
  */
 class api_v3_ParticipantTest extends CiviUnitTestCase {
 
@@ -70,6 +67,7 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $this->_participantID2 = $this->participantCreate(array(
         'contact_id' => $this->_contactID2,
         'event_id' => $this->_eventID,
+        'registered_by_id' => $this->_participantID,
       ));
     $this->_participantID3 = $this->participantCreate(array(
         'contact_id' => $this->_contactID2,
@@ -99,6 +97,61 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
   }
 
   /**
+   * Check that getCount can count past 25.
+   */
+  public function testGetCountLimit() {
+    $contactIDs = [];
+
+    for ($count = $this->callAPISuccessGetCount('Participant', []); $count < 27; $count++) {
+      $contactIDs[] = $contactID = $this->individualCreate();
+      $this->participantCreate(['contact_id' => $contactID, 'event_id' => $this->_eventID]);
+    }
+    $this->callAPISuccessGetCount('Participant', [], 27);
+
+    foreach ($contactIDs as $contactID) {
+      $this->callAPISuccess('Contact', 'delete', ['id' => $contactID]);
+    }
+  }
+
+  /**
+   * Test get participants with role_id.
+   */
+  public function testGetParticipantWithRole() {
+    $roleId = array(1, 2, 3);
+    foreach ($roleId as $role) {
+      $this->participantCreate(array(
+        'contact_id' => $this->individualCreate(),
+        'role_id' => $role,
+        'event_id' => $this->_eventID,
+      ));
+    }
+
+    $params = array(
+      'role_id' => 2,
+    );
+    $result = $this->callAPISuccess('participant', 'get', $params);
+    //Assert all the returned participants has a role_id of 2
+    foreach ($result['values'] as $pid => $values) {
+      $this->assertEquals($values['participant_role_id'], 2);
+    }
+
+    $this->participantCreate(array(
+      'id' => $this->_participantID,
+      'role_id' => NULL,
+      'event_id' => $this->_eventID,
+    ));
+
+    $params['role_id'] = array(
+      'IS NULL' => 1,
+    );
+    $result = $this->callAPISuccess('participant', 'get', $params);
+    foreach ($result['values'] as $pid => $values) {
+      $this->assertEquals($values['participant_role_id'], NULL);
+    }
+
+  }
+
+  /**
    * Check with complete array + custom field
    * Note that the test is written on purpose without any
    * variables specific to participant so it can be replicated into other entities
@@ -121,24 +174,6 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $this->customGroupDelete($ids['custom_group_id']);
   }
 
-
-  ///////////////// civicrm_participant_get methods
-
-  /**
-   * Check with wrong params type.
-   */
-  public function testGetWrongParamsType() {
-    $params = 'a string';
-    $result = $this->callAPIFailure('participant', 'get', $params);
-  }
-
-  /**
-   * Test civicrm_participant_get with empty params.
-   */
-  public function testGetEmptyParams() {
-    $this->callAPISuccess('participant', 'get', array());
-  }
-
   /**
    * Check with participant_id.
    */
@@ -154,9 +189,9 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     );
     $result = $this->callAPISuccess('participant', 'get', $params);
     $this->assertAPISuccess($result, " in line " . __LINE__);
-    $this->assertEquals($result['values'][$this->_participantID]['event_id'], $this->_eventID, "in line " . __LINE__);
-    $this->assertEquals($result['values'][$this->_participantID]['participant_register_date'], '2007-02-19 00:00:00', "in line " . __LINE__);
-    $this->assertEquals($result['values'][$this->_participantID]['participant_source'], 'Wimbeldon', "in line " . __LINE__);
+    $this->assertEquals($result['values'][$this->_participantID]['event_id'], $this->_eventID);
+    $this->assertEquals($result['values'][$this->_participantID]['participant_register_date'], '2007-02-19 00:00:00');
+    $this->assertEquals($result['values'][$this->_participantID]['participant_source'], 'Wimbeldon');
     $params = array(
       'id' => $this->_participantID,
       'return' => 'id,participant_register_date,event_id',
@@ -167,6 +202,30 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $this->assertEquals($result['values'][$this->_participantID]['participant_register_date'], '2007-02-19 00:00:00');
 
   }
+
+  /**
+   * Test permission for participant get.
+   */
+  public function testGetParticipantWithPermission() {
+    $config = CRM_Core_Config::singleton();
+    $config->userPermissionClass->permissions = array();
+    $params = array(
+      'event_id' => $this->_eventID,
+      'check_permissions' => TRUE,
+      'return' => array(
+        'participant_id',
+        'event_id',
+        'participant_register_date',
+        'participant_source',
+      ),
+    );
+    $this->callAPIFailure('participant', 'get', $params);
+
+    $params['check_permissions'] = FALSE;
+    $result = $this->callAPISuccess('participant', 'get', $params);
+    $this->assertEquals($result['is_error'], 0);
+  }
+
 
   /**
    * Check with params id.
@@ -229,21 +288,11 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     );
     $participant = $this->callAPISuccess('participant', 'get', $params);
 
-    $this->assertEquals($this->_participantID, $participant['id'],
-      "In line " . __LINE__
-    );
-    $this->assertEquals($this->_eventID, $participant['values'][$participant['id']]['event_id'],
-      "In line " . __LINE__
-    );
-    $this->assertEquals('2007-02-19 00:00:00', $participant['values'][$participant['id']]['participant_register_date'],
-      "In line " . __LINE__
-    );
-    $this->assertEquals('Wimbeldon', $participant['values'][$participant['id']]['participant_source'],
-      "In line " . __LINE__
-    );
-    $this->assertEquals($participant['id'], $participant['values'][$participant['id']]['id'],
-      "In line " . __LINE__
-    );
+    $this->assertEquals($this->_participantID, $participant['id']);
+    $this->assertEquals($this->_eventID, $participant['values'][$participant['id']]['event_id']);
+    $this->assertEquals('2007-02-19 00:00:00', $participant['values'][$participant['id']]['participant_register_date']);
+    $this->assertEquals('Wimbeldon', $participant['values'][$participant['id']]['participant_source']);
+    $this->assertEquals($participant['id'], $participant['values'][$participant['id']]['id']);
   }
 
   /**
@@ -344,6 +393,19 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $this->assertEquals($participant['count'], 2);
   }
 
+  /**
+   * Test search by lead booker (registered by ID)
+   */
+  public function testSearchByRegisteredById() {
+    $params = array(
+      'registered_by_id' => $this->_participantID,
+    );
+    $participant = $this->callAPISuccess('participant', 'get', $params);
+
+    $this->assertEquals($participant['count'], 1);
+    $this->assertEquals($participant['id'], $this->_participantID2);
+  }
+
   ///////////////// civicrm_participant_create methods
 
   /**
@@ -358,10 +420,7 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
    * Check with event_id.
    */
   public function testCreateMissingContactID() {
-    $params = array(
-      'event_id' => $this->_eventID,
-    );
-    $participant = $this->callAPIFailure('participant', 'create', $params);
+    $this->callAPIFailure('participant', 'create', ['event_id' => $this->_eventID]);
   }
 
   /**
@@ -369,10 +428,7 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
    * without event_id
    */
   public function testCreateMissingEventID() {
-    $params = array(
-      'contact_id' => $this->_contactID,
-    );
-    $participant = $this->callAPIFailure('participant', 'create', $params);
+    $this->callAPIFailure('participant', 'create', ['contact_id' => $this->_contactID]);
   }
 
   /**
@@ -391,12 +447,22 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
    * Check with complete array.
    */
   public function testCreateAllParams() {
-    $params = $this->_params;
-
-    $participant = $this->callAPISuccess('participant', 'create', $params);
+    $participant = $this->callAPISuccess('participant', 'create', $this->_params);
     $this->_participantID = $participant['id'];
-    // assertDBState compares expected values in $match to actual values in the DB
-    $this->assertDBState('CRM_Event_DAO_Participant', $participant['id'], $params);
+    $this->assertDBState('CRM_Event_DAO_Participant', $participant['id'], $this->_params);
+  }
+
+  /**
+   * Test that an overlong source is handled.
+   */
+  public function testLongSource() {
+    $params = array_merge($this->_params, [
+      'source' => 'a string that is even longer than the 128 character limit that is allowed for this field because sometimes you want, you know, an essay',
+    ]);
+    $baoCreated = CRM_Event_BAO_Participant::create($params);
+    $this->assertEquals('a string that is even longer than the 128 character limit that is allowed for this field because sometimes you want, you know...', $baoCreated->source);
+    // @todo - currently the api will still reject the long string.
+    //$this->callAPISuccess('participant', 'create', $params);
   }
 
   /**
@@ -693,9 +759,9 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $participants = $this->callAPISuccess('Participant', 'Get', array());
     $this->assertEquals($participants['count'], 3);
     $params = array('contact_id' => $this->_contactID2, 'api.participant.delete' => 1);
-    $participants = $this->callAPIAndDocument('Participant', 'Get', $params, __FUNCTION__, __FILE__, $description, $subfile);
+    $this->callAPIAndDocument('Participant', 'Get', $params, __FUNCTION__, __FILE__, $description, $subfile);
     $check = $this->callAPISuccess('participant', 'getcount', array());
-    $this->assertEquals(1, $check, "only one participant should be left. line " . __LINE__);
+    $this->assertEquals(1, $check, "only one participant should be left");
   }
 
   /**
@@ -728,6 +794,37 @@ class api_v3_ParticipantTest extends CiviUnitTestCase {
     $result = $this->callAPIAndDocument('contact', 'create', $params, __FUNCTION__, __FILE__, $description, $subfile);
     $this->assertEquals(1, $result['values'][$result['id']]['api.participant_payment.create']['count']);
     $this->callAPISuccess('contact', 'delete', array('id' => $result['id']));
+  }
+
+  /**
+   * Test participant invoke post hook after status update.
+   */
+  public function testPostHookForAdditionalParticipant() {
+    $participantID = $this->participantCreate(array(
+      'contact_id' => $this->_contactID,
+      'status_id' => 5,
+      'event_id' => $this->_eventID,
+    ));
+    $participantID2 = $this->participantCreate(array(
+      'contact_id' => $this->_contactID2,
+      'event_id' => $this->_eventID,
+      'status_id' => 5,
+      'registered_by_id' => $participantID,
+    ));
+
+    $this->hookClass->setHook('civicrm_post', array($this, 'onPost'));
+    $params = array(
+      'id' => $participantID,
+      'status_id' => 1,
+    );
+    $this->callAPISuccess('Participant', 'create', $params);
+
+    $result = $this->callAPISuccess('Participant', 'get', array('source' => 'Post Hook Update'));
+    $this->assertEquals(2, $result['count']);
+
+    $expected = array($participantID, $participantID2);
+    $actual = array_keys($result['values']);
+    $this->checkArrayEquals($expected, $actual);
   }
 
 }

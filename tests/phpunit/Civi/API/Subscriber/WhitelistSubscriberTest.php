@@ -3,10 +3,7 @@ namespace Civi\API\Subscriber;
 
 use Civi\API\Kernel;
 use Civi\API\WhitelistRule;
-use Civi\Core\Container;
 use Symfony\Component\EventDispatcher\EventDispatcher;
-
-require_once 'CiviTest/CiviUnitTestCase.php';
 
 /**
  * The WhitelistSubscriber enforces security policies
@@ -159,6 +156,7 @@ class WhitelistSubscriberTest extends \CiviUnitTestCase {
           'id' => 2,
           'title' => 'second widget',
           'api.Sprocket.get' => array(
+            'is_error' => 0,
             'count' => 2,
             'version' => 3,
             'values' => array(

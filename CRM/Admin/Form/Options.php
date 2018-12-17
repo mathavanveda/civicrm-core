@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,7 +28,7 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 
 /**
@@ -49,6 +49,12 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
    * @var array
    */
   protected $_gLabel;
+
+  /**
+   * Is this Option Group Domain Specific
+   * @var bool
+   */
+  protected $_domainSpecific = FALSE;
 
   /**
    * Pre-process
@@ -74,6 +80,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       'name'
     );
     $this->_gLabel = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_OptionGroup', $this->_gid, 'title');
+    $this->_domainSpecific = in_array($this->_gName, CRM_Core_OptionGroup::$_domainIDGroups);
     $url = "civicrm/admin/options/{$this->_gName}";
     $params = "reset=1";
 
@@ -122,7 +129,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       }
     }
 
-    //setDefault of contact types for email greeting, postal greeting, addressee, CRM-4575
+    // setDefault of contact types for email greeting, postal greeting, addressee, CRM-4575
     if (in_array($this->_gName, array(
       'email_greeting',
       'postal_greeting',
@@ -132,7 +139,10 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
     }
     // CRM-11516
     if ($this->_gName == 'payment_instrument' && $this->_id) {
-      $defaults['financial_account_id'] = CRM_Financial_BAO_FinancialTypeAccount::getFinancialAccount($this->_id, 'civicrm_option_value', 'financial_account_id');
+      $defaults['financial_account_id'] = CRM_Contribute_PseudoConstant::getRelationalFinancialAccount($this->_id, NULL, 'civicrm_option_value');
+    }
+    if (empty($this->_id) || !CRM_Core_DAO::getFieldValue('CRM_Core_DAO_OptionValue', $this->_id, 'color')) {
+      $defaults['color'] = '#ffffff';
     }
     return $defaults;
   }
@@ -169,6 +179,18 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
         CRM_Core_DAO::getAttribute('CRM_Core_DAO_OptionValue', 'value'),
         TRUE
       );
+      $this->addRule('value',
+        ts('This Value already exists in the database for this option group. Please select a different Value.'),
+        'optionExists',
+        array('CRM_Core_DAO_OptionValue', $this->_id, $this->_gid, 'value', $this->_domainSpecific)
+      );
+    }
+    else {
+      $this->add('text', 'icon', ts('Icon'), array('class' => 'crm-icon-picker', 'title' => ts('Choose Icon'), 'allowClear' => TRUE));
+    }
+
+    if (in_array($this->_gName, array('activity_status', 'case_status'))) {
+      $this->add('color', 'color', ts('Color'));
     }
 
     if (!in_array($this->_gName, array(
@@ -178,9 +200,9 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       )) && !$isReserved
     ) {
       $this->addRule('label',
-        ts('This Label already exists in the database for this option group. Please select a different Value.'),
+        ts('This Label already exists in the database for this option group. Please select a different Label.'),
         'optionExists',
-        array('CRM_Core_DAO_OptionValue', $this->_id, $this->_gid, 'label')
+        array('CRM_Core_DAO_OptionValue', $this->_id, $this->_gid, 'label', $this->_domainSpecific)
       );
     }
 
@@ -210,17 +232,22 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       );
     }
 
-    $required = FALSE;
-    if ($this->_gName == 'custom_search') {
-      $required = TRUE;
+    if ($this->_gName == 'activity_status') {
+      $this->add('select',
+        'filter',
+        ts('Status Type'),
+        array(
+          CRM_Activity_BAO_Activity::INCOMPLETE => ts('Incomplete'),
+          CRM_Activity_BAO_Activity::COMPLETED => ts('Completed'),
+          CRM_Activity_BAO_Activity::CANCELLED => ts('Cancelled'),
+        )
+      );
     }
-    elseif ($this->_gName == 'redaction_rule' || $this->_gName == 'engagement_index') {
-      if ($this->_gName == 'redaction_rule') {
-        $this->add('checkbox',
-          'filter',
-          ts('Regular Expression?')
-        );
-      }
+    if ($this->_gName == 'redaction_rule') {
+      $this->add('checkbox',
+        'filter',
+        ts('Regular Expression?')
+      );
     }
     if ($this->_gName == 'participant_listing') {
       $this->add('text',
@@ -234,7 +261,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       $this->add('wysiwyg', 'description',
         ts('Description'),
         array('rows' => 4, 'cols' => 80),
-        $required
+        $this->_gName == 'custom_search'
       );
     }
 
@@ -275,7 +302,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       $enabled->freeze();
     }
 
-    //fix for CRM-3552, CRM-4575
+    // fix for CRM-3552, CRM-4575
     $showIsDefaultGroups = array(
       'email_greeting',
       'postal_greeting',
@@ -295,7 +322,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       $this->add('checkbox', 'is_default', ts('Default Option?'));
     }
 
-    //get contact type for which user want to create a new greeting/addressee type, CRM-4575
+    // get contact type for which user want to create a new greeting/addressee type, CRM-4575
     if (in_array($this->_gName, array(
         'email_greeting',
         'postal_greeting',
@@ -314,7 +341,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
 
     if ($this->_gName == 'participant_status') {
       // For Participant Status options, expose the 'filter' field to track which statuses are "Counted", and the Visibility field
-      $element = $this->add('checkbox', 'filter', ts('Counted?'));
+      $this->add('checkbox', 'filter', ts('Counted?'));
       $this->add('select', 'visibility_id', ts('Visibility'), CRM_Core_PseudoConstant::visibility());
     }
     if ($this->_gName == 'participant_role') {
@@ -337,6 +364,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
    *
    * @return array
    *   array of errors / empty array.
+   * @throws \CRM_Core_Exception
    */
   public static function formRule($fields, $files, $self) {
     $errors = array();
@@ -376,7 +404,30 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       }
     }
 
+    $dataType = self::getOptionGroupDataType($self->_gName);
+    if ($dataType && $self->_gName !== 'activity_type') {
+      $validate = CRM_Utils_Type::validate($fields['value'], $dataType, FALSE);
+      if ($validate === FALSE) {
+        CRM_Core_Session::setStatus(
+          ts('Data Type of the value field for this option value does not match ' . $dataType),
+          ts('Value field Data Type mismatch'));
+      }
+    }
     return $errors;
+  }
+
+  /**
+   * Get the DataType for a specified Option Group.
+   *
+   * @param string $optionGroupName name of the option group
+   *
+   * @return string|null
+   */
+  public static function getOptionGroupDataType($optionGroupName) {
+    $optionGroupId = CRM_Core_DAO::getFieldValue('CRM_Core_DAO_OptionGroup', $optionGroupName, 'id', 'name');
+
+    $dataType = CRM_Core_BAO_OptionGroup::getDataType($optionGroupId);
+    return $dataType;
   }
 
   /**
@@ -385,7 +436,7 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
   public function postProcess() {
     if ($this->_action & CRM_Core_Action::DELETE) {
       $fieldValues = array('option_group_id' => $this->_gid);
-      $wt = CRM_Utils_Weight::delWeight('CRM_Core_DAO_OptionValue', $this->_id, $fieldValues);
+      CRM_Utils_Weight::delWeight('CRM_Core_DAO_OptionValue', $this->_id, $fieldValues);
 
       if (CRM_Core_BAO_OptionValue::del($this->_id)) {
         if ($this->_gName == 'phone_type') {
@@ -400,7 +451,6 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
       }
     }
     else {
-      $params = $ids = array();
       $params = $this->exportValues();
 
       // allow multiple defaults within group.
@@ -414,9 +464,9 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
           $params['reset_default_for'] = array('filter' => "0, " . $params['filter']);
         }
 
-        //make sure we should has to have space, CRM-6977
+        //make sure we only have a single space, CRM-6977 and dev/mail/15
         if ($this->_gName == 'from_email_address') {
-          $params['label'] = str_replace('"<', '" <', $params['label']);
+          $params['label'] = $this->sanitizeFromEmailAddress($params['label']);
         }
       }
 
@@ -430,26 +480,24 @@ class CRM_Admin_Form_Options extends CRM_Admin_Form {
         }
       }
 
-      $groupParams = array('name' => ($this->_gName));
-      $optionValue = CRM_Core_OptionValue::addOptionValue($params, $groupParams, $this->_action, $this->_id);
-
-      // CRM-11516
-      if (!empty($params['financial_account_id'])) {
-        $relationTypeId = key(CRM_Core_PseudoConstant::accountOptionValues('account_relationship', NULL, " AND v.name LIKE 'Asset Account is' "));
-        $params = array(
-          'entity_table' => 'civicrm_option_value',
-          'entity_id' => $optionValue->id,
-          'account_relationship' => $relationTypeId,
-          'financial_account_id' => $params['financial_account_id'],
-        );
-        CRM_Financial_BAO_FinancialTypeAccount::add($params);
+      if (isset($params['color']) && strtolower($params['color']) == '#ffffff') {
+        $params['color'] = 'null';
       }
+
+      $optionValue = CRM_Core_OptionValue::addOptionValue($params, $this->_gName, $this->_action, $this->_id);
 
       CRM_Core_Session::setStatus(ts('The %1 \'%2\' has been saved.', array(
             1 => $this->_gLabel,
             2 => $optionValue->label,
           )), ts('Saved'), 'success');
+
+      $this->ajaxResponse['optionValue'] = $optionValue->toArray();
     }
+  }
+
+  public function sanitizeFromEmailAddress($email) {
+    preg_match("/^\"(.*)\" *<([^@>]*@[^@>]*)>$/", $email, $parts);
+    return "\"{$parts[1]}\" <$parts[2]>";
   }
 
 }

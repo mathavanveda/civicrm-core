@@ -1,9 +1,9 @@
 <?php
 /**
  * +--------------------------------------------------------------------+
- * | CiviCRM version 4.7                                                |
+ * | CiviCRM version 5                                                  |
  * +--------------------------------------------------------------------+
- * | Copyright CiviCRM LLC (c) 2004-2015                                |
+ * | Copyright CiviCRM LLC (c) 2004-2019                                |
  * +--------------------------------------------------------------------+
  * | This file is a part of CiviCRM.                                    |
  * |                                                                    |
@@ -25,14 +25,12 @@
  * +--------------------------------------------------------------------+
  */
 
-require_once 'CiviTest/CiviUnitTestCase.php';
-
-
 /**
  *  Test APIv3 civicrm_participant_* functions
  *
  * @package CiviCRM_APIv3
  * @subpackage API_Event
+ * @group headless
  */
 class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
 
@@ -44,6 +42,9 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
   protected $_participantPaymentID;
   protected $_financialTypeId;
 
+  /**
+   * Set up for tests.
+   */
   public function setUp() {
     parent::setUp();
     $this->useTransaction(TRUE);
@@ -120,6 +121,27 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
 
     //delete created contribution
     $this->contributionDelete($contributionID);
+  }
+
+  /**
+   * Test getPaymentInfo() returns correct
+   * information of the participant payment
+   */
+  public function testPaymentInfoForEvent() {
+    //Create Contribution & get contribution ID
+    $contributionID = $this->contributionCreate(array('contact_id' => $this->_contactID));
+
+    //Create Participant Payment record With Values
+    $params = array(
+      'participant_id' => $this->_participantID4,
+      'contribution_id' => $contributionID,
+    );
+    $this->callAPISuccess('participant_payment', 'create', $params);
+
+    //Check if participant payment is correctly retrieved.
+    $paymentInfo = CRM_Contribute_BAO_Contribution::getPaymentInfo($this->_participantID4, 'event');
+    $this->assertEquals('Completed', $paymentInfo['contribution_status']);
+    $this->assertEquals('100.00', $paymentInfo['total']);
   }
 
 
@@ -199,15 +221,15 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
    */
   public function testPaymentOnline() {
 
-    $paymentProcessor = $this->processorCreate();
-    $pageParams['processor_id'] = $paymentProcessor->id;
+    $pageParams['processor_id'] = $this->processorCreate();
     $contributionPage = $this->contributionPageCreate($pageParams);
     $contributionParams = array(
       'contact_id' => $this->_contactID,
       'contribution_page_id' => $contributionPage['id'],
-      'payment_processor' => $paymentProcessor->id,
+      'payment_processor' => $pageParams['processor_id'],
+      'financial_type_id' => 1,
     );
-    $contributionID = $this->onlineContributionCreate($contributionParams, 1);
+    $contributionID = $this->contributionCreate($contributionParams);
 
     $this->_participantPaymentID = $this->participantPaymentCreate($this->_participantID, $contributionID);
     $params = array(
@@ -225,16 +247,14 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
     $params = array(
       'id' => $this->_participantPaymentID,
     );
-    $deletePayment = $this->callAPISuccess('participant_payment', 'delete', $params);
+    $this->callAPISuccess('participant_payment', 'delete', $params);
   }
 
   /**
    * Check financial records for online Participant pay later scenario.
    */
   public function testPaymentPayLaterOnline() {
-
-    $paymentProcessor = $this->processorCreate();
-    $pageParams['processor_id'] = $paymentProcessor->id;
+    $pageParams['processor_id'] = $this->processorCreate();
     $pageParams['is_pay_later'] = 1;
     $contributionPage = $this->contributionPageCreate($pageParams);
     $contributionParams = array(
@@ -242,8 +262,9 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
       'contribution_page_id' => $contributionPage['id'],
       'contribution_status_id' => 2,
       'is_pay_later' => 1,
+      'financial_type_id' => 1,
     );
-    $contributionID = $this->onlineContributionCreate($contributionParams, 1);
+    $contributionID = $this->contributionCreate($contributionParams);
 
     $this->_participantPaymentID = $this->participantPaymentCreate($this->_participantID, $contributionID);
     $params = array(
@@ -261,7 +282,7 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
     $params = array(
       'id' => $this->_participantPaymentID,
     );
-    $deletePayment = $this->callAPISuccess('participant_payment', 'delete', $params);
+    $this->callAPISuccess('participant_payment', 'delete', $params);
   }
 
 
@@ -391,6 +412,28 @@ class api_v3_ParticipantPaymentTest extends CiviUnitTestCase {
       );
     }
     $this->assertDBCompareValues('CRM_Financial_DAO_FinancialItem', $fitemParams, $compareParams);
+  }
+
+  /**
+   * test getParticipantIds() function
+   */
+  public function testGetParticipantIds() {
+    $contributionID = $this->contributionCreate(array('contact_id' => $this->_contactID));
+    $expectedParticipants = array($this->_participantID, $this->_participantID2);
+
+    //Create Participant Payment record With Values
+    foreach ($expectedParticipants as $pid) {
+      $params = array(
+        'participant_id' => $pid,
+        'contribution_id' => $contributionID,
+      );
+      $this->callAPISuccess('participant_payment', 'create', $params);
+    }
+    //Check if all participants are listed.
+    $participants = CRM_Event_BAO_Participant::getParticipantIds($contributionID);
+    $this->checkArrayEquals($expectedParticipants, $participants);
+    //delete created contribution
+    $this->contributionDelete($contributionID);
   }
 
 }

@@ -1,13 +1,19 @@
-.crmCaseType .ui-icon-grip-dotted-vertical {
+.crmCaseType .grip-n-drag {
     vertical-align: middle;
     cursor: move;
 }
-.crmCaseType .ui-icon {
-    margin: 0.4em 0.2em 0 0;
+
+.crmCaseType .fa-pencil {
+    margin: 0.2em 0.2em 0 0;
     cursor: pointer;
 }
 
-.crmCaseType .ui-tabs-nav li .ui-icon {
+.crmCaseType .fa-trash {
+    margin: 0.56em 0.2em 0 0;
+    cursor: pointer;
+}
+
+.crmCaseType .ui-tabs-nav li .crm-i {
     float: left;
 }
 

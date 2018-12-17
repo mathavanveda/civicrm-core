@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -31,9 +31,7 @@
  * abstract class.
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
- * $Id$
- *
+ * @copyright CiviCRM LLC (c) 2004-2019
  */
 class CRM_Pledge_Info extends CRM_Core_Component_Info {
 
@@ -111,9 +109,6 @@ class CRM_Pledge_Info extends CRM_Core_Component_Info {
    *   collection of required dashboard settings,
    *                    null if no element offered
    */
-  /**
-   * @return array|null
-   */
   public function getUserDashboardElement() {
     return array(
       'name' => ts('Pledges'),
@@ -133,9 +128,6 @@ class CRM_Pledge_Info extends CRM_Core_Component_Info {
    *   collection of required dashboard settings,
    *                    null if no element offered
    */
-  /**
-   * @return array|null
-   */
   public function registerTab() {
     return array(
       'title' => ts('Pledges'),
@@ -146,15 +138,20 @@ class CRM_Pledge_Info extends CRM_Core_Component_Info {
 
   /**
    * @inheritDoc
+   * @return string
+   */
+  public function getIcon() {
+    return 'crm-i fa-paper-plane';
+  }
+
+  /**
+   * @inheritDoc
    * Provides information about advanced search pane
    * offered by this component.
    *
    * @return array|null
    *   collection of required pane settings,
    *                    null if no element offered
-   */
-  /**
-   * @return array|null
    */
   public function registerAdvancedSearchPane() {
     return array(
@@ -172,9 +169,6 @@ class CRM_Pledge_Info extends CRM_Core_Component_Info {
    *
    * @return array|null
    *   collection of activity types
-   */
-  /**
-   * @return array|null
    */
   public function getActivityTypes() {
     return NULL;

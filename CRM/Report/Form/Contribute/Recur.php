@@ -1,9 +1,9 @@
 <?php
 /*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -28,11 +28,24 @@
 /**
  *
  * @package CRM
- * @copyright CiviCRM LLC (c) 2004-2015
+ * @copyright CiviCRM LLC (c) 2004-2019
  * $Id$
  *
  */
 class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
+
+  /**
+   * This report has not been optimised for group filtering.
+   *
+   * The functionality for group filtering has been improved but not
+   * all reports have been adjusted to take care of it. This report has not
+   * and will run an inefficient query until fixed.
+   *
+   * CRM-19170
+   *
+   * @var bool
+   */
+  protected $groupFilterNotOptimised = TRUE;
 
   /**
    * Class constructor.
@@ -90,6 +103,24 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
             'statistics' => array(
               'sum' => ts("Total Amount Contributed"),
             ),
+          ),
+        ),
+      ),
+      'civicrm_financial_trxn' => array(
+        'dao' => 'CRM_Financial_DAO_FinancialTrxn',
+        'fields' => array(
+          'card_type_id' => array(
+            'title' => ts('Credit Card Type'),
+            'dbAlias' => 'GROUP_CONCAT(financial_trxn_civireport.card_type_id SEPARATOR ",")',
+          ),
+        ),
+        'filters' => array(
+          'card_type_id' => array(
+            'title' => ts('Credit Card Type'),
+            'operatorType' => CRM_Report_Form::OP_MULTISELECT,
+            'options' => CRM_Financial_DAO_FinancialTrxn::buildOptions('card_type_id'),
+            'default' => NULL,
+            'type' => CRM_Utils_Type::T_STRING,
           ),
         ),
       ),
@@ -158,7 +189,7 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
             'type' => CRM_Utils_Type::T_INT,
           ),
           'currency' => array(
-            'title' => 'Currency',
+            'title' => ts('Currency'),
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_OptionGroup::values('currencies_enabled'),
             'default' => NULL,
@@ -167,14 +198,14 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
           'financial_type_id' => array(
             'title' => ts('Financial Type'),
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
-            'options' => CRM_Contribute_PseudoConstant::financialType(),
+            'options' => CRM_Financial_BAO_FinancialType::getAvailableFinancialTypes(),
             'type' => CRM_Utils_Type::T_INT,
           ),
           'frequency_unit' => array(
             'title' => ts('Frequency Unit'),
             'operatorType' => CRM_Report_Form::OP_MULTISELECT,
             'options' => CRM_Core_OptionGroup::values('recur_frequency_units'),
-            'type' => CRM_Utils_Type::T_INT,
+            'type' => CRM_Utils_Type::T_STRING,
           ),
           'frequency_interval' => array(
             'title' => ts('Frequency Interval'),
@@ -242,18 +273,16 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
     $this->_from .= "
       LEFT JOIN civicrm_contribution  {$this->_aliases['civicrm_contribution']}
         ON {$this->_aliases['civicrm_contribution_recur']}.id = {$this->_aliases['civicrm_contribution']}.contribution_recur_id";
-    $this->_from .= "
-      LEFT JOIN civicrm_email  {$this->_aliases['civicrm_email']}
-        ON ({$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_email']}.contact_id AND
-        {$this->_aliases['civicrm_email']}.is_primary = 1)";
-    $this->_from .= "
-      LEFT  JOIN civicrm_phone {$this->_aliases['civicrm_phone']}
-        ON ({$this->_aliases['civicrm_contact']}.id = {$this->_aliases['civicrm_phone']}.contact_id AND
-        {$this->_aliases['civicrm_phone']}.is_primary = 1)";
+
+    $this->joinPhoneFromContact();
+    $this->joinEmailFromContact();
+
+    // for credit card type
+    $this->addFinancialTrxnFromClause();
   }
 
   public function groupBy() {
-    $this->_groupBy = "GROUP BY " . $this->_aliases['civicrm_contribution_recur'] . ".id";
+    $this->_groupBy = CRM_Contact_BAO_Query::getGroupByFromSelectColumns($this->_selectClauses, "{$this->_aliases['civicrm_contribution_recur']}.id");
   }
 
   public function where() {
@@ -264,7 +293,7 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
     // installments * intervals using the mysql date_add function, along
     // with the interval unit (e.g. DATE_ADD(start_date, INTERVAL 12 * 1 MONTH)
     $date_suffixes = array('relative', 'from', 'to');
-    while (list(, $suffix) = each($date_suffixes)) {
+    foreach ($date_suffixes as $suffix) {
       $isBreak = FALSE;
       // Check to see if the user wants to search by calculated date.
       if (!empty($this->_params['calculated_end_date_' . $suffix])) {
@@ -356,6 +385,10 @@ class CRM_Report_Form_Contribute_Recur extends CRM_Report_Form {
 
       if ($value = CRM_Utils_Array::value('civicrm_contribution_recur_amount', $row)) {
         $rows[$rowNum]['civicrm_contribution_recur_amount'] = CRM_Utils_Money::format($rows[$rowNum]['civicrm_contribution_recur_amount'], $rows[$rowNum]['civicrm_contribution_recur_currency']);
+      }
+
+      if (!empty($row['civicrm_financial_trxn_card_type_id'])) {
+        $rows[$rowNum]['civicrm_financial_trxn_card_type_id'] = $this->getLabels($row['civicrm_financial_trxn_card_type_id'], 'CRM_Financial_DAO_FinancialTrxn', 'card_type_id');
       }
     }
   }

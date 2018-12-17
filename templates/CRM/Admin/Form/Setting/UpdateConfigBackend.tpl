@@ -1,8 +1,8 @@
 {*
  +--------------------------------------------------------------------+
- | CiviCRM version 4.7                                                |
+ | CiviCRM version 5                                                  |
  +--------------------------------------------------------------------+
- | Copyright CiviCRM LLC (c) 2004-2015                                |
+ | Copyright CiviCRM LLC (c) 2004-2019                                |
  +--------------------------------------------------------------------+
  | This file is a part of CiviCRM.                                    |
  |                                                                    |
@@ -23,8 +23,7 @@
  | see the CiviCRM license FAQ at http://civicrm.org/licensing        |
  +--------------------------------------------------------------------+
 *}
-<div class="crm-block crm-form-block crm-config-backend-form-block">
-<div id="help">
+<div class="help">
     <p>
     {ts}When migrating a site to a new server, the paths and URLs of your CiviCRM installation may change. {/ts}
     </p>
@@ -34,13 +33,14 @@
     {ts 1=$pathsURL 2=$urlsURL}The old paths and URLs may be retained in some database records. Use this form to clear caches or to reset paths to their defaults. If you need further customizations, then update the <a href="%1">Directories</a> and <a href="%2">Resource URLs</a>.{/ts}
     </p>
 </div>
-        <div>
-          <span class="crm-button crm-icon-button">
-            <span class="crm-button-icon ui-icon-trash"> </span>
+<div class="crm-block crm-form-block crm-config-backend-form-block">
+        <div class="crm-submit-buttons">
+          <span class="crm-button crm-i-button">
+            <i class="crm-i fa-undo"></i>
             {$form._qf_UpdateConfigBackend_next_cleanup.html}
           </span>
-          <span class="crm-button crm-icon-button">
-            <span class="crm-button-icon ui-icon-trash"> </span>
+          <span class="crm-button crm-i-button">
+            <i class="crm-i fa-terminal"></i>
             {$form._qf_UpdateConfigBackend_next_resetpaths.html}
           </span>
         </div>
